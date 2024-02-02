@@ -1,3 +1,4 @@
+use crate::Vec;
 #[derive(Debug, Clone, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(
     feature = "std",
