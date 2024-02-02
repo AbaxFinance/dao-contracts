@@ -6,10 +6,11 @@ pub use errors::*;
 pub use events::*;
 pub use structs::*;
 
-use pendzl::traits::String;
+pub use pendzl::traits::String;
 
-use ink::prelude::vec::Vec;
-use ink::primitives::Hash;
+pub use ink::prelude::string::ToString;
+pub use ink::prelude::vec::Vec;
+pub use ink::primitives::Hash;
 
 include!("govern.trait.rs");
 include!("govern_manage.trait.rs");

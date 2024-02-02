@@ -1,8 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, scale::Encode, scale::Decode, Default)]
-#[cfg_attr(
-    feature = "std",
-    derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
-)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
 
 pub struct VotingRules {
     /// minimal part of proposer stake in total stake to propose.

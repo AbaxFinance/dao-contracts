@@ -1,0 +1,50 @@
+.cache
+.cache/**/*.*
+.vscode
+.idea
+ev
+test-chain-state
+test-chain-state-bp
+test-chain-state-tmp
+test-chain-timestamp
+
+*.testrun*.log
+dist
+
+# Ignore build artifacts from the local tests sub-crate.
+target
+artifacts
+
+# Ignore backup files creates by cargo fmt.
+**/*.rs.bk
+
+
+# Dependency directory
+node_modules
+
+.yarn/*
+.yarn/install-state.gz
+yarn/install-state.gz
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+package-lock.json
+
+# macOS
+.DS_Store
+
+yarn.lock
+.cargo/config.toml
+
+
+#typechain
+/typechain
+
+*deployedContracts.json
+*deployedContracts.*.*.json
+
+build.log
+build.log.html

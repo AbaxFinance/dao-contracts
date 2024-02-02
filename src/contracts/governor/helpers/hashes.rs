@@ -1,3 +1,5 @@
+use crate::traits::Vec;
+use crate::String;
 use ink::{
     env::hash::{HashOutput, Sha2x256},
     primitives::Hash,
