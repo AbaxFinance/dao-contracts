@@ -16,7 +16,7 @@ import VesterConstructor from 'typechain/constructors/vester';
 
 import { getContractObject } from '@abaxfinance/contract-helpers';
 import { ABAX_DECIMALS } from 'tests/consts';
-import { apiProviderWrapper, getSigners, getSignersWithoutOwner } from './helpers';
+import { getSigners, getSignersWithoutOwner } from './helpers';
 import { saveContractInfoToFileAsJson } from './nodePersistence';
 
 const getCodePromise = (api: ApiPromise, contractName: string): CodePromise => {
@@ -26,14 +26,19 @@ const getCodePromise = (api: ApiPromise, contractName: string): CodePromise => {
   return new CodePromise(api, abi, wasm);
 };
 
-export const setupContract = async (signer: KeyringPair, contractName: string, constructorName: string, ...constructorArgs: any[]) => {
+export const setupContract = async (
+  api: ApiPromise,
+  signer: KeyringPair,
+  contractName: string,
+  constructorName: string,
+  ...constructorArgs: any[]
+) => {
   // maximum gas to be consumed for the instantiation. if limit is too small the instantiation will fail.\
   // eslint-disable-next-line no-magic-numbers
   const MAX_CALL_WEIGHT = new BN(5_000_000_000).isubn(1);
   // eslint-disable-next-line no-magic-numbers
   const PROOFSIZE = new BN(3_000_000);
 
-  const api = await apiProviderWrapper.getAndWaitForReady();
   const codePromise = getCodePromise(api, contractName);
   const gasLimit = api?.registry.createType('WeightV2', {
     refTime: MAX_CALL_WEIGHT,
@@ -89,39 +94,37 @@ export const setupContract = async (signer: KeyringPair, contractName: string, c
 };
 
 export const deployWithLog = async <T>(
+  api: ApiPromise,
   signer: KeyringPair,
   constructor: new (address: string, contractSigner: KeyringPair, nativeAPI: ApiPromise) => T,
   contractName: string,
   ...deployArgs
 ) => {
-  const ret = await setupContract(signer, contractName, 'new', ...deployArgs);
+  const ret = await setupContract(api, signer, contractName, 'new', ...deployArgs);
   if (process.env.DEBUG) console.log(`Deployed ${contractName}: ${ret.deployedContract.address.toString()}`);
-  return getContractObjectWrapper<T>(constructor, ret.deployedContract.address.toString(), ret.signer);
+  return getContractObjectWrapper<T>(api, constructor, ret.deployedContract.address.toString(), ret.signer);
 };
 
-export const deployAbaxTge = async (owner: KeyringPair) => {
-  const deployRet = await new AbaxTgeConstructor(await apiProviderWrapper.getAndWaitForReady(), owner).new();
-  return getContractObjectWrapper(AbaxTge, deployRet.address, owner);
+export const deployAbaxTge = async (api: ApiPromise, owner: KeyringPair) => {
+  const deployRet = await new AbaxTgeConstructor(api, owner).new();
+  return getContractObjectWrapper(api, AbaxTge, deployRet.address, owner);
 };
-export const deployVester = async (owner: KeyringPair) => {
-  const deployRet = await new VesterConstructor(await apiProviderWrapper.getAndWaitForReady(), owner).new();
-  return getContractObjectWrapper(Vester, deployRet.address, owner);
+export const deployVester = async (api: ApiPromise, owner: KeyringPair) => {
+  const deployRet = await new VesterConstructor(api, owner).new();
+  return getContractObjectWrapper(api, Vester, deployRet.address, owner);
 };
 
-export const deployEmitableToken = async (owner: KeyringPair, name: string, decimals: number = 6) => {
-  const deployRet = await new PSP22EmitableConstructor(await apiProviderWrapper.getAndWaitForReady(), owner).new(
-    name,
-    `Reserve ${name} token `,
-    decimals,
-  );
-  return getContractObjectWrapper(PSP22Emitable, deployRet.address, owner);
+export const deployEmitableToken = async (api: ApiPromise, owner: KeyringPair, name: string, decimals: number = 6) => {
+  const deployRet = await new PSP22EmitableConstructor(api, owner).new(name, `Reserve ${name} token `, decimals);
+  return getContractObjectWrapper(api, PSP22Emitable, deployRet.address, owner);
 };
 
 const getContractObjectWrapper = async <T>(
-  constructor: new (address: string, signer: KeyringPair, api: ApiPromise) => T,
+  api: ApiPromise,
+  constructor: new (address: string, signer: KeyringPair, apiP: ApiPromise) => T,
   contractAddress: string,
   signerPair: KeyringPair,
-) => getContractObject(constructor, contractAddress, signerPair, await apiProviderWrapper.getAndWaitForReady());
+) => getContractObject(constructor, contractAddress, signerPair, api);
 
 export interface ProductionDeploymentParams {
   owner: KeyringPair;
@@ -135,53 +138,3 @@ export const DEFAULT_TEST_DEPLOYMENT_CONFIG: DeploymentConfig = {
   owner: getSigners()[0],
   users: getSignersWithoutOwner(getSigners(), 0),
 };
-
-export const deployAndConfigureSystem = async (
-  deploymentConfigOverrides: Partial<DeploymentConfig> = DEFAULT_TEST_DEPLOYMENT_CONFIG,
-  saveConfigToFilePath?: string,
-): Promise<TestEnv> => {
-  const config: DeploymentConfig = {
-    ...DEFAULT_TEST_DEPLOYMENT_CONFIG,
-    ...deploymentConfigOverrides,
-  };
-
-  const { owner, users } = config;
-
-  const tge = await deployAbaxTge(owner);
-
-  const abaxToken = await deployEmitableToken(owner, 'ABAX', ABAX_DECIMALS);
-
-  const vester = await deployVester(owner);
-  const testEnv: TestEnv = {
-    users: users,
-    owner,
-    tge,
-    abaxToken,
-    vester,
-  };
-
-  if (saveConfigToFilePath) {
-    await saveConfigToFile(testEnv, saveConfigToFilePath);
-  }
-  return testEnv;
-};
-
-async function saveConfigToFile(testEnv: TestEnv, writePath: string) {
-  await saveContractInfoToFileAsJson(
-    [
-      {
-        name: testEnv.tge.name,
-        address: testEnv.tge.address,
-      },
-      {
-        name: testEnv.abaxToken.name,
-        address: testEnv.abaxToken.address,
-      },
-      {
-        name: testEnv.vester.name,
-        address: testEnv.vester.address,
-      },
-    ],
-    writePath,
-  );
-}

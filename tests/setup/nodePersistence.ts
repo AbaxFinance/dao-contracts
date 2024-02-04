@@ -1,15 +1,11 @@
+import { ApiPromise } from '@polkadot/api';
 import chalk from 'chalk';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, exec, spawn } from 'child_process';
 import findProcess from 'find-process';
 import fs from 'fs-extra';
 import path from 'path';
-import AbaxTge from '../../typechain/contracts/abax_tge';
-import Vester from '../../typechain/contracts/vester';
-import PSP22Emitable from '../../typechain/contracts/psp22_emitable';
-import { apiProviderWrapper, getSigners } from './helpers';
-import { getContractObject } from '@abaxfinance/contract-helpers';
-import { TestEnv } from 'tests/make-suite';
 import { increaseBlockTimestamp, setBlockTimestamp } from 'tests/misc';
+import { getApiProviderWrapper } from './helpers';
 
 export const DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH = `${path.join(__dirname, 'deployedContracts.json')}`;
 
@@ -38,7 +34,7 @@ export async function waitFor(valueGetter: () => any, logMessage = 'Waiting for 
   }
 }
 
-const spawnContractsNode = async (testChainStateLocation: string) => {
+export const spawnContractsNode = async (testChainStateLocation: string, port: number) => {
   if (!process.env.PWD) throw 'could not determine pwd';
   const command = path.join(process.env.PWD, 'substrate-contracts-node');
   const cliArgs = [
@@ -50,7 +46,7 @@ const spawnContractsNode = async (testChainStateLocation: string) => {
     '--max-runtime-instances',
     '256',
     '--rpc-port',
-    '9944',
+    port.toString(),
   ];
   const contractsNodeProcess = spawn(command, cliArgs, { cwd: process.env.PWD, stdio: 'overlapped' });
 
@@ -63,7 +59,7 @@ const spawnContractsNode = async (testChainStateLocation: string) => {
   });
 
   const waitForStartupFinish = new Promise<ChildProcess>((resolve) => {
-    const endOfBootSequenceStr = `Running JSON-RPC server: addr=127.0.0.1:9944`;
+    const endOfBootSequenceStr = `Running JSON-RPC server: addr=127.0.0.1:${port}`;
 
     contractsNodeProcess.stderr?.on('data', (data: string) => {
       logToFile(data);
@@ -78,21 +74,23 @@ const spawnContractsNode = async (testChainStateLocation: string) => {
   return contractsNodeProcess;
 };
 
-export const restartAndRestoreNodeState = async (getOldContractsNodeProcess: () => ChildProcess | undefined) => {
+export const restartAndRestoreNodeState = async (
+  getOldContractsNodeProcess: () => ChildProcess | undefined,
+  backupLocation: string,
+  port: number,
+) => {
   try {
     if (!process.env.PWD) throw 'could not determine pwd';
-    const testChainStateLocation = path.join(process.env.PWD, 'test-chain-state');
-    await apiProviderWrapper.closeApi();
-    await restoreTestChainState(getOldContractsNodeProcess(), testChainStateLocation);
-    const contractsNodeProcess = await spawnContractsNode(testChainStateLocation);
+    await getApiProviderWrapper(port).closeApi();
+    const testChainDbLocation = await restoreTestChainState(getOldContractsNodeProcess(), backupLocation);
+    const contractsNodeProcess = await spawnContractsNode(testChainDbLocation, port);
 
     contractsNodeProcess.stderr?.on('data', (data: string) => {
       logToFile(data);
     });
     contractsNodeProcess.stdout?.on('data', logToFile);
-
-    await apiProviderWrapper.getAndWaitForReady();
-    await restoreTimestamp();
+    const api = await getApiProviderWrapper(port).getAndWaitForReady();
+    await restoreTimestamp(api);
     return () => contractsNodeProcess;
   } catch (e) {
     console.error(e);
@@ -100,69 +98,63 @@ export const restartAndRestoreNodeState = async (getOldContractsNodeProcess: () 
   }
 };
 
-export const readContractsFromFile = async (writePath = DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH): Promise<TestEnv> => {
-  const api = await apiProviderWrapper.getAndWaitForReady();
-  const contracts = JSON.parse(await fs.readFile(writePath, 'utf8')) as StoredContractInfo[];
-
-  const [owner, ...users] = getSigners();
-
-  const abaxTokenContractInfo = contracts.find((c) => c.name === 'psp22_emitable');
-  if (!abaxTokenContractInfo) throw 'AbaxToken ContractInfo not found';
-  const abaxToken = await getContractObject(PSP22Emitable, abaxTokenContractInfo.address!, owner, api);
-
-  const tgeContractInfo = contracts.find((c) => c.name === 'abax_tge');
-  if (!tgeContractInfo) throw 'BalanceViewer ContractInfo not found';
-  const tge = await getContractObject(AbaxTge, tgeContractInfo.address!, owner, api);
-
-  const vesterInfo = contracts.find((c) => c.name === 'vester');
-  if (!vesterInfo) throw 'Vester ContractInfo not found';
-  const vester = await getContractObject(Vester, vesterInfo.address!, owner, api);
-
-  return {
-    users: users,
-    owner,
-    abaxToken,
-    tge,
-    vester,
-  };
-};
-
-async function restoreTestChainState(oldContractsNodeProcess: ChildProcess | undefined, testChainStateLocation: string) {
+async function restoreTestChainState(oldContractsNodeProcess: ChildProcess | undefined, backupLocation: string) {
   try {
     if (!process.env.PWD) throw 'could not determine pwd';
-    const backupLocation = path.join(process.env.PWD, 'test-chain-state-bp');
-    if (oldContractsNodeProcess) {
-      oldContractsNodeProcess.kill();
+    if (oldContractsNodeProcess?.pid) {
+      await killProcessAndWaitForExit(oldContractsNodeProcess.pid);
     }
 
-    const existingProcessesListeningOnPort = await findProcess('port', 9944, { logLevel: 'error' });
-    for (const p of existingProcessesListeningOnPort) {
-      console.log(chalk.yellow(`Killing process `) + chalk.magenta(p.name) + `(${chalk.italic(p.cmd)})` + ` occupying test port\n\n`);
-      process.kill(p.pid);
-      await sleep(50);
-    }
+    const testChainStateLocation = `${backupLocation}-in-use`;
 
     fs.rmSync(testChainStateLocation, { force: true, recursive: true });
     fs.copySync(backupLocation, testChainStateLocation);
+
+    return testChainStateLocation;
   } catch (e) {
     console.log(chalk.yellow(JSON.stringify(e, null, 2)));
     console.log('sleeping for 100ms then retrying...');
     await sleep(100);
-    restoreTestChainState(oldContractsNodeProcess, testChainStateLocation);
+    return restoreTestChainState(oldContractsNodeProcess, backupLocation);
   }
 }
 
-export async function storeTimestamp() {
+export async function forceKillProcessOnPort(port: number) {
+  const existingProcessesListeningOnPort = await findProcess('port', port, { logLevel: 'error' });
+  for (const p of existingProcessesListeningOnPort) {
+    console.log(chalk.yellow(`Killing process `) + chalk.magenta(p.name) + `(${chalk.italic(p.cmd)})` + ` occupying test port\n\n`);
+    process.kill(p.pid);
+    await sleep(50);
+  }
+}
+async function killProcessWithoutHandlingErr(pid: number): Promise<void> {
+  return new Promise((resolve) => {
+    exec(`kill ${pid}`, () => {
+      resolve();
+    });
+  });
+}
+export async function killProcessAndWaitForExit(pid: number) {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    await killProcessWithoutHandlingErr(pid);
+    const existingProcess = await findProcess('pid', pid, { logLevel: 'error' });
+    if (existingProcess.length === 0) {
+      return;
+    }
+  }
+}
+
+export async function storeTimestamp(api: ApiPromise) {
   if (!process.env.PWD) throw 'could not determine pwd';
   const timestampBackupLocation = path.join(process.env.PWD, 'test-chain-timestamp');
 
-  const api = await apiProviderWrapper.getAndWaitForReady();
   const timestamp = await api.query.timestamp.now();
   if (process.env.DEBUG) console.log(`storing timestamp to: ${timestamp}`);
   fs.writeFileSync(timestampBackupLocation, timestamp.toString());
 }
 
-export async function restoreTimestamp(): Promise<void> {
+export async function restoreTimestamp(api: ApiPromise): Promise<void> {
   try {
     if (!process.env.PWD) throw 'could not determine pwd';
     const timestampBackupLocation = path.join(process.env.PWD, 'test-chain-timestamp');
@@ -171,10 +163,10 @@ export async function restoreTimestamp(): Promise<void> {
       storedValue = parseInt(fs.readFileSync(timestampBackupLocation, 'utf-8'), 10);
     }
     if (typeof storedValue === 'number') {
-      await setBlockTimestamp(storedValue);
+      await setBlockTimestamp(api, storedValue);
     } else {
       // used to push fake_timestamp equal to current timestamp
-      await increaseBlockTimestamp(0);
+      await increaseBlockTimestamp(api, 0);
     }
   } catch (error) {
     console.error('Error reading file:', error);

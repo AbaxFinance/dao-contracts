@@ -1,13 +1,9 @@
 #!/bin/bash
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-$SCRIPT_DIR/updateTestDbBackup.sh
-UPDATE_DB_RESULT=$?
-if [ $UPDATE_DB_RESULT -ne 0 ]; then
-    exit 1
-fi
+
+
+rm -rf test-chain-data
 rm $SCRIPT_DIR/*.testrun*.log
-
-
 export NODE_OPTIONS=$NODE_OPTIONS" --max-old-space-size=16384"
 start_time=$(date +%s.%3N)
 #for debugging memory leaks, unfreed handles: npx mocha => npx wtfnode node_modules/.bin/_mocha

@@ -2,7 +2,7 @@ import { ApiProviderWrapper } from '@abaxfinance/contract-helpers';
 import { createTestKeyring } from '@polkadot/keyring/testing';
 import { KeyringPair } from '@polkadot/keyring/types';
 
-export const apiProviderWrapper = new ApiProviderWrapper(process.env.WS_ENDPOINT ?? 'ws://127.0.0.1:9944');
+export const getApiProviderWrapper = (port: number) => new ApiProviderWrapper(`ws://127.0.0.1:${port}`);
 export const getSigners = () => {
   return createTestKeyring({ type: 'sr25519' }).pairs;
 };

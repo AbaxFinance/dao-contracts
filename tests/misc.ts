@@ -1,12 +1,13 @@
 import { VoidFn } from '@polkadot/api/types';
 import { deployEmitableToken } from 'tests/setup/deploymentHelpers';
-import { apiProviderWrapper, getSigners } from 'tests/setup/helpers';
+import { getSigners } from 'tests/setup/helpers';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import { AnyAbaxContractEvent, ContractsEvents } from 'typechain/events/enum';
 import { getEventTypeDescription } from 'typechain/shared/utils';
 import { handleEventReturn } from 'wookashwackomytest-typechain-types';
 import { TestEnv } from './make-suite';
+import { ApiPromise } from '@polkadot/api';
 
 export async function getTgeParams(tge: AbaxTge) {
   const res = (await tge.query.getTgeParams()).value.ok!;
@@ -25,12 +26,6 @@ export async function getTgeParams(tge: AbaxTge) {
   };
 }
 
-async function printTimestamp() {
-  const timestamp = await (await apiProviderWrapper.getAndWaitForReady()).query.timestamp.now();
-  console.log({ timestamp: timestamp.toString() });
-  return timestamp;
-}
-
 export const createEnumChecker = <T extends string, TEnumValue extends string>(enumVariable: { [key in T]: TEnumValue }) => {
   const enumValues = Object.values(enumVariable);
   return (value: string): value is TEnumValue => enumValues.includes(value);
@@ -39,11 +34,11 @@ export type AnyAbaxContractEventEnumLiteral<T extends AnyAbaxContractEvent> = `$
 export type AnyAbaxContract = AbaxTge | PSP22Emitable;
 
 const subscribeOnEvent = async <TEvent extends AnyAbaxContractEventEnumLiteral<AnyAbaxContractEvent>>(
+  api: ApiPromise,
   contract: AnyAbaxContract,
   eventName: string,
   cb: (event: TEvent, timestamp: number) => void,
 ) => {
-  const api = await apiProviderWrapper.getAndWaitForReady();
   // @ts-ignore
   return api.query.system.events((events) => {
     try {
@@ -89,56 +84,53 @@ const subscribeOnEvent = async <TEvent extends AnyAbaxContractEventEnumLiteral<A
   });
 };
 
-export const subscribeOnEvents = async (
-  testEnv: TestEnv,
-  reserveName: string,
-  callback: (eventName: string, event: AnyAbaxContractEvent, emitingContract: AnyAbaxContract, timestamp: number) => void,
-): Promise<VoidFn[]> => {
-  const api = await apiProviderWrapper.getAndWaitForReady();
-  await transferNoop();
-  const { tge, abaxToken } = testEnv;
+// export const subscribeOnEvents = async (
+//   testEnv: TestEnv,
+//   reserveName: string,
+//   callback: (eventName: string, event: AnyAbaxContractEvent, emitingContract: AnyAbaxContract, timestamp: number) => void,
+// ): Promise<VoidFn[]> => {
+//   const api = await apiProviderWrapper.getAndWaitForReady();
+//   await transferNoop();
+//   const { tge, abaxToken } = testEnv;
 
-  const subscribePromises: Promise<any>[] = [];
-  const callbackDecorator = (eventName: string, emitingContract: AnyAbaxContract) => (event: AnyAbaxContractEvent, timestamp: number) => {
-    // console.log('callbackDecorator', { eventName, event, emitingContract, timestamp });
-    return callback(eventName, event, emitingContract, timestamp);
-  };
+//   const subscribePromises: Promise<any>[] = [];
+//   const callbackDecorator = (eventName: string, emitingContract: AnyAbaxContract) => (event: AnyAbaxContractEvent, timestamp: number) => {
+//     // console.log('callbackDecorator', { eventName, event, emitingContract, timestamp });
+//     return callback(eventName, event, emitingContract, timestamp);
+//   };
 
-  for (const event of Object.values(ContractsEvents.AbaxTgeEvent)) {
-    subscribePromises.push(subscribeOnEvent(tge, event, callbackDecorator(event, tge)));
-  }
-  for (const event of Object.values(ContractsEvents.Psp22EmitableEvent)) {
-    subscribePromises.push(subscribeOnEvent(abaxToken, event, callbackDecorator(event, abaxToken)));
-  }
+//   for (const event of Object.values(ContractsEvents.AbaxTgeEvent)) {
+//     subscribePromises.push(subscribeOnEvent(tge, event, callbackDecorator(event, tge)));
+//   }
+//   for (const event of Object.values(ContractsEvents.Psp22EmitableEvent)) {
+//     subscribePromises.push(subscribeOnEvent(abaxToken, event, callbackDecorator(event, abaxToken)));
+//   }
 
-  return Promise.all(subscribePromises);
-};
+//   return Promise.all(subscribePromises);
+// };
 
-export async function setBlockTimestamp(timestamp: number) {
-  const api = await apiProviderWrapper.getAndWaitForReady();
+export async function setBlockTimestamp(api: ApiPromise, timestamp: number) {
   const signer = getSigners()[0];
   if (process.env.DEBUG) console.log(`setting timestamp to: ${timestamp}`);
   await api.tx.timestamp.setTime(timestamp).signAndSend(signer, {});
-  await transferNoop();
+  await transferNoop(api);
   const timestampNowPostChange = parseInt((await api.query.timestamp.now()).toString());
   if (timestampNowPostChange !== timestamp) throw new Error('Failed to set custom timestamp');
 }
-export async function increaseBlockTimestamp(deltaTimestamp: number): Promise<number> {
-  const api = await apiProviderWrapper.getAndWaitForReady();
+export async function increaseBlockTimestamp(api: ApiPromise, deltaTimestamp: number): Promise<number> {
   const timestampNow = await api.query.timestamp.now();
   const timestampToSet = parseInt(timestampNow.toString()) + deltaTimestamp;
   if (process.env.DEBUG) console.log(`increasing timestamp by ${deltaTimestamp}`);
-  await setBlockTimestamp(timestampToSet);
+  await setBlockTimestamp(api, timestampToSet);
   const timestampNowPostChange = parseInt((await api.query.timestamp.now()).toString());
   if (timestampNowPostChange !== timestampToSet) throw new Error('Failed to set custom timestamp');
   return timestampToSet;
 }
 
 /// makes an operation just to force new block production.
-export async function transferNoop() {
-  const api = await apiProviderWrapper.getAndWaitForReady();
+export async function transferNoop(api: ApiPromise) {
   const signer = getSigners()[0];
-  await deployEmitableToken(signer, 'noop'); //TODO
+  await deployEmitableToken(api, signer, 'noop'); //TODO
   return;
   await new Promise((resolve, reject) => {
     api.tx.balances

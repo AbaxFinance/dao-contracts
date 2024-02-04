@@ -1,74 +1,125 @@
-import { KeyringPair } from '@polkadot/keyring/types';
+import { ApiPromise } from '@polkadot/api';
 import { ChildProcess } from 'child_process';
-import { apiProviderWrapper } from 'tests/setup/helpers';
-import { readContractsFromFile, restartAndRestoreNodeState, sleep, storeTimestamp } from 'tests/setup/nodePersistence';
-import AbaxTge from '../typechain/contracts/abax_tge';
-import PSP22Emitable from '../typechain/contracts/psp22_emitable';
-import Vester from '../typechain/contracts/vester';
+import fs from 'fs-extra';
+import path from 'path';
+import { increaseBlockTimestamp, transferNoop } from 'tests/misc';
+import { getApiProviderWrapper } from 'tests/setup/helpers';
+import { killProcessAndWaitForExit, restartAndRestoreNodeState, spawnContractsNode, storeTimestamp } from 'tests/setup/nodePersistence';
+import { describe as mochaDescribe } from 'mocha';
 
-export interface TestEnv {
-  users: KeyringPair[];
-  owner: KeyringPair;
-  abaxToken: PSP22Emitable;
-  tge: AbaxTge;
-  vester: Vester;
+export interface TestEnv<T extends Record<string, unknown>> {
+  api: ApiPromise;
+  contracts: T;
 }
 
-function makeSuiteInternal(
+let NEXT_FREE_PORT = 9944;
+const SUITE_ID_TO_PORT = new Map<string, number>();
+
+export const TEST_CHAIN_DATA_LOCATION = path.join(process.env.PWD!, 'test-chain-data');
+
+async function handlePrepareEnv<T>(suiteID: string, parentSuiteID?: string, prepareEnv?: (api: ApiPromise) => Promise<T>) {
+  const testChainTmpStateLocation = path.join(TEST_CHAIN_DATA_LOCATION, `${suiteID}_tmp`);
+  if (parentSuiteID) {
+    fs.copySync(path.join(TEST_CHAIN_DATA_LOCATION, parentSuiteID), testChainTmpStateLocation);
+    const apiProviderWrapper = getApiProviderWrapper(SUITE_ID_TO_PORT.get(parentSuiteID)!);
+    await apiProviderWrapper.closeApi();
+  }
+
+  const contractsNodeProcess = await spawnContractsNode(testChainTmpStateLocation, SUITE_ID_TO_PORT.get(suiteID)!);
+
+  const apiProviderWrapper = getApiProviderWrapper(SUITE_ID_TO_PORT.get(suiteID)!);
+  const api = await apiProviderWrapper.getAndWaitForReady();
+  // to force mining first block and initializeing timestamp
+  await transferNoop(api);
+  // to force using fake_time
+  await increaseBlockTimestamp(api, 0);
+
+  let contractsRes = {} as T;
+  if (prepareEnv) {
+    contractsRes = await prepareEnv(api);
+  }
+
+  await storeTimestamp(api);
+
+  const testChainBpStateTargetLocation = path.join(TEST_CHAIN_DATA_LOCATION, parentSuiteID ? `${parentSuiteID}_${suiteID}` : suiteID);
+  if (contractsNodeProcess.pid) await killProcessAndWaitForExit(contractsNodeProcess.pid);
+  await apiProviderWrapper.closeApi();
+  fs.copySync(testChainTmpStateLocation, testChainBpStateTargetLocation);
+  fs.rmSync(testChainTmpStateLocation, { force: true, recursive: true });
+  return { contracts: contractsRes, testChainBpStateLocation: testChainBpStateTargetLocation };
+}
+
+type SuiteInfo = {
+  suiteID: string;
+  nodeProcessPID: string;
+};
+
+function describeInternal<T extends Record<string, unknown>>(
   mode: 'none' | 'skip' | 'only',
   name: string,
-  generateTests: (getTestEnv: () => TestEnv) => void,
-  skipRegenerateEnvBeforeEach = false,
+  generateTests: (getTestEnv: () => TestEnv<T>) => void,
+  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
 ) {
-  let hasAnyStoryStepFailed = false;
-  (mode === 'none' ? describe : describe[mode])(`[Scenario Suite] ${name}`, () => {
-    let suiteTestEnv: TestEnv;
+  const suiteID = Math.random().toString(36).substring(7);
+  (mode === 'none' ? mochaDescribe : mochaDescribe[mode])(name, function (this) {
+    let prepareEnvRes: { contracts: T; testChainBpStateLocation: string };
+    let suiteTestEnv: TestEnv<T>;
     let getContractsNodeProcess: () => ChildProcess | undefined = () => undefined;
-    before(async () => {
-      if (!skipRegenerateEnvBeforeEach) return;
 
-      getContractsNodeProcess = await restartAndRestoreNodeState(getContractsNodeProcess);
-      await apiProviderWrapper.getAndWaitForReady();
-      suiteTestEnv = await readContractsFromFile();
+    before(async () => {
+      const parentSuiteInfo = (this.parent as any).suiteInfo;
+      console.log('parentSuiteInfo', parentSuiteInfo);
+
+      SUITE_ID_TO_PORT.set(suiteID, NEXT_FREE_PORT);
+      NEXT_FREE_PORT++;
+      prepareEnvRes = await handlePrepareEnv(suiteID, parentSuiteInfo?.suiteID, prepareEnvBase);
     });
 
-    beforeEach(async function (this) {
-      if (hasAnyStoryStepFailed && skipRegenerateEnvBeforeEach) {
-        this.skip();
-        return;
-      }
-      if (skipRegenerateEnvBeforeEach) {
-        await apiProviderWrapper.getAndWaitForReady();
-        return;
-      }
+    beforeEach(async () => {
+      getContractsNodeProcess = await restartAndRestoreNodeState(
+        getContractsNodeProcess,
+        prepareEnvRes.testChainBpStateLocation,
+        SUITE_ID_TO_PORT.get(suiteID)!,
+      );
 
-      getContractsNodeProcess = await restartAndRestoreNodeState(getContractsNodeProcess);
-      await apiProviderWrapper.getAndWaitForReady();
-      suiteTestEnv = await readContractsFromFile();
+      const apiProviderWrapper = getApiProviderWrapper(SUITE_ID_TO_PORT.get(suiteID)!);
+      const api = await apiProviderWrapper.getAndWaitForReady();
+      suiteTestEnv = {
+        api,
+        contracts: Object.fromEntries(Object.entries(prepareEnvRes.contracts).map(([key, value]) => [key, (value as any).withAPI(api)]) as any) as T,
+      };
+      (this as any).suiteInfo = { suiteID, nodeProcessPID: getContractsNodeProcess()?.pid?.toString() } as SuiteInfo;
     });
 
     generateTests(() => suiteTestEnv);
 
-    afterEach(async function (this) {
-      if (this.currentTest?.state === 'failed') {
-        hasAnyStoryStepFailed = true;
-      }
-    });
-
     after(async () => {
+      const apiProviderWrapper = getApiProviderWrapper(SUITE_ID_TO_PORT.get(suiteID)!);
       await apiProviderWrapper.closeApi();
-      await storeTimestamp();
-      getContractsNodeProcess()?.kill();
+      const p = getContractsNodeProcess();
+      if (p?.pid) killProcessAndWaitForExit(p?.pid);
     });
   });
 }
 
-export function makeSuite(name: string, generateTests: (getTestEnv: () => TestEnv) => void, skipRegenerateEnvBeforeEach = false) {
-  makeSuiteInternal('none', name, generateTests, skipRegenerateEnvBeforeEach);
+export function describe<T extends Record<string, unknown>>(
+  name: string,
+  generateTests: (getTestEnv: () => TestEnv<T>) => void,
+  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
+) {
+  describeInternal('none', name, generateTests, prepareEnvBase);
 }
-makeSuite.only = function (name: string, generateTests: (getTestEnv: () => TestEnv) => void, skipRegenerateEnvBeforeEach = false) {
-  makeSuiteInternal('only', name, generateTests, skipRegenerateEnvBeforeEach);
+describe.only = function <T extends Record<string, unknown>>(
+  name: string,
+  generateTests: (getTestEnv: () => TestEnv<T>) => void,
+  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
+) {
+  describeInternal('only', name, generateTests, prepareEnvBase);
 };
-makeSuite.skip = function (name: string, generateTests: (getTestEnv: () => TestEnv) => void, skipRegenerateEnvBeforeEach = false) {
-  makeSuiteInternal('skip', name, generateTests, skipRegenerateEnvBeforeEach);
+describe.skip = function <T extends Record<string, unknown>>(
+  name: string,
+  generateTests: (getTestEnv: () => TestEnv<T>) => void,
+  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
+) {
+  describeInternal('skip', name, generateTests, prepareEnvBase);
 };
