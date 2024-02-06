@@ -54,11 +54,11 @@ type SuiteInfo = {
   nodeProcessPID: string;
 };
 
-function describeInternal<T extends Record<string, unknown>>(
+function makeSuiteInternal<T extends Record<string, unknown>>(
   mode: 'none' | 'skip' | 'only',
   name: string,
+  prepareEnvBase: (api: ApiPromise) => Promise<T>,
   generateTests: (getTestEnv: () => TestEnv<T>) => void,
-  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
 ) {
   const suiteID = Math.random().toString(36).substring(7);
   (mode === 'none' ? mochaDescribe : mochaDescribe[mode])(name, function (this) {
@@ -68,7 +68,6 @@ function describeInternal<T extends Record<string, unknown>>(
 
     before(async () => {
       const parentSuiteInfo = (this.parent as any).suiteInfo;
-      console.log('parentSuiteInfo', parentSuiteInfo);
 
       SUITE_ID_TO_PORT.set(suiteID, NEXT_FREE_PORT);
       NEXT_FREE_PORT++;
@@ -102,24 +101,24 @@ function describeInternal<T extends Record<string, unknown>>(
   });
 }
 
-export function describe<T extends Record<string, unknown>>(
+export function makeSuite<T extends Record<string, unknown>>(
   name: string,
+  prepareEnvBase: (api: ApiPromise) => Promise<T>,
   generateTests: (getTestEnv: () => TestEnv<T>) => void,
-  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
 ) {
-  describeInternal('none', name, generateTests, prepareEnvBase);
+  makeSuiteInternal('none', name, prepareEnvBase, generateTests);
 }
-describe.only = function <T extends Record<string, unknown>>(
+makeSuite.only = function <T extends Record<string, unknown>>(
   name: string,
+  prepareEnvBase: (api: ApiPromise) => Promise<T>,
   generateTests: (getTestEnv: () => TestEnv<T>) => void,
-  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
 ) {
-  describeInternal('only', name, generateTests, prepareEnvBase);
+  makeSuiteInternal('only', name, prepareEnvBase, generateTests);
 };
-describe.skip = function <T extends Record<string, unknown>>(
+makeSuite.skip = function <T extends Record<string, unknown>>(
   name: string,
+  prepareEnvBase: (api: ApiPromise) => Promise<T>,
   generateTests: (getTestEnv: () => TestEnv<T>) => void,
-  prepareEnvBase?: (api: ApiPromise) => Promise<T>,
 ) {
-  describeInternal('skip', name, generateTests, prepareEnvBase);
+  makeSuiteInternal('skip', name, prepareEnvBase, generateTests);
 };
