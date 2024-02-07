@@ -18,7 +18,8 @@ scale-info = { version = "2.10", default-features = false, features = [
 pendzl = { version = "0.1.0-beta1", default-features = false, features = [
     "psp22", 
     "general_vest",
-    "psp22_mintable"
+    "psp22_mintable",
+    "access_control_impl",
 ] }
 
 primitive-types = { version = "0.12.1", default-features = false, features = [

@@ -4,6 +4,7 @@
 pub mod modules;
 
 //TODO events
+#[pendzl::implementation(AccessControl)]
 #[ink::contract]
 pub mod abax_tge {
     use ink::{prelude::vec, prelude::vec::Vec, ToAccountId};
@@ -24,9 +25,13 @@ pub mod abax_tge {
     };
     use primitive_types::U256;
 
+    const ADMIN: RoleType = ink::selector_id!("ADMIN");
+
     #[ink(storage)]
     #[derive(Default, pendzl::traits::StorageFieldGetter)]
     pub struct TGEContract {
+        #[storage_field]
+        access_control: AccessControlData,
         #[storage_field]
         tge: PublicContributionStorage,
     }
@@ -88,7 +93,11 @@ pub mod abax_tge {
     impl TGEContract {
         #[ink(constructor)]
         pub fn new() -> Self {
-            Default::default()
+            let mut instance = Self::default();
+            instance
+                ._grant_role(ADMIN, Some(Self::env().account_id()))
+                .unwrap();
+            instance
         }
 
         //returns a tuple with all of the TGE state properties
@@ -156,6 +165,27 @@ pub mod abax_tge {
             self.tge
                 .strategic_reserves_address
                 .set(&strategic_reserves_address);
+        }
+
+        #[ink(message)]
+        pub fn set_bonus_multiplier_e6(
+            &mut self,
+            contributor: AccountId,
+            bonus_multiplier_e6: u128,
+        ) -> Result<(), TGEError> {
+            self._ensure_has_role(ADMIN, Some(self.env().caller()))?;
+            self.tge
+                .bonus_multiplier_e6_by_address
+                .insert(contributor, &bonus_multiplier_e6);
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn get_bonus_multiplier_e6(&self, contributor: AccountId) -> u128 {
+            self.tge
+                .bonus_multiplier_e6_by_address
+                .get(&contributor)
+                .unwrap_or(0)
         }
 
         fn ensure_phase1_non_contributor_actions_performed(&self) -> Result<u128, TGEError> {
@@ -233,7 +263,7 @@ pub mod abax_tge {
             amount_contributed: u128,
         ) -> Result<u128, TGEError> {
             let base_amount = self.calculate_base_amount_phase1(amount_contributed);
-            let amount_to_issue = self.calculate_amount_to_issue(contributor, base_amount)?;
+            let amount_to_issue = self.calculate_amount_with_bonus(contributor, base_amount)?;
 
             let new_total_issued_so_far = self.tge.total_amount_distributed + amount_to_issue;
 
@@ -265,7 +295,7 @@ pub mod abax_tge {
         ) -> Result<u128, TGEError> {
             let base_amount = self.calculate_base_amount_phase2(amount_contributed);
             let contributor_amount_to_issue =
-                self.calculate_amount_to_issue(contributor, base_amount)?;
+                self.calculate_amount_with_bonus(contributor, base_amount)?;
             self.issue_tokens_phase2(contributor, contributor_amount_to_issue)?;
 
             Ok(contributor_amount_to_issue)
@@ -274,7 +304,7 @@ pub mod abax_tge {
         /// Calculates the amount of tokens to be issued for a contribution
         /// The amount is calculated as follows:
         /// base_amount * bonus_multiplier / 1_000_000
-        fn calculate_amount_to_issue(
+        fn calculate_amount_with_bonus(
             &self,
             contributor: AccountId,
             base_amount: u128,
