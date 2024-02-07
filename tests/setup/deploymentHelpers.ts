@@ -5,7 +5,6 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import type { WeightV2 } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
 import { readFileSync } from 'fs-extra';
-import { TestEnv } from 'tests/make-suite';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
@@ -17,7 +16,6 @@ import VesterConstructor from 'typechain/constructors/vester';
 import { getContractObject } from '@abaxfinance/contract-helpers';
 import { ABAX_DECIMALS } from 'tests/consts';
 import { getSigners, getSignersWithoutOwner } from './helpers';
-import { saveContractInfoToFileAsJson } from './nodePersistence';
 
 const getCodePromise = (api: ApiPromise, contractName: string): CodePromise => {
   const abi = JSON.parse(readFileSync(`./artifacts/${contractName}.json`).toString());

@@ -4,11 +4,10 @@ import { ApiPromise } from '@polkadot/api';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { BN } from 'bn.js';
 import { ABAX_DECIMALS, ONE_DAY, ONE_YEAR } from 'tests/consts';
-import { makeSuite } from 'tests/make-suite';
-import { getTgeParams, setBlockTimestamp } from 'tests/misc';
+import { getTgeParams, increaseBlockTimestamp, setBlockTimestamp, transferNoop } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
 import { deployAbaxTge, deployEmitableToken, deployVester } from 'tests/setup/deploymentHelpers';
-import { getSigners } from 'tests/setup/helpers';
+import { getApiProviderWrapper, getSigners } from 'tests/setup/helpers';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
@@ -19,6 +18,10 @@ const ABAX_DENOM = new BN(10).pow(new BN(ABAX_DECIMALS));
 const [owner, ...signersRest] = getSigners();
 
 async function prepareEnvBase(api: ApiPromise) {
+  await transferNoop(api);
+  // to force using fake_time
+  await increaseBlockTimestamp(api, 0);
+
   const tge = await deployAbaxTge(api, owner);
   const abaxToken = await deployEmitableToken(api, owner, 'ABAX', ABAX_DECIMALS);
   const vester = await deployVester(api, owner);
@@ -30,7 +33,7 @@ async function prepareEnvBase(api: ApiPromise) {
   };
 }
 
-makeSuite('TGE', prepareEnvBase, (getTestEnv) => {
+describe('TGE', () => {
   let tge: AbaxTge;
   let abaxToken: PSP22Emitable;
   let vester: Vester;
@@ -43,22 +46,24 @@ makeSuite('TGE', prepareEnvBase, (getTestEnv) => {
   let strategicReservesAddress: string;
   let tgeStartTime: string;
   let contributors: KeyringPair[];
+  const apiProviderWrapper = getApiProviderWrapper(9944);
 
-  before(async () => {
-    //
+  beforeEach(async () => {
+    const api = await apiProviderWrapper.getAndWaitForReady();
+    const contracts = await prepareEnvBase(api);
+    tge = contracts.tge;
+    abaxToken = contracts.abaxToken;
+    vester = contracts.vester;
   });
 
   beforeEach(async () => {
-    const testEnv = getTestEnv();
     const [foundersAddr, foundationAddr, strategicReservesAddr, ...rest] = signersRest;
     contributors = rest;
     foundersAddress = foundersAddr.address;
     foundationAddress = foundationAddr.address;
     strategicReservesAddress = strategicReservesAddr.address;
-    tge = testEnv.contracts.tge;
-    abaxToken = testEnv.contracts.abaxToken;
-    vester = testEnv.contracts.vester;
-    const now = await testEnv.api.query.timestamp.now();
+    const api = await apiProviderWrapper.getAndWaitForReady();
+    const now = await api.query.timestamp.now();
     tgeStartTime = now.toString();
     await tge
       .withSigner(owner)
@@ -96,7 +101,7 @@ makeSuite('TGE', prepareEnvBase, (getTestEnv) => {
   });
 
   it('Contribute fails if TGE is not started', async () => {
-    await setBlockTimestamp(getTestEnv().api, parseInt(tgeStartTime) - 1);
+    await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) - 1);
     const queryRes = (await tge.withSigner(contributors[0]).query.contribute({ value: 1 })).value.ok;
     expect(queryRes?.err).to.deep.equal(TGEErrorBuilder.TGENotStarted());
   });
@@ -112,29 +117,29 @@ makeSuite('TGE', prepareEnvBase, (getTestEnv) => {
   });
 
   it('Upon reaching phase one cap switches to phase 2', async () => {
-    await setBlockTimestamp(getTestEnv().api, parseInt(tgeStartTime) + 100);
+    await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100);
     await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
     const tx = tge
       .withSigner(contributors[0])
       .tx.contribute({ value: phaseOneTokenCap.muln(20).divn(100).mul(E6bn).div(phaseOneAmountPerMilllionTokens) });
     await expect(tx).to.eventually.be.fulfilled;
-    await setBlockTimestamp(getTestEnv().api, parseInt(tgeStartTime) + 100);
+    await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100);
     const currentParams = await getTgeParams(tge);
     expect(currentParams.phaseTwoStartTime.toString()).to.equal((parseInt(tgeStartTime) + 100).toString());
   });
 
   it('Contribute fails if TGE is finished', async () => {
-    await setBlockTimestamp(getTestEnv().api, parseInt(tgeStartTime) + 100);
+    await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100);
     await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
     await tge
       .withSigner(contributors[0])
       .tx.contribute({ value: phaseOneTokenCap.muln(20).divn(100).mul(E6bn).div(phaseOneAmountPerMilllionTokens) });
 
-    await setBlockTimestamp(getTestEnv().api, parseInt(tgeStartTime) + 100 + 100);
+    await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100 + 100);
     const queryResPhaseTwo = (await tge.withSigner(contributors[0]).query.contribute({ value: 1 })).value.ok;
     expect(queryResPhaseTwo?.err).to.be.undefined;
 
-    await setBlockTimestamp(getTestEnv().api, parseInt(tgeStartTime) + 100 + phaseTwoDuration.toNumber() + 1);
+    await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100 + phaseTwoDuration.toNumber() + 1);
     const queryRes = (await tge.withSigner(contributors[0]).query.contribute({ value: 1 })).value.ok;
     expect(queryRes?.err).to.deep.equal(TGEErrorBuilder.TGEEnded());
   });

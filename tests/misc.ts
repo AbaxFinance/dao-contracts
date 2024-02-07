@@ -6,7 +6,6 @@ import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import { AnyAbaxContractEvent, ContractsEvents } from 'typechain/events/enum';
 import { getEventTypeDescription } from 'typechain/shared/utils';
 import { handleEventReturn } from 'wookashwackomytest-typechain-types';
-import { TestEnv } from './make-suite';
 import { ApiPromise } from '@polkadot/api';
 
 export async function getTgeParams(tge: AbaxTge) {
