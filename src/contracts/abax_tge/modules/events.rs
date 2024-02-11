@@ -4,9 +4,7 @@ pub use pendzl::traits::Balance;
 pub struct Contribution {
     #[ink(topic)]
     pub contributor: AccountId,
-    #[ink(topic)]
-    pub amount_issued: u128,
-    pub amount_contributed: Balance,
+    pub to_create: Balance,
 }
 #[ink::event]
 pub struct PhaseChanged {}

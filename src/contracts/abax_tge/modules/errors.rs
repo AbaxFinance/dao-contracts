@@ -10,10 +10,12 @@ pub enum TGEError {
     AccessControlError(AccessControlError),
     CreateVestFailed(VestingError),
     ContributedZero,
+    AmountLessThanOne,
     MathError,
     TGENotStarted,
     TGEEnded,
     Phase1TokenCapReached,
+    ContributionViaContract,
 }
 
 impl From<PSP22Error> for TGEError {

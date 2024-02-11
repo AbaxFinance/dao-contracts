@@ -12,7 +12,9 @@ pub struct PublicContributionStorage {
     #[lazy]
     pub phase_two_duration: Timestamp,
     #[lazy]
-    pub contribution_token_address: AccountId,
+    pub generated_token_address: AccountId,
+    #[lazy]
+    pub wazero_address: AccountId,
     #[lazy]
     pub vester: AccountId,
     #[lazy]
@@ -22,9 +24,11 @@ pub struct PublicContributionStorage {
     #[lazy]
     pub strategic_reserves_address: AccountId,
     pub phase_one_token_cap: u128,
-    pub phase_one_amount_per_milllion_tokens: u128,
+    pub cost_to_mint_milion_tokens: u128,
     pub total_amount_distributed: u128,
+    pub total_amount_distributed_phase_two: u128,
     pub bonus_multiplier_e6_by_address: Mapping<AccountId, u128>,
+    pub contributed_amount_by_address: Mapping<AccountId, u128>,
 }
 
 #[derive(Debug, Copy, Clone, scale::Encode, scale::Decode)]

@@ -1,12 +1,10 @@
-import { VoidFn } from '@polkadot/api/types';
 import { deployEmitableToken } from 'tests/setup/deploymentHelpers';
 import { getSigners } from 'tests/setup/helpers';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
-import { AnyAbaxContractEvent, ContractsEvents } from 'typechain/events/enum';
+import { AnyAbaxContractEvent } from 'typechain/events/enum';
 import { getEventTypeDescription } from 'typechain/shared/utils';
 import { handleEventReturn } from 'wookashwackomytest-typechain-types';
-import { TestEnv } from './make-suite';
 import { ApiPromise } from '@polkadot/api';
 
 export async function getTgeParams(tge: AbaxTge) {
@@ -23,6 +21,7 @@ export async function getTgeParams(tge: AbaxTge) {
     phaseOneTokenCap: res[8],
     phaseOneAmountPerMillionTokens: res[9],
     totalAmountDistributed: res[10],
+    phaseTwoPublicContributionDistributed: res[11],
   };
 }
 

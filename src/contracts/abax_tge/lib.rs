@@ -17,7 +17,7 @@ pub mod abax_tge {
     };
 
     use crate::modules::{
-        constants::{ABAX_ALLOCATION_DISTRIBUTION_PARAMS, E6_U128},
+        constants::{ABAX_ALLOCATION_DISTRIBUTION_PARAMS, E12_U128, E6_U128},
         errors::TGEError,
         events::{Contribution, PhaseChanged},
         structs::PublicContributionStorage,
@@ -38,7 +38,7 @@ pub mod abax_tge {
 
     impl AbaxTGE for TGEContract {
         #[ink(message, payable)]
-        fn contribute(&mut self) -> Result<u128, TGEError> {
+        fn contribute(&mut self, to_create: Balance) -> Result<u128, TGEError> {
             if self.env().block_timestamp() < self.tge.start_time.get().unwrap() {
                 return Err(TGEError::TGENotStarted);
             }
@@ -56,10 +56,12 @@ pub mod abax_tge {
             }
 
             let contributor = self.env().caller();
-            let amount_contributed = self.env().transferred_value();
+            if self.env().is_contract(&contributor) {
+                return Err(TGEError::ContributionViaContract);
+            }
 
-            if amount_contributed == 0 {
-                return Err(TGEError::ContributedZero);
+            if to_create < E12_U128 {
+                return Err(TGEError::AmountLessThanOne);
             }
 
             self.tge.total_amount_distributed +=
@@ -67,26 +69,22 @@ pub mod abax_tge {
 
             let is_phase_one = self.tge.phase_two_start_time.get().is_none();
 
-            ink::env::debug_println!(
-                "is_phase_one {:?} amount_contributed {:?}",
-                is_phase_one,
-                amount_contributed
-            );
-            // let amount_in_abax_decimals =
-            //     amount_contributed * 10_u128.pow(ABAX_DECIMALS);
+            ink::env::debug_println!("is_phase_one {:?}", is_phase_one,);
 
-            let amount_issued = match is_phase_one {
-                true => self.contribute_phase1(contributor, amount_contributed),
-                false => self.contribute_phase2(contributor, amount_contributed),
-            }?;
+            let cost = match is_phase_one {
+                true => self.contribute_phase1(contributor, to_create)?,
+                false => self.contribute_phase2(contributor, to_create)?,
+            };
+
+            let mut wazero: PSP22Ref = self.tge.wazero_address.get().unwrap().into();
+
+            wazero.transfer_from(contributor, self.env().account_id(), cost, vec![])?; //TODO handle reentrancy
 
             self.env().emit_event(Contribution {
                 contributor,
-                amount_issued,
-                amount_contributed,
+                to_create,
             });
-            self.tge.total_amount_distributed += amount_issued;
-            Ok(amount_issued)
+            Ok(cost)
         }
     }
 
@@ -94,8 +92,12 @@ pub mod abax_tge {
         #[ink(constructor)]
         pub fn new() -> Self {
             let mut instance = Self::default();
+            // set admin to self
             instance
-                ._grant_role(ADMIN, Some(Self::env().account_id()))
+                ._grant_role(Self::_default_admin(), Some(Self::env().account_id()))
+                .unwrap();
+            instance
+                ._grant_role(ADMIN, Some(Self::env().caller()))
                 .unwrap();
             instance
         }
@@ -116,6 +118,7 @@ pub mod abax_tge {
             u128,
             u128,
             u128,
+            u128,
         ) {
             let default_addr = self.env().account_id();
             (
@@ -123,7 +126,7 @@ pub mod abax_tge {
                 self.tge.phase_two_start_time.get_or_default(),
                 self.tge.phase_two_duration.get_or_default(),
                 self.tge
-                    .contribution_token_address
+                    .generated_token_address
                     .get()
                     .unwrap_or(default_addr),
                 self.tge.vester.get().unwrap_or(default_addr),
@@ -134,8 +137,9 @@ pub mod abax_tge {
                     .get()
                     .unwrap_or(default_addr),
                 self.tge.phase_one_token_cap,
-                self.tge.phase_one_amount_per_milllion_tokens,
+                self.tge.cost_to_mint_milion_tokens,
                 self.tge.total_amount_distributed,
+                self.tge.total_amount_distributed_phase_two,
             )
         }
 
@@ -144,7 +148,7 @@ pub mod abax_tge {
             &mut self,
             start_time: Timestamp,
             phase_one_token_cap: u128,
-            phase_one_amount_per_milllion_tokens: u128,
+            cost_to_mint_milion_tokens: u128,
             phase_two_duration: Timestamp,
             contribution_token_address: AccountId,
             vester: AccountId,
@@ -154,10 +158,10 @@ pub mod abax_tge {
         ) {
             self.tge.start_time.set(&start_time);
             self.tge.phase_one_token_cap = phase_one_token_cap;
-            self.tge.phase_one_amount_per_milllion_tokens = phase_one_amount_per_milllion_tokens;
+            self.tge.cost_to_mint_milion_tokens = cost_to_mint_milion_tokens;
             self.tge.phase_two_duration.set(&phase_two_duration);
             self.tge
-                .contribution_token_address
+                .generated_token_address
                 .set(&contribution_token_address);
             self.tge.vester.set(&vester);
             self.tge.founders_address.set(&founders_address);
@@ -195,7 +199,7 @@ pub mod abax_tge {
 
             ink::env::debug_println!("ensure_phase1_non_contributor_actions_performed");
 
-            let contribution_token_address = self.tge.contribution_token_address.get().unwrap();
+            let contribution_token_address = self.tge.generated_token_address.get().unwrap();
             let mut psp22: PSP22Ref = contribution_token_address.into();
 
             let mut vester: GeneralVestRef = self.tge.vester.get().unwrap().into();
@@ -260,21 +264,126 @@ pub mod abax_tge {
         fn contribute_phase1(
             &mut self,
             contributor: AccountId,
-            amount_contributed: u128,
+            to_create: u128,
         ) -> Result<u128, TGEError> {
-            let base_amount = self.calculate_base_amount_phase1(amount_contributed);
-            let amount_to_issue = self.calculate_amount_with_bonus(contributor, base_amount)?;
-
-            let new_total_issued_so_far = self.tge.total_amount_distributed + amount_to_issue;
-
+            let cost = self.calculate_cost_phase1(to_create);
             ink::env::debug_println!("fn contribute_phase1");
+            ink::env::debug_println!("to_create {:?} cost: {:?} ", to_create, cost);
+            self.issue_tokens_phase1(contributor, to_create)?;
+            Ok(cost)
+        }
+
+        fn contribute_phase2(
+            &mut self,
+            contributor: AccountId,
+            to_create: u128,
+        ) -> Result<u128, TGEError> {
+            let cost = self.calculate_cost_phase2(to_create);
+            self.issue_tokens_phase2(contributor, to_create)?;
+
+            Ok(cost)
+        }
+
+        /// Calculates the amount of tokens to be issued for a contribution
+        /// The amount is calculated as follows:
+        /// base_amount * bonus_multiplier / 1_000_000
+        fn get_bonus(&self, contributor: AccountId, base_amount: u128) -> Result<u128, TGEError> {
+            match self.tge.bonus_multiplier_e6_by_address.get(&contributor) {
+                Some(bonus_multiplier_e6) => mul_denom_e6(base_amount, bonus_multiplier_e6),
+                None => Ok(0),
+            }
+        }
+
+        /// Calculates the base amount of tokens to be issued for a contribution in phase 1
+        /// The base amount is the amount of tokens that would be issued if the contributor had no bonus
+        /// The base amount is calculated as follows:
+        /// amount * phase_one_cost_per_milllion_tokens / 1_000_000
+        fn calculate_cost_phase1(&self, to_create: Balance) -> u128 {
+            to_create * self.tge.cost_to_mint_milion_tokens / E6_U128
+        }
+
+        fn calculate_cost_phase2(&self, to_create: Balance) -> u128 {
+            let cost_per_million_before = U256::from(self.tge.cost_to_mint_milion_tokens)
+                * U256::from(self.tge.total_amount_distributed)
+                / U256::from(self.tge.phase_one_token_cap);
+
+            let cost_per_million_after = U256::from(self.tge.cost_to_mint_milion_tokens)
+                * U256::from(self.tge.total_amount_distributed + to_create)
+                / U256::from(self.tge.phase_one_token_cap);
+
             ink::env::debug_println!(
-                "amount_contributed {:?} base_amount: {:?} amount_to_issue: {:?}, new_total_issued_so_far: {:?}",
-                amount_contributed,
-                base_amount,
-                amount_to_issue,
-                new_total_issued_so_far
+                "cost_per_million_before: {:?}, cost_per_million_after: {:?}",
+                cost_per_million_before,
+                cost_per_million_after
             );
+
+            let effective_cost_per_million =
+                (cost_per_million_after + cost_per_million_before) / 2 + 1;
+
+            ink::env::debug_println!(
+                "effective_cost_per_million: {:?}",
+                effective_cost_per_million
+            );
+
+            //todo check for to_create > 10 ^ 12
+
+            u128::try_from(effective_cost_per_million * U256::from(to_create) / U256::from(E6_U128))
+                .unwrap()
+        }
+
+        /// Calculates the base amount of tokens to be issued for a contribution in phase 2
+        /// The base amount is the amount of tokens that would be issued if the contributor had no bonus
+        /// The base amount is calculated as follows:
+        /// the effective amount per million is an avaerage between the amount per million before and after the contribution
+        /// amount * effective_cost_per_milllion_tokens / 1_000_000
+        // fn calculate_base_amount_phase2xd(&self, amount: Balance) -> Result<u128, TGEError> {
+        //     let cost_per_million_before_e6 = amount
+        //         * self.tge.phase_one_cost_per_milllion_tokens
+        //         * (E6_U128
+        //             + (E6_U128 * self.tge.total_amount_distributed_phase_two)
+        //                 / self.tge.phase_one_token_cap);
+        //     let cost_per_million_after_e6 = amount
+        //         * self.tge.phase_one_cost_per_milllion_tokens
+        //         * (E6_U128
+        //             + ((self.tge.total_amount_distributed_phase_two
+        //                 + self.calculate_cost_phase1(amount) * 5)
+        //                 * E6_U128)
+        //                 / self.tge.phase_one_token_cap);
+
+        //     ink::env::debug_println!(
+        //         "self.tge.total_amount_distributed_phase_two + self.calculate_base_amount_phase1(amount) * 5: {:?}",
+        //         self.tge.total_amount_distributed_phase_two + self.calculate_cost_phase1(amount) * 5
+        //     );
+        //     ink::env::debug_println!(
+        //         "cost_per_million_before: {:?}, cost_per_million_after: {:?}",
+        //         cost_per_million_before_e6,
+        //         cost_per_million_after_e6
+        //     );
+
+        //     let effective_cost_per_million =
+        //         (cost_per_million_before_e6 + cost_per_million_after_e6) / 2;
+
+        //     ink::env::debug_println!(
+        //         "effective_cost_per_million: {:?}",
+        //         effective_cost_per_million
+        //     );
+
+        //     u128::try_from(
+        //         U256::from(amount) * U256::from(effective_cost_per_million)
+        //             / U256::from(E6_U128)
+        //             / U256::from(E6_U128),
+        //     )
+        //     .map_err(|_| TGEError::MathError)
+        // }
+        fn issue_tokens_phase1(
+            &mut self,
+            to: AccountId,
+            to_create: Balance,
+        ) -> Result<(), TGEError> {
+            let bonus = self.get_bonus(to, to_create)?;
+            // let referral_bonus = self.get_referral_bonus(to, to_create)?;
+
+            let new_total_issued_so_far = self.tge.total_amount_distributed + to_create;
             if new_total_issued_so_far > self.tge.phase_one_token_cap {
                 return Err(TGEError::Phase1TokenCapReached);
             } else if new_total_issued_so_far == self.tge.phase_one_token_cap {
@@ -284,85 +393,13 @@ pub mod abax_tge {
                 self.env().emit_event(PhaseChanged {});
             }
 
-            self.issue_tokens_phase1(contributor, amount_to_issue)?;
-            Ok(amount_to_issue)
-        }
+            let amount = to_create + bonus;
+            self.tge.total_amount_distributed = new_total_issued_so_far + bonus; // + referral_bonus;
 
-        fn contribute_phase2(
-            &self,
-            contributor: AccountId,
-            amount_contributed: u128,
-        ) -> Result<u128, TGEError> {
-            let base_amount = self.calculate_base_amount_phase2(amount_contributed);
-            let contributor_amount_to_issue =
-                self.calculate_amount_with_bonus(contributor, base_amount)?;
-            self.issue_tokens_phase2(contributor, contributor_amount_to_issue)?;
-
-            Ok(contributor_amount_to_issue)
-        }
-
-        /// Calculates the amount of tokens to be issued for a contribution
-        /// The amount is calculated as follows:
-        /// base_amount * bonus_multiplier / 1_000_000
-        fn calculate_amount_with_bonus(
-            &self,
-            contributor: AccountId,
-            base_amount: u128,
-        ) -> Result<u128, TGEError> {
-            match self.tge.bonus_multiplier_e6_by_address.get(&contributor) {
-                Some(bonus_multiplier_e6) => mul_denom_e6(base_amount, bonus_multiplier_e6),
-                None => Ok(base_amount),
-            }
-        }
-
-        /// Calculates the base amount of tokens to be issued for a contribution in phase 1
-        /// The base amount is the amount of tokens that would be issued if the contributor had no bonus
-        /// The base amount is calculated as follows:
-        /// amount * phase_one_amount_per_milllion_tokens / 1_000_000
-        fn calculate_base_amount_phase1(&self, contributed: Balance) -> u128 {
-            contributed * self.tge.phase_one_amount_per_milllion_tokens / E6_U128
-        }
-
-        /// Calculates the base amount of tokens to be issued for a contribution in phase 2
-        /// The base amount is the amount of tokens that would be issued if the contributor had no bonus
-        /// The base amount is calculated as follows:
-        /// the effective amount per million is an avaerage between the amount per million before and after the contribution
-        /// amount * effective_amount_per_milllion_tokens / 1_000_000
-        fn calculate_base_amount_phase2(&self, contributed: Balance) -> u128 {
-            let amount_per_million_before =
-                U256::from(self.tge.phase_one_amount_per_milllion_tokens)
-                    * U256::from(self.tge.phase_one_token_cap)
-                    / U256::from(self.tge.total_amount_distributed);
-
-            let amount_per_million_after =
-                U256::from(self.tge.phase_one_amount_per_milllion_tokens)
-                    * U256::from(self.tge.phase_one_token_cap)
-                    / U256::from(self.tge.total_amount_distributed + contributed)
-                    + 1;
-            ink::env::debug_println!(
-                "amount_per_million_before: {:?}, amount_per_million_after: {:?}",
-                amount_per_million_before,
-                amount_per_million_after
-            );
-
-            let effective_amount_per_million =
-                (amount_per_million_after + amount_per_million_before) / 2;
-
-            ink::env::debug_println!(
-                "effective_amount_per_million: {:?}",
-                effective_amount_per_million
-            );
-
-            u128::try_from(
-                U256::from(contributed) * effective_amount_per_million / U256::from(E6_U128),
-            )
-            .unwrap()
-        }
-        fn issue_tokens_phase1(&self, to: AccountId, amount: u128) -> Result<(), TGEError> {
             //todo check roundings
 
-            let contribution_token_address = self.tge.contribution_token_address.get().unwrap();
-            let mut psp22: PSP22Ref = contribution_token_address.into();
+            let generated_token_address = self.tge.generated_token_address.get().unwrap();
+            let mut psp22: PSP22Ref = generated_token_address.into();
             let (amount_to_instant_release, amount_to_vest) =
                 calculate_amounts_to_issue_phase1(amount)?;
 
@@ -381,7 +418,7 @@ pub mod abax_tge {
                 .unwrap();
             vester.create_vest(
                 to,
-                Some(contribution_token_address),
+                Some(generated_token_address),
                 amount_to_vest,
                 VestingSchedule::Constant(
                     0,
@@ -400,8 +437,17 @@ pub mod abax_tge {
             Ok(())
         }
 
-        fn issue_tokens_phase2(&self, to: AccountId, amount: u128) -> Result<u128, TGEError> {
-            let contribution_token_address = self.tge.contribution_token_address.get().unwrap();
+        fn issue_tokens_phase2(
+            &mut self,
+            to: AccountId,
+            to_create: Balance,
+        ) -> Result<u128, TGEError> {
+            let bonus = self.get_bonus(to, to_create)?;
+            let referral_bonus = 0; // = self.get_referral_bonus(to, to_create)?;
+
+            let contributor_amount = to_create + bonus;
+
+            let contribution_token_address = self.tge.generated_token_address.get().unwrap();
             let mut psp22_mintable: PSP22MintableRef = contribution_token_address.into();
             let mut psp22: PSP22Ref = contribution_token_address.into();
 
@@ -416,7 +462,7 @@ pub mod abax_tge {
                 founders_amount_to_vest,
                 foundation_amount,
                 strategic_reserves_amount,
-            ) = calculate_amounts_to_issue_phase2(amount)?;
+            ) = calculate_amounts_to_issue_phase2(contributor_amount, referral_bonus)?;
 
             // approve vester to spend tokens
             psp22
@@ -530,10 +576,22 @@ pub mod abax_tge {
         Ok((amount_to_instant_release, amount_to_vest))
     }
     fn calculate_amounts_to_issue_phase2(
-        amount: u128,
+        created_amount: u128,
+        referral_bonus: u128,
     ) -> Result<(u128, u128, u128, u128, u128, u128), TGEError> {
+        let amount_to_instant_release = mul_denom_e6(
+            created_amount,
+            ABAX_ALLOCATION_DISTRIBUTION_PARAMS
+                .public_contribution
+                .instant_release_percentage_e6,
+        )?;
+
+        let amount_to_vest = created_amount - amount_to_instant_release;
+
         // amount is 20% of the total amount to be issued, calculate amounts for each allocation (founders, foundation, strategic reserves)
-        let total_amount = amount
+        let total_amount = created_amount
+            .checked_add(referral_bonus)
+            .ok_or(TGEError::MathError)?
             .checked_mul(E6_U128)
             .ok_or(TGEError::MathError)?
             .checked_div(
@@ -548,28 +606,32 @@ pub mod abax_tge {
             )
             .ok_or(TGEError::MathError)?;
 
-        let amount_to_instant_release = mul_denom_e6(
-            total_amount,
-            ABAX_ALLOCATION_DISTRIBUTION_PARAMS
-                .public_contribution
-                .instant_release_percentage_e6,
-        )?;
-
-        let amount_to_vest = mul_denom_e6(
-            total_amount,
-            ABAX_ALLOCATION_DISTRIBUTION_PARAMS
-                .public_contribution
-                .vesting_params
-                .unwrap()
-                .amount_to_release_percentage_e6,
-        )?;
-
         let (
             founders_amount,
             founders_amount_to_vest,
             foundation_amount,
             strategic_reserves_amount,
         ) = calculate_rest_amounts_to_issue(total_amount)?;
+
+        ink::env::debug_println!(
+            "calculate_amounts_to_issue_phase2\n
+amount: {:?}\n
+total_amount: {:?}\n
+amount_to_instant_release: {:?}\n
+amount_to_vest: {:?}\n
+founders_amount: {:?}\n
+founders_amount_to_vest: {:?}\n
+foundation_amount: {:?}\n
+strategic_reserves_amount: {:?}",
+            created_amount,
+            total_amount,
+            amount_to_instant_release,
+            amount_to_vest,
+            founders_amount,
+            founders_amount_to_vest,
+            foundation_amount,
+            strategic_reserves_amount
+        );
 
         Ok((
             amount_to_instant_release,
@@ -606,12 +668,8 @@ pub mod abax_tge {
                 .foundation
                 .instant_release_percentage_e6,
         )?;
-        let strategic_reserves_amount = mul_denom_e6(
-            total_amount,
-            ABAX_ALLOCATION_DISTRIBUTION_PARAMS
-                .strategic_reserves
-                .instant_release_percentage_e6,
-        )?;
+        let strategic_reserves_amount =
+            total_amount - (founders_amount + founders_amount_to_vest + foundation_amount);
         Ok((
             founders_amount,
             founders_amount_to_vest,

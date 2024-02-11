@@ -4,6 +4,7 @@
 .idea
 ev
 test-chain-data
+test-chain-state-tmp
 
 *.testrun*.log
 dist

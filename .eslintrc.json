@@ -49,7 +49,7 @@
         "@typescript-eslint/no-inferrable-types": "off",
         "no-magic-numbers": "off",
         "@typescript-eslint/no-magic-numbers": [
-          "warn",
+          "off",
           {
             "ignoreArrayIndexes": true,
             "ignoreEnums": true,
