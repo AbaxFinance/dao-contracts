@@ -18,10 +18,11 @@ export async function getTgeParams(tge: AbaxTge) {
     foundersAddress: res[5],
     foundationAddress: res[6],
     strategicReservesAddress: res[7],
-    phaseOneTokenCap: res[8],
-    phaseOneAmountPerMillionTokens: res[9],
-    totalAmountDistributed: res[10],
-    phaseTwoPublicContributionDistributed: res[11],
+    wazeroAddress: res[8],
+    phaseOneTokenCap: res[9],
+    phaseOneAmountPerMillionTokens: res[10],
+    totalAmountDistributed: res[11],
+    totalStakingAirdropAmount: res[12],
   };
 }
 

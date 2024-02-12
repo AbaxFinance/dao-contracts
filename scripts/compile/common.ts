@@ -39,13 +39,23 @@ export const compileContract = async (contractPath: string) => {
 };
 
 export const copyArtifacts = async (contractName: string) => {
-  const artifactsCompileOutputPath = path.join('src', 'target', 'ink', contractName);
+  const contractNameSanitized = contractName.replace(/-/g, '_');
+  const artifactsCompileOutputPath = path.join('src', 'target', 'ink', contractNameSanitized);
   const artifactsOutputPath = path.join('artifacts');
   console.log('Copying artifacts...');
   fs.ensureDirSync(artifactsOutputPath);
-  fs.copyFileSync(path.join(artifactsCompileOutputPath, `${contractName}.contract`), path.join(artifactsOutputPath, `${contractName}.contract`));
-  fs.copyFileSync(path.join(artifactsCompileOutputPath, `${contractName}.wasm`), path.join(artifactsOutputPath, `${contractName}.wasm`));
-  fs.copyFileSync(path.join(artifactsCompileOutputPath, `${contractName}.json`), path.join(artifactsOutputPath, `${contractName}.json`));
+  fs.copyFileSync(
+    path.join(artifactsCompileOutputPath, `${contractNameSanitized}.contract`),
+    path.join(artifactsOutputPath, `${contractNameSanitized}.contract`),
+  );
+  fs.copyFileSync(
+    path.join(artifactsCompileOutputPath, `${contractNameSanitized}.wasm`),
+    path.join(artifactsOutputPath, `${contractNameSanitized}.wasm`),
+  );
+  fs.copyFileSync(
+    path.join(artifactsCompileOutputPath, `${contractNameSanitized}.json`),
+    path.join(artifactsOutputPath, `${contractNameSanitized}.json`),
+  );
 };
 
 const getContractsFolderPath = (contractsRootPath: string, contractName: string) => {

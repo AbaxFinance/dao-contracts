@@ -1,4 +1,4 @@
-use psp22::PSP22Error;
+use pendzl::contracts::token::psp22::PSP22Error;
 
 #[ink::trait_definition]
 pub trait WrappedAZERO {

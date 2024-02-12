@@ -61,7 +61,7 @@ pub mod abax_tge {
             }
 
             if to_create < E12_U128 {
-                return Err(TGEError::AmountLessThanOne);
+                return Err(TGEError::AmountLessThanMinimum);
             }
 
             self.tge.total_amount_distributed +=
@@ -69,12 +69,14 @@ pub mod abax_tge {
 
             let is_phase_one = self.tge.phase_two_start_time.get().is_none();
 
-            ink::env::debug_println!("is_phase_one {:?}", is_phase_one,);
+            ink::env::debug_println!("is_phase_one {:?}", is_phase_one);
 
             let cost = match is_phase_one {
                 true => self.contribute_phase1(contributor, to_create)?,
                 false => self.contribute_phase2(contributor, to_create)?,
             };
+
+            ink::env::debug_println!("cost {:?}", cost);
 
             let mut wazero: PSP22Ref = self.tge.wazero_address.get().unwrap().into();
 
@@ -115,6 +117,7 @@ pub mod abax_tge {
             AccountId,
             AccountId,
             AccountId,
+            AccountId,
             u128,
             u128,
             u128,
@@ -136,10 +139,11 @@ pub mod abax_tge {
                     .strategic_reserves_address
                     .get()
                     .unwrap_or(default_addr),
+                self.tge.wazero_address.get().unwrap_or(default_addr),
                 self.tge.phase_one_token_cap,
                 self.tge.cost_to_mint_milion_tokens,
                 self.tge.total_amount_distributed,
-                self.tge.total_amount_distributed_phase_two,
+                self.tge.total_staking_airdrop_amount,
             )
         }
 
@@ -155,6 +159,8 @@ pub mod abax_tge {
             founders_address: AccountId,
             foundation_address: AccountId,
             strategic_reserves_address: AccountId,
+            wazero_address: AccountId,
+            total_staking_airdrop_amount: u128,
         ) {
             self.tge.start_time.set(&start_time);
             self.tge.phase_one_token_cap = phase_one_token_cap;
@@ -169,6 +175,8 @@ pub mod abax_tge {
             self.tge
                 .strategic_reserves_address
                 .set(&strategic_reserves_address);
+            self.tge.wazero_address.set(&wazero_address);
+            self.tge.total_staking_airdrop_amount = total_staking_airdrop_amount;
         }
 
         #[ink(message)]
@@ -204,12 +212,15 @@ pub mod abax_tge {
 
             let mut vester: GeneralVestRef = self.tge.vester.get().unwrap().into();
 
-            let (
-                founders_amount,
-                founders_amount_to_vest,
-                foundation_amount,
-                strategic_reserves_amount,
-            ) = calculate_rest_amounts_to_issue(self.tge.phase_one_token_cap)?;
+            let (founders_amount, founders_amount_to_vest, foundation_amount, _) =
+                calculate_rest_amounts_to_issue(self.tge.phase_one_token_cap)?;
+
+            let strategic_reserves_amount = mul_denom_e6(
+                self.tge.phase_one_token_cap,
+                ABAX_ALLOCATION_DISTRIBUTION_PARAMS
+                    .strategic_reserves
+                    .instant_release_percentage_e6,
+            )?;
 
             // approve vester to spend tokens
             psp22
@@ -254,11 +265,26 @@ pub mod abax_tge {
                 strategic_reserves_amount,
                 vec![],
             )?;
+            // print all amounts
+            ink::env::debug_println!(
+                "ensure_phase1_non_contributor_actions_performed\n
+self.tge.phase_one_token_cap {:?}\n
+founders_amount: {:?}\n
+founders_amount_to_vest: {:?}\n
+foundation_amount: {:?}\n
+strategic_reserves_amount: {:?}",
+                self.tge.phase_one_token_cap,
+                founders_amount,
+                founders_amount_to_vest,
+                foundation_amount,
+                strategic_reserves_amount
+            );
 
             Ok(founders_amount
                 + founders_amount_to_vest
                 + foundation_amount
-                + strategic_reserves_amount)
+                + strategic_reserves_amount
+                + self.tge.total_staking_airdrop_amount)
         }
 
         fn contribute_phase1(
@@ -279,6 +305,8 @@ pub mod abax_tge {
             to_create: u128,
         ) -> Result<u128, TGEError> {
             let cost = self.calculate_cost_phase2(to_create);
+            ink::env::debug_println!("fn contribute_phase2");
+            ink::env::debug_println!("to_create {:?} cost: {:?} ", to_create, cost);
             self.issue_tokens_phase2(contributor, to_create)?;
 
             Ok(cost)
@@ -299,7 +327,18 @@ pub mod abax_tge {
         /// The base amount is calculated as follows:
         /// amount * phase_one_cost_per_milllion_tokens / 1_000_000
         fn calculate_cost_phase1(&self, to_create: Balance) -> u128 {
-            to_create * self.tge.cost_to_mint_milion_tokens / E6_U128
+            ink::env::debug_println!("calculate_cost_phase1");
+            ink::env::debug_println!("to_create: {:?}", to_create);
+            ink::env::debug_println!(
+                "self.tge.cost_to_mint_milion_tokens: {:?}",
+                self.tge.cost_to_mint_milion_tokens
+            );
+            u128::try_from(
+                U256::from(to_create) * U256::from(self.tge.cost_to_mint_milion_tokens)
+                    / U256::from(E12_U128)
+                    / U256::from(E6_U128),
+            )
+            .unwrap()
         }
 
         fn calculate_cost_phase2(&self, to_create: Balance) -> u128 {
@@ -325,56 +364,13 @@ pub mod abax_tge {
                 effective_cost_per_million
             );
 
-            //todo check for to_create > 10 ^ 12
-
-            u128::try_from(effective_cost_per_million * U256::from(to_create) / U256::from(E6_U128))
-                .unwrap()
+            u128::try_from(
+                effective_cost_per_million * U256::from(to_create)
+                    / U256::from(E12_U128)
+                    / U256::from(E6_U128),
+            )
+            .unwrap()
         }
-
-        /// Calculates the base amount of tokens to be issued for a contribution in phase 2
-        /// The base amount is the amount of tokens that would be issued if the contributor had no bonus
-        /// The base amount is calculated as follows:
-        /// the effective amount per million is an avaerage between the amount per million before and after the contribution
-        /// amount * effective_cost_per_milllion_tokens / 1_000_000
-        // fn calculate_base_amount_phase2xd(&self, amount: Balance) -> Result<u128, TGEError> {
-        //     let cost_per_million_before_e6 = amount
-        //         * self.tge.phase_one_cost_per_milllion_tokens
-        //         * (E6_U128
-        //             + (E6_U128 * self.tge.total_amount_distributed_phase_two)
-        //                 / self.tge.phase_one_token_cap);
-        //     let cost_per_million_after_e6 = amount
-        //         * self.tge.phase_one_cost_per_milllion_tokens
-        //         * (E6_U128
-        //             + ((self.tge.total_amount_distributed_phase_two
-        //                 + self.calculate_cost_phase1(amount) * 5)
-        //                 * E6_U128)
-        //                 / self.tge.phase_one_token_cap);
-
-        //     ink::env::debug_println!(
-        //         "self.tge.total_amount_distributed_phase_two + self.calculate_base_amount_phase1(amount) * 5: {:?}",
-        //         self.tge.total_amount_distributed_phase_two + self.calculate_cost_phase1(amount) * 5
-        //     );
-        //     ink::env::debug_println!(
-        //         "cost_per_million_before: {:?}, cost_per_million_after: {:?}",
-        //         cost_per_million_before_e6,
-        //         cost_per_million_after_e6
-        //     );
-
-        //     let effective_cost_per_million =
-        //         (cost_per_million_before_e6 + cost_per_million_after_e6) / 2;
-
-        //     ink::env::debug_println!(
-        //         "effective_cost_per_million: {:?}",
-        //         effective_cost_per_million
-        //     );
-
-        //     u128::try_from(
-        //         U256::from(amount) * U256::from(effective_cost_per_million)
-        //             / U256::from(E6_U128)
-        //             / U256::from(E6_U128),
-        //     )
-        //     .map_err(|_| TGEError::MathError)
-        // }
         fn issue_tokens_phase1(
             &mut self,
             to: AccountId,
@@ -384,6 +380,12 @@ pub mod abax_tge {
             // let referral_bonus = self.get_referral_bonus(to, to_create)?;
 
             let new_total_issued_so_far = self.tge.total_amount_distributed + to_create;
+            ink::env::debug_println!(
+                "total_amount_distributed: {:?}\nto_create: {:?}\nnew_total_issued_so_far: {:?}",
+                self.tge.total_amount_distributed,
+                to_create,
+                new_total_issued_so_far
+            );
             if new_total_issued_so_far > self.tge.phase_one_token_cap {
                 return Err(TGEError::Phase1TokenCapReached);
             } else if new_total_issued_so_far == self.tge.phase_one_token_cap {
@@ -536,6 +538,23 @@ pub mod abax_tge {
                 vec![],
             )?;
 
+            // print all amounts
+            ink::env::debug_println!(
+                "fn issue_tokens_phase2\n
+amount_to_instant_release: {:?}\n
+amount_to_vest: {:?}\n
+founders_amount: {:?}\n
+founders_amount_to_vest: {:?}\n
+foundation_amount: {:?}\n
+strategic_reserves_amount: {:?}",
+                amount_to_instant_release,
+                amount_to_vest,
+                founders_amount,
+                founders_amount_to_vest,
+                foundation_amount,
+                strategic_reserves_amount
+            );
+
             Ok(amount_to_instant_release
                 + amount_to_vest
                 + founders_amount
@@ -579,12 +598,23 @@ pub mod abax_tge {
         created_amount: u128,
         referral_bonus: u128,
     ) -> Result<(u128, u128, u128, u128, u128, u128), TGEError> {
-        let amount_to_instant_release = mul_denom_e6(
-            created_amount,
+        let public_contribution_total_percentage_e6 = ABAX_ALLOCATION_DISTRIBUTION_PARAMS
+            .public_contribution
+            .instant_release_percentage_e6
+            + ABAX_ALLOCATION_DISTRIBUTION_PARAMS
+                .public_contribution
+                .vesting_params
+                .unwrap()
+                .amount_to_release_percentage_e6;
+        let instant_release_relative_percentage_e6 = mul_div(
             ABAX_ALLOCATION_DISTRIBUTION_PARAMS
                 .public_contribution
                 .instant_release_percentage_e6,
+            E6_U128,
+            public_contribution_total_percentage_e6,
         )?;
+        let amount_to_instant_release =
+            mul_denom_e6(created_amount, instant_release_relative_percentage_e6)?;
 
         let amount_to_vest = created_amount - amount_to_instant_release;
 
@@ -594,16 +624,7 @@ pub mod abax_tge {
             .ok_or(TGEError::MathError)?
             .checked_mul(E6_U128)
             .ok_or(TGEError::MathError)?
-            .checked_div(
-                ABAX_ALLOCATION_DISTRIBUTION_PARAMS
-                    .public_contribution
-                    .instant_release_percentage_e6
-                    + ABAX_ALLOCATION_DISTRIBUTION_PARAMS
-                        .public_contribution
-                        .vesting_params
-                        .unwrap()
-                        .amount_to_release_percentage_e6,
-            )
+            .checked_div(public_contribution_total_percentage_e6)
             .ok_or(TGEError::MathError)?;
 
         let (

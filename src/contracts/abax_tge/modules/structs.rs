@@ -26,9 +26,9 @@ pub struct PublicContributionStorage {
     pub phase_one_token_cap: u128,
     pub cost_to_mint_milion_tokens: u128,
     pub total_amount_distributed: u128,
-    pub total_amount_distributed_phase_two: u128,
     pub bonus_multiplier_e6_by_address: Mapping<AccountId, u128>,
     pub contributed_amount_by_address: Mapping<AccountId, u128>,
+    pub total_staking_airdrop_amount: u128,
 }
 
 #[derive(Debug, Copy, Clone, scale::Encode, scale::Decode)]

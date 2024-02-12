@@ -7,14 +7,15 @@ import BN from 'bn.js';
 import { readFileSync } from 'fs-extra';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
+import WAZERO from 'typechain/contracts/wrapped_azero';
 import Vester from 'typechain/contracts/vester';
 
 import AbaxTgeConstructor from 'typechain/constructors/abax_tge';
 import PSP22EmitableConstructor from 'typechain/constructors/psp22_emitable';
 import VesterConstructor from 'typechain/constructors/vester';
+import WAZEROConstructor from 'typechain/constructors/wrapped_azero';
 
 import { getContractObject } from '@abaxfinance/contract-helpers';
-import { ABAX_DECIMALS } from 'tests/consts';
 import { getSigners, getSignersWithoutOwner } from './helpers';
 
 const getCodePromise = (api: ApiPromise, contractName: string): CodePromise => {
@@ -113,8 +114,12 @@ export const deployVester = async (api: ApiPromise, owner: KeyringPair) => {
 };
 
 export const deployEmitableToken = async (api: ApiPromise, owner: KeyringPair, name: string, decimals: number = 6) => {
-  const deployRet = await new PSP22EmitableConstructor(api, owner).new(name, `Reserve ${name} token `, decimals);
+  const deployRet = await new PSP22EmitableConstructor(api, owner).new(name, name, decimals);
   return getContractObjectWrapper(api, PSP22Emitable, deployRet.address, owner);
+};
+export const deployWAZERO = async (api: ApiPromise, owner: KeyringPair) => {
+  const deployRet = await new WAZEROConstructor(api, owner).new();
+  return getContractObjectWrapper(api, WAZERO, deployRet.address, owner);
 };
 
 const getContractObjectWrapper = async <T>(
