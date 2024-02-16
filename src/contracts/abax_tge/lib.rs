@@ -38,7 +38,11 @@ pub mod abax_tge {
 
     impl AbaxTGE for TGEContract {
         #[ink(message, payable)]
-        fn contribute(&mut self, to_create: Balance) -> Result<u128, TGEError> {
+        fn contribute(
+            &mut self,
+            to_create: Balance,
+            referrer: Option<AccountId>,
+        ) -> Result<u128, TGEError> {
             if self.env().block_timestamp() < self.tge.start_time.get().unwrap() {
                 return Err(TGEError::TGENotStarted);
             }
@@ -72,8 +76,8 @@ pub mod abax_tge {
             ink::env::debug_println!("is_phase_one {:?}", is_phase_one);
 
             let cost = match is_phase_one {
-                true => self.contribute_phase1(contributor, to_create)?,
-                false => self.contribute_phase2(contributor, to_create)?,
+                true => self.contribute_phase1(contributor, to_create, referrer)?,
+                false => self.contribute_phase2(contributor, to_create, referrer)?,
             };
 
             ink::env::debug_println!("cost {:?}", cost);
@@ -213,7 +217,7 @@ pub mod abax_tge {
             let mut vester: GeneralVestRef = self.tge.vester.get().unwrap().into();
 
             let (founders_amount, founders_amount_to_vest, foundation_amount, _) =
-                calculate_rest_amounts_to_issue(self.tge.phase_one_token_cap)?;
+                calculate_rest_amounts_to_issue(0, self.tge.phase_one_token_cap)?;
 
             let strategic_reserves_amount = mul_denom_e6(
                 self.tge.phase_one_token_cap,
@@ -291,11 +295,12 @@ strategic_reserves_amount: {:?}",
             &mut self,
             contributor: AccountId,
             to_create: u128,
+            referrer: Option<AccountId>,
         ) -> Result<u128, TGEError> {
             let cost = self.calculate_cost_phase1(to_create);
             ink::env::debug_println!("fn contribute_phase1");
             ink::env::debug_println!("to_create {:?} cost: {:?} ", to_create, cost);
-            self.issue_tokens_phase1(contributor, to_create)?;
+            self.issue_tokens_phase1(contributor, to_create, referrer)?;
             Ok(cost)
         }
 
@@ -303,11 +308,18 @@ strategic_reserves_amount: {:?}",
             &mut self,
             contributor: AccountId,
             to_create: u128,
+            referrer: Option<AccountId>,
         ) -> Result<u128, TGEError> {
-            let cost = self.calculate_cost_phase2(to_create);
+            let bonus = self.get_bonus(contributor, to_create)?;
+            let referral_bonus = self.get_referral_bonus(referrer, to_create)?;
+            let total_amount_to_be_issued = calc_total_amount_from_amount_on_behalf_of_contributor(
+                to_create + bonus + referral_bonus,
+            )?;
+            let cost = self.calculate_cost_phase2(to_create, total_amount_to_be_issued);
             ink::env::debug_println!("fn contribute_phase2");
             ink::env::debug_println!("to_create {:?} cost: {:?} ", to_create, cost);
-            self.issue_tokens_phase2(contributor, to_create)?;
+
+            self.issue_tokens_phase2(contributor, to_create, bonus, referral_bonus)?;
 
             Ok(cost)
         }
@@ -318,6 +330,23 @@ strategic_reserves_amount: {:?}",
         fn get_bonus(&self, contributor: AccountId, base_amount: u128) -> Result<u128, TGEError> {
             match self.tge.bonus_multiplier_e6_by_address.get(&contributor) {
                 Some(bonus_multiplier_e6) => mul_denom_e6(base_amount, bonus_multiplier_e6),
+                None => Ok(0),
+            }
+        }
+
+        /// Calculates the amount of tokens to be issued for a contribution
+        /// The amount is calculated as follows:
+        /// base_amount * bonus_multiplier / 1_000_000
+        fn get_referral_bonus(
+            &self,
+            referrer: Option<AccountId>,
+            base_amount: u128,
+        ) -> Result<u128, TGEError> {
+            match referrer {
+                Some(referrer) => match self.tge.referrer_by_address.get(&referrer) {
+                    Some(()) => mul_denom_e6(base_amount, 10_000), // 1%
+                    None => Ok(0),
+                },
                 None => Ok(0),
             }
         }
@@ -341,13 +370,17 @@ strategic_reserves_amount: {:?}",
             .unwrap()
         }
 
-        fn calculate_cost_phase2(&self, to_create: Balance) -> u128 {
+        fn calculate_cost_phase2(
+            &self,
+            to_create: Balance,
+            total_amount_to_be_issued: Balance,
+        ) -> u128 {
             let cost_per_million_before = U256::from(self.tge.cost_to_mint_milion_tokens)
                 * U256::from(self.tge.total_amount_distributed)
                 / U256::from(self.tge.phase_one_token_cap);
 
             let cost_per_million_after = U256::from(self.tge.cost_to_mint_milion_tokens)
-                * U256::from(self.tge.total_amount_distributed + to_create)
+                * U256::from(self.tge.total_amount_distributed + total_amount_to_be_issued)
                 / U256::from(self.tge.phase_one_token_cap);
 
             ink::env::debug_println!(
@@ -375,9 +408,10 @@ strategic_reserves_amount: {:?}",
             &mut self,
             to: AccountId,
             to_create: Balance,
+            referrer: Option<AccountId>,
         ) -> Result<(), TGEError> {
             let bonus = self.get_bonus(to, to_create)?;
-            // let referral_bonus = self.get_referral_bonus(to, to_create)?;
+            let referral_bonus = self.get_referral_bonus(referrer, to_create)?;
 
             let new_total_issued_so_far = self.tge.total_amount_distributed + to_create;
             ink::env::debug_println!(
@@ -396,7 +430,7 @@ strategic_reserves_amount: {:?}",
             }
 
             let amount = to_create + bonus;
-            self.tge.total_amount_distributed = new_total_issued_so_far + bonus; // + referral_bonus;
+            self.tge.total_amount_distributed = new_total_issued_so_far + bonus + referral_bonus;
 
             //todo check roundings
 
@@ -443,10 +477,9 @@ strategic_reserves_amount: {:?}",
             &mut self,
             to: AccountId,
             to_create: Balance,
+            bonus: u128,
+            referral_bonus: u128,
         ) -> Result<u128, TGEError> {
-            let bonus = self.get_bonus(to, to_create)?;
-            let referral_bonus = 0; // = self.get_referral_bonus(to, to_create)?;
-
             let contributor_amount = to_create + bonus;
 
             let contribution_token_address = self.tge.generated_token_address.get().unwrap();
@@ -554,13 +587,27 @@ strategic_reserves_amount: {:?}",
                 foundation_amount,
                 strategic_reserves_amount
             );
+            self.tge.total_amount_distributed = self
+                .tge
+                .total_amount_distributed
+                .checked_add(
+                    amount_to_instant_release
+                        + amount_to_vest
+                        + founders_amount
+                        + founders_amount_to_vest
+                        + foundation_amount
+                        + strategic_reserves_amount
+                        + referral_bonus,
+                )
+                .ok_or(TGEError::MathError)?;
 
             Ok(amount_to_instant_release
                 + amount_to_vest
                 + founders_amount
                 + founders_amount_to_vest
                 + foundation_amount
-                + strategic_reserves_amount)
+                + strategic_reserves_amount
+                + referral_bonus)
         }
     }
 
@@ -618,21 +665,19 @@ strategic_reserves_amount: {:?}",
 
         let amount_to_vest = created_amount - amount_to_instant_release;
 
-        // amount is 20% of the total amount to be issued, calculate amounts for each allocation (founders, foundation, strategic reserves)
-        let total_amount = created_amount
+        let amount_on_behalf_of_contributor = created_amount
             .checked_add(referral_bonus)
-            .ok_or(TGEError::MathError)?
-            .checked_mul(E6_U128)
-            .ok_or(TGEError::MathError)?
-            .checked_div(public_contribution_total_percentage_e6)
             .ok_or(TGEError::MathError)?;
+        let total_amount = calc_total_amount_from_amount_on_behalf_of_contributor(
+            amount_on_behalf_of_contributor,
+        )?;
 
         let (
             founders_amount,
             founders_amount_to_vest,
             foundation_amount,
             strategic_reserves_amount,
-        ) = calculate_rest_amounts_to_issue(total_amount)?;
+        ) = calculate_rest_amounts_to_issue(amount_on_behalf_of_contributor, total_amount)?;
 
         ink::env::debug_println!(
             "calculate_amounts_to_issue_phase2\n
@@ -664,7 +709,28 @@ strategic_reserves_amount: {:?}",
         ))
     }
 
+    fn calc_total_amount_from_amount_on_behalf_of_contributor(
+        amount_on_behalf_of_contributor: u128,
+    ) -> Result<u128, TGEError> {
+        let public_contribution_total_percentage_e6 = ABAX_ALLOCATION_DISTRIBUTION_PARAMS
+            .public_contribution
+            .instant_release_percentage_e6
+            + ABAX_ALLOCATION_DISTRIBUTION_PARAMS
+                .public_contribution
+                .vesting_params
+                .unwrap()
+                .amount_to_release_percentage_e6;
+        // amount is 20% of the total amount to be issued, calculate amounts for each allocation (founders, foundation, strategic reserves)
+        let total_amount = amount_on_behalf_of_contributor
+            .checked_mul(E6_U128)
+            .ok_or(TGEError::MathError)?
+            .checked_div(public_contribution_total_percentage_e6)
+            .ok_or(TGEError::MathError)?;
+        Ok(total_amount)
+    }
+
     fn calculate_rest_amounts_to_issue(
+        amount_on_behalf_of_contributor: u128,
         total_amount: u128,
     ) -> Result<(u128, u128, u128, u128), TGEError> {
         let founders_amount = mul_denom_e6(
@@ -689,8 +755,11 @@ strategic_reserves_amount: {:?}",
                 .foundation
                 .instant_release_percentage_e6,
         )?;
-        let strategic_reserves_amount =
-            total_amount - (founders_amount + founders_amount_to_vest + foundation_amount);
+        let strategic_reserves_amount = total_amount
+            - (founders_amount
+                + founders_amount_to_vest
+                + foundation_amount
+                + amount_on_behalf_of_contributor);
         Ok((
             founders_amount,
             founders_amount_to_vest,

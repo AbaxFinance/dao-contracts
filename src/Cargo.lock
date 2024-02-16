@@ -8,7 +8,7 @@ version = "0.1.0-alpha"
 dependencies = [
  "ink",
  "parity-scale-codec",
- "pendzl",
+ "pendzl 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types",
  "scale-info",
 ]
@@ -389,7 +389,7 @@ dependencies = [
  "ethnum",
  "ink",
  "parity-scale-codec",
- "pendzl",
+ "pendzl 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "scale-info",
 ]
 
@@ -821,13 +821,36 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 [[package]]
 name = "pendzl"
 version = "0.1.0-beta1"
+dependencies = [
+ "ink",
+ "parity-scale-codec",
+ "pendzl_contracts 0.1.0-beta1",
+ "pendzl_lang 0.1.0-beta1",
+ "scale-info",
+]
+
+[[package]]
+name = "pendzl"
+version = "0.1.0-beta1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6a0393952f3c4403e350da8a745e393ec34353e656de69feb2bcdd8e865d933"
 dependencies = [
  "ink",
  "parity-scale-codec",
- "pendzl_contracts",
- "pendzl_lang",
+ "pendzl_contracts 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pendzl_lang 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "scale-info",
+]
+
+[[package]]
+name = "pendzl_contracts"
+version = "0.1.0-beta1"
+dependencies = [
+ "ethnum",
+ "hex",
+ "ink",
+ "parity-scale-codec",
+ "pendzl_lang 0.1.0-beta1",
  "scale-info",
 ]
 
@@ -841,8 +864,20 @@ dependencies = [
  "hex",
  "ink",
  "parity-scale-codec",
- "pendzl_lang",
+ "pendzl_lang 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "scale-info",
+]
+
+[[package]]
+name = "pendzl_lang"
+version = "0.1.0-beta1"
+dependencies = [
+ "const_format",
+ "ink",
+ "parity-scale-codec",
+ "pendzl_lang_macro 0.1.0-beta1",
+ "scale-info",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -854,9 +889,28 @@ dependencies = [
  "const_format",
  "ink",
  "parity-scale-codec",
- "pendzl_lang_macro",
+ "pendzl_lang_macro 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "scale-info",
  "xxhash-rust",
+]
+
+[[package]]
+name = "pendzl_lang_codegen"
+version = "0.1.0-beta1"
+dependencies = [
+ "blake2",
+ "cargo_metadata",
+ "fs2",
+ "heck 0.3.3",
+ "ink_ir 4.3.0",
+ "ink_primitives 4.3.0",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 1.0.109",
+ "synstructure 0.12.6",
+ "unwrap",
 ]
 
 [[package]]
@@ -883,10 +937,20 @@ dependencies = [
 [[package]]
 name = "pendzl_lang_macro"
 version = "0.1.0-beta1"
+dependencies = [
+ "pendzl_lang_codegen 0.1.0-beta1",
+ "proc-macro2",
+ "syn 1.0.109",
+ "synstructure 0.12.6",
+]
+
+[[package]]
+name = "pendzl_lang_macro"
+version = "0.1.0-beta1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6017fbd1432673b8d123b0bda4694e1e2c78cf6b0e2cdc9a259b1f636f0fc16"
 dependencies = [
- "pendzl_lang_codegen",
+ "pendzl_lang_codegen 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2",
  "syn 1.0.109",
  "synstructure 0.12.6",
@@ -961,7 +1025,7 @@ version = "0.1.1"
 dependencies = [
  "ink",
  "parity-scale-codec",
- "pendzl",
+ "pendzl 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "scale-info",
 ]
 
@@ -1469,7 +1533,7 @@ version = "0.1.0-beta"
 dependencies = [
  "ink",
  "parity-scale-codec",
- "pendzl",
+ "pendzl 0.1.0-beta1",
  "scale-info",
 ]
 
@@ -1516,7 +1580,7 @@ version = "0.1.0"
 dependencies = [
  "ink",
  "parity-scale-codec",
- "pendzl",
+ "pendzl 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
  "scale-info",
 ]
 

@@ -28,6 +28,7 @@ pub struct PublicContributionStorage {
     pub total_amount_distributed: u128,
     pub bonus_multiplier_e6_by_address: Mapping<AccountId, u128>,
     pub contributed_amount_by_address: Mapping<AccountId, u128>,
+    pub referrer_by_address: Mapping<AccountId, ()>,
     pub total_staking_airdrop_amount: u128,
 }
 
