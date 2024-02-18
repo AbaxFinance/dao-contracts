@@ -15,6 +15,7 @@ pub enum TGEError {
     TGEEnded,
     Phase1TokenCapReached,
     ContributionViaContract,
+    InvalidReferrer,
 }
 
 impl From<PSP22Error> for TGEError {

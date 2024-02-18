@@ -197,6 +197,13 @@ pub mod abax_tge {
         }
 
         #[ink(message)]
+        pub fn register_referrer(&mut self, referrer: AccountId) -> Result<(), TGEError> {
+            self._ensure_has_role(ADMIN, Some(self.env().caller()))?;
+            self.tge.referrer_by_address.insert(referrer, &());
+            Ok(())
+        }
+
+        #[ink(message)]
         pub fn get_bonus_multiplier_e6(&self, contributor: AccountId) -> u128 {
             self.tge
                 .bonus_multiplier_e6_by_address
@@ -297,10 +304,20 @@ strategic_reserves_amount: {:?}",
             to_create: u128,
             referrer: Option<AccountId>,
         ) -> Result<u128, TGEError> {
+            let bonus = self.get_bonus(contributor, to_create)?;
+            let amount_for_contributor = to_create + bonus;
+            let (referral_bonus, referrer_share) =
+                match self.get_referral_bonus(referrer, amount_for_contributor)? {
+                    Some(referral_bonus) => (
+                        referral_bonus,
+                        mul_denom_e6(amount_for_contributor, 20_000)?, //2%
+                    ),
+                    None => (0, 0),
+                };
             let cost = self.calculate_cost_phase1(to_create);
             ink::env::debug_println!("fn contribute_phase1");
             ink::env::debug_println!("to_create {:?} cost: {:?} ", to_create, cost);
-            self.issue_tokens_phase1(contributor, to_create, referrer)?;
+            self.issue_tokens_phase1(contributor, to_create, bonus, referral_bonus)?;
             Ok(cost)
         }
 
@@ -310,8 +327,9 @@ strategic_reserves_amount: {:?}",
             to_create: u128,
             referrer: Option<AccountId>,
         ) -> Result<u128, TGEError> {
-            let bonus = self.get_bonus(contributor, to_create)?;
             let referral_bonus = self.get_referral_bonus(referrer, to_create)?;
+            let bonus = self.get_bonus(contributor, to_create)?;
+
             let total_amount_to_be_issued = calc_total_amount_from_amount_on_behalf_of_contributor(
                 to_create + bonus + referral_bonus,
             )?;
@@ -341,13 +359,13 @@ strategic_reserves_amount: {:?}",
             &self,
             referrer: Option<AccountId>,
             base_amount: u128,
-        ) -> Result<u128, TGEError> {
+        ) -> Result<Option<u128>, TGEError> {
             match referrer {
                 Some(referrer) => match self.tge.referrer_by_address.get(&referrer) {
-                    Some(()) => mul_denom_e6(base_amount, 10_000), // 1%
-                    None => Ok(0),
+                    Some(()) => Ok(Some(mul_denom_e6(base_amount, 10_000)?)), // 1%
+                    None => Err(TGEError::InvalidReferrer),
                 },
-                None => Ok(0),
+                None => Ok(None),
             }
         }
 
@@ -408,11 +426,9 @@ strategic_reserves_amount: {:?}",
             &mut self,
             to: AccountId,
             to_create: Balance,
-            referrer: Option<AccountId>,
+            bonus: Balance,
+            referral_bonus: Balance,
         ) -> Result<(), TGEError> {
-            let bonus = self.get_bonus(to, to_create)?;
-            let referral_bonus = self.get_referral_bonus(referrer, to_create)?;
-
             let new_total_issued_so_far = self.tge.total_amount_distributed + to_create;
             ink::env::debug_println!(
                 "total_amount_distributed: {:?}\nto_create: {:?}\nnew_total_issued_so_far: {:?}",
