@@ -15,7 +15,7 @@ scale-info = { version = "2.10", default-features = false, features = [
 ], optional = true }
 
 # These dependencies
-pendzl = { version = "0.1.0-beta1", default-features = false, features = [
+pendzl = { path = "../../../../simple_pendzl", default-features = false, features = [
     "psp22", 
     "general_vest",
     "psp22_mintable",

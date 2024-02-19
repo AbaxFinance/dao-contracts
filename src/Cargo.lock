@@ -8,7 +8,7 @@ version = "0.1.0-alpha"
 dependencies = [
  "ink",
  "parity-scale-codec",
- "pendzl 0.1.0-beta1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pendzl 0.1.0-beta1",
  "primitive-types",
  "scale-info",
 ]

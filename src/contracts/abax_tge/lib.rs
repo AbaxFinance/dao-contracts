@@ -306,14 +306,8 @@ strategic_reserves_amount: {:?}",
         ) -> Result<u128, TGEError> {
             let bonus = self.get_bonus(contributor, to_create)?;
             let amount_for_contributor = to_create + bonus;
-            let (referral_bonus, referrer_share) =
-                match self.get_referral_bonus(referrer, amount_for_contributor)? {
-                    Some(referral_bonus) => (
-                        referral_bonus,
-                        mul_denom_e6(amount_for_contributor, 20_000)?, //2%
-                    ),
-                    None => (0, 0),
-                };
+            let referral_bonus = self.get_referral_bonus(referrer, amount_for_contributor)?;
+            let referrer_share = mul_denom_e6(amount_for_contributor, 20_000)?; //2%
             let cost = self.calculate_cost_phase1(to_create);
             ink::env::debug_println!("fn contribute_phase1");
             ink::env::debug_println!("to_create {:?} cost: {:?} ", to_create, cost);
@@ -359,13 +353,13 @@ strategic_reserves_amount: {:?}",
             &self,
             referrer: Option<AccountId>,
             base_amount: u128,
-        ) -> Result<Option<u128>, TGEError> {
+        ) -> Result<u128, TGEError> {
             match referrer {
                 Some(referrer) => match self.tge.referrer_by_address.get(&referrer) {
-                    Some(()) => Ok(Some(mul_denom_e6(base_amount, 10_000)?)), // 1%
+                    Some(()) => Ok(mul_denom_e6(base_amount, 10_000)?), // 1%
                     None => Err(TGEError::InvalidReferrer),
                 },
-                None => Ok(None),
+                None => Ok(0),
             }
         }
 
