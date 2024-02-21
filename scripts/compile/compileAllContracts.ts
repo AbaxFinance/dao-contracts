@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import glob from 'glob';
 import { compileContractByNameAndCopyArtifacts } from './common';
-import { getArgvObj } from '@abaxfinance/utils';
+import { getArgvObj } from 'scripts/compile/getArgvObj';
 
 const getAllContractNames = (contractsRootPath: string, regexFilter?: string | undefined) => {
   const names: string[] = [];
@@ -16,6 +16,12 @@ const getAllContractNames = (contractsRootPath: string, regexFilter?: string | u
         console.warn(`Found Cargo.toml in ${p} but failed to determine contract name`);
         continue;
       }
+      //if has no ink dependency log and continue
+      if (!data.match(/ink\s=/)) {
+        console.warn(`Found Cargo.toml in ${p} but failed to determine ink dependency`);
+        continue;
+      }
+
       const contractName = result[2];
       if (!maybeRegexFilter || contractName.match(maybeRegexFilter)) {
         console.log(`Found contract ${contractName}!`);
@@ -28,8 +34,7 @@ const getAllContractNames = (contractsRootPath: string, regexFilter?: string | u
 
 (async (args: Record<string, unknown>) => {
   if (require.main !== module) return;
-  const contractsRootPath = './src/contracts';
-
+  const contractsRootPath = (args['path'] as string) ?? './src/contracts';
   const regex = (args['r'] ?? args['regex']) as string | undefined;
   const contractNames = getAllContractNames(contractsRootPath, regex);
   for (const name of contractNames) {

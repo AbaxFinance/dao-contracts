@@ -1,4 +1,4 @@
-import { getArgvObj } from '@abaxfinance/utils';
+import { getArgvObj } from 'scripts/compile/getArgvObj';
 import { compileContractByNameAndCopyArtifacts } from './common';
 import chalk from 'chalk';
 

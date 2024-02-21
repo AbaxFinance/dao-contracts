@@ -1,5 +1,5 @@
 import util from 'node:util';
-import fs from 'fs-extra';
+import fs, { copy } from 'fs-extra';
 import chalk from 'chalk';
 import { exec, spawn } from 'child_process';
 import path from 'path';
@@ -38,24 +38,30 @@ export const compileContract = async (contractPath: string) => {
   });
 };
 
-export const copyArtifacts = async (contractName: string) => {
+function copyArtifactsInternal(compileOutputPath: string, contractName: string, artifactsOutputPath: string) {
+  fs.ensureDirSync(artifactsOutputPath);
+  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.contract`), path.join(artifactsOutputPath, `${contractName}.contract`));
+  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.wasm`), path.join(artifactsOutputPath, `${contractName}.wasm`));
+  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.json`), path.join(artifactsOutputPath, `${contractName}.json`));
+}
+
+export const copyArtifacts = (contractName: string, contractFolderPath: string) => {
   const contractNameSanitized = contractName.replace(/-/g, '_');
-  const artifactsCompileOutputPath = path.join('src', 'target', 'ink', contractNameSanitized);
+  const workspaceArtifactsCompileOutputPath = path.join('src', 'target', 'ink', contractNameSanitized);
+  const localArtifactsCompileOutputPath = path.join(contractFolderPath, 'target', 'ink');
   const artifactsOutputPath = path.join('artifacts');
   console.log('Copying artifacts...');
-  fs.ensureDirSync(artifactsOutputPath);
-  fs.copyFileSync(
-    path.join(artifactsCompileOutputPath, `${contractNameSanitized}.contract`),
-    path.join(artifactsOutputPath, `${contractNameSanitized}.contract`),
-  );
-  fs.copyFileSync(
-    path.join(artifactsCompileOutputPath, `${contractNameSanitized}.wasm`),
-    path.join(artifactsOutputPath, `${contractNameSanitized}.wasm`),
-  );
-  fs.copyFileSync(
-    path.join(artifactsCompileOutputPath, `${contractNameSanitized}.json`),
-    path.join(artifactsOutputPath, `${contractNameSanitized}.json`),
-  );
+  try {
+    copyArtifactsInternal(localArtifactsCompileOutputPath, contractNameSanitized, artifactsOutputPath);
+  } catch (_) {
+    console.log('copying from local failed, trying from workspace');
+    try {
+      copyArtifactsInternal(workspaceArtifactsCompileOutputPath, contractNameSanitized, artifactsOutputPath);
+    } catch (e) {
+      console.error('Failed to copy artifacts');
+      throw e;
+    }
+  }
 };
 
 const getContractsFolderPath = (contractsRootPath: string, contractName: string) => {
@@ -81,5 +87,5 @@ export const compileContractByNameAndCopyArtifacts = async (contractsRootPath: s
     console.error(`Contract ${contractName} failed to compile`);
     throw e;
   }
-  copyArtifacts(contractName);
+  copyArtifacts(contractName, contractFolderPath);
 };

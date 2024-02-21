@@ -3,30 +3,28 @@ import { E6, E6bn, toE6 } from '@abaxfinance/utils';
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
 import { ABAX_DECIMALS, AZERO_DECIMALS, ONE_DAY, ONE_YEAR } from 'tests/consts';
-import { getTgeParams, increaseBlockTimestamp, setBlockTimestamp, transferNoop } from 'tests/misc';
+import { getTgeParams } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
-import { deployAbaxTge, deployEmitableToken, deployVester } from 'tests/setup/deploymentHelpers';
-import { getApiProviderWrapper, getSigners } from 'tests/setup/helpers';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
+import AbaxTgeDeployer from 'typechain/deployers/abax_tge';
+import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
+import VesterDeployer from 'typechain/deployers/vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
 import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
 
 const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(AZERO_DECIMALS)));
 
 const [admin, foundersAddress, foundationAddress, strategicReservesAddress, ...contributors] = getSigners();
 
 async function prepareEnvBase(api: ApiPromise) {
-  await transferNoop(api);
-  // to force using fake_time
-  await increaseBlockTimestamp(api, 0);
-
-  const tge = await deployAbaxTge(api, admin);
-  const abaxToken = await deployEmitableToken(api, admin, 'ABAX', ABAX_DECIMALS);
-  const wAZERO = await deployEmitableToken(api, admin, 'WAZERO', AZERO_DECIMALS);
-  const vester = await deployVester(api, admin);
+  const tge = (await new AbaxTgeDeployer(api, admin).new()).contract;
+  const abaxToken = (await new Psp22EmitableDeployer(api, admin).new('ABAX', 'ABAX', ABAX_DECIMALS)).contract;
+  const wAZERO = (await new Psp22EmitableDeployer(api, admin).new('WAZERO', 'WAZERO', AZERO_DECIMALS)).contract;
+  const vester = (await new VesterDeployer(api, admin).new()).contract;
 
   return {
     tge,
@@ -45,12 +43,11 @@ describe('TGE', () => {
   const publicContributionInitAmount = phaseOneTokenCap.muln(20).divn(100);
   const costToMintMillionTokens = toTokenDecimals(E6bn).div(new BN(40));
   const phaseTwoDuration = ONE_DAY.muln(90);
-  let tgeStartTime: string;
-  const apiProviderWrapper = getApiProviderWrapper(9944);
+  let tgeStartTime: number;
   const ONE_ABAX = toTokenDecimals(1);
 
   beforeEach(async () => {
-    const api = await apiProviderWrapper.getAndWaitForReady();
+    const api = await localApi.get();
     const contracts = await prepareEnvBase(api);
     tge = contracts.tge;
     abaxToken = contracts.abaxToken;
@@ -59,9 +56,7 @@ describe('TGE', () => {
   });
 
   beforeEach(async () => {
-    const api = await apiProviderWrapper.getAndWaitForReady();
-    const now = await api.query.timestamp.now();
-    tgeStartTime = now.toString();
+    tgeStartTime = await time.latest();
     await tge
       .withSigner(admin)
       .tx.setTgeParams(
@@ -97,7 +92,7 @@ describe('TGE', () => {
         await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
         await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
         await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
-        await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) - 1);
+        await time.setTo(tgeStartTime - 1);
         const queryRes = (await tge.withSigner(contributors[0]).query.contribute(1, null)).value.ok;
         expect(queryRes?.err).to.deep.equal(TGEErrorBuilder.TGENotStarted());
       });
@@ -112,16 +107,16 @@ describe('TGE', () => {
       });
 
       it('Upon reaching phase one cap switches to phase 2', async () => {
-        await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100);
+        await time.setTo(tgeStartTime + 100);
         await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
         await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
         await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
         const desiredAmountOfAbaxToGet = publicContributionInitAmount;
         const tx = tge.withSigner(contributors[0]).tx.contribute(desiredAmountOfAbaxToGet, null);
         await expect(tx).to.eventually.be.fulfilled;
-        await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100);
+        await time.setTo(tgeStartTime + 100);
         const currentParams = await getTgeParams(tge);
-        expect(currentParams.phaseTwoStartTime.toString()).to.equal((parseInt(tgeStartTime) + 100).toString());
+        expect(currentParams.phaseTwoStartTime.toString()).to.equal((tgeStartTime + 100).toString());
       });
 
       it('On first contribution handles founders, foundation and strategic reserves (and only on first one)', async () => {
@@ -325,26 +320,26 @@ describe('TGE', () => {
 
   describe('phase 2', () => {
     beforeEach(async () => {
-      await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100);
+      await time.setTo(tgeStartTime + 100);
       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
       await wAZERO.tx.mint(admin.address, phaseOneTokenCap);
       await wAZERO.withSigner(admin).tx.approve(tge.address, phaseOneTokenCap);
       const tx = tge.withSigner(admin).tx.contribute(publicContributionInitAmount, null);
       await expect(tx).to.eventually.be.fulfilled;
-      await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100);
+      await time.setTo(tgeStartTime + 100);
       const currentParams = await getTgeParams(tge);
-      expect(currentParams.phaseTwoStartTime.toString()).to.equal((parseInt(tgeStartTime) + 100).toString());
+      expect(currentParams.phaseTwoStartTime.toString()).to.equal((tgeStartTime + 100).toString());
     });
 
     it('Contribute fails if TGE is finished', async () => {
-      await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100 + 100);
+      await time.setTo(tgeStartTime + 100 + 100);
       const contributor = contributors[0];
       await wAZERO.tx.mint(contributor.address, phaseOneTokenCap);
       await wAZERO.withSigner(contributor).tx.approve(tge.address, phaseOneTokenCap);
       const queryResPhaseTwo = (await tge.withSigner(contributor).query.contribute(ONE_ABAX, null)).value.ok;
       expect(queryResPhaseTwo?.err).to.be.undefined;
 
-      await setBlockTimestamp(await apiProviderWrapper.getAndWaitForReady(), parseInt(tgeStartTime) + 100 + phaseTwoDuration.toNumber() + 1);
+      await time.setTo(tgeStartTime + 100 + phaseTwoDuration.toNumber() + 1);
       const queryRes = (await tge.withSigner(contributor).query.contribute(ONE_ABAX, null)).value.ok;
       expect(queryRes?.err).to.deep.equal(TGEErrorBuilder.TGEEnded());
     });
@@ -388,8 +383,7 @@ describe('TGE', () => {
           expect(vestData?.released.toString()).to.equal(new BN(0).toString());
           expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
           expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(expectedVestingDuration.toString());
-          const api = await apiProviderWrapper.getAndWaitForReady();
-          await increaseBlockTimestamp(api, expectedVestingDuration);
+          await time.increase(expectedVestingDuration);
           const queryRes = await vester.withSigner(contributor).query.release(contributor.address, abaxToken.address, []);
           expect(queryRes.value.ok?.err).to.be.undefined;
           expect(queryRes.value.ok?.ok?.toString()).to.equal(expectedAbaxAmountVested.toString());
@@ -444,8 +438,7 @@ describe('TGE', () => {
           const expectedVestingDuration = ONE_YEAR.muln(4).toNumber();
           expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(expectedVestingDuration.toString());
 
-          const api = await apiProviderWrapper.getAndWaitForReady();
-          await increaseBlockTimestamp(api, expectedVestingDuration);
+          await time.increase(expectedVestingDuration);
           const queryRes = await vester.withSigner(contributor).query.release(contributor.address, abaxToken.address, []);
           expect(queryRes.value.ok?.err).to.be.undefined;
           expect(queryRes.value.ok?.ok?.toString()).to.equal(expectedAbaxAmountVestedWithBonus.toString());
