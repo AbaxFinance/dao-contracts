@@ -1,36 +1,4 @@
-use ink::storage::Mapping;
-use pendzl::traits::AccountId;
 use pendzl::traits::Timestamp;
-
-#[derive(Default, Debug)]
-#[pendzl::storage_item]
-pub struct PublicContributionStorage {
-    #[lazy]
-    pub start_time: Timestamp,
-    #[lazy]
-    pub phase_two_start_time: Timestamp,
-    #[lazy]
-    pub phase_two_duration: Timestamp,
-    #[lazy]
-    pub generated_token_address: AccountId,
-    #[lazy]
-    pub wazero_address: AccountId,
-    #[lazy]
-    pub vester: AccountId,
-    #[lazy]
-    pub founders_address: AccountId,
-    #[lazy]
-    pub foundation_address: AccountId,
-    #[lazy]
-    pub strategic_reserves_address: AccountId,
-    pub phase_one_token_cap: u128,
-    pub cost_to_mint_milion_tokens: u128,
-    pub total_amount_distributed: u128,
-    pub bonus_multiplier_e6_by_address: Mapping<AccountId, u128>,
-    pub contributed_amount_by_address: Mapping<AccountId, u128>,
-    pub referrer_by_address: Mapping<AccountId, ()>,
-    pub total_staking_airdrop_amount: u128,
-}
 
 #[derive(Debug, Copy, Clone, scale::Encode, scale::Decode)]
 pub struct TokenAllocationDistribution {
@@ -42,12 +10,12 @@ pub struct TokenAllocationDistribution {
 
 #[derive(Debug, Copy, Clone, scale::Encode, scale::Decode)]
 pub struct Allocation {
-    pub instant_release_percentage_e6: u128,
+    pub instant_release_percentage_e3: u16,
     pub vesting_params: Option<VestingParams>,
 }
 
 #[derive(Debug, Copy, Clone, scale::Encode, scale::Decode)]
 pub struct VestingParams {
-    pub amount_to_release_percentage_e6: u128,
-    pub duration: u128,
+    pub amount_to_release_percentage_e3: u16,
+    pub duration: Timestamp,
 }

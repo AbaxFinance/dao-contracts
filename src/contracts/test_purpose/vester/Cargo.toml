@@ -18,7 +18,7 @@ scale-info = { version = "2.10", default-features = false, features = [
 ], optional = true }
 
 # These dependencies
-pendzl = { path = "../../../../../simple_pendzl", default-features = false, features = [
+pendzl = { version = "0.1.0-beta2", default-features = false, features = [
     "general_vest_impl",
 ] }
 [lib]
