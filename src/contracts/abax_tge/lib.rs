@@ -14,7 +14,7 @@ pub mod abax_tge {
             PUBLIC_INSTANT_RELEASE_E3, REFERER_REWARD_E3, VEST_DURATION,
         },
         errors::TGEError,
-        events::{Contribution, PhaseChanged, Stakedrop},
+        events::{BonusMultiplierSet, Contribution, PhaseChanged, Stakedrop},
         storage_fields::public_contribution::PublicContributionStorage,
         traits::AbaxTGE,
     };
@@ -32,7 +32,7 @@ pub mod abax_tge {
 
     use ink::codegen::Env;
 
-    const ADMIN: RoleType = ink::selector_id!("ADMIN");
+    const ADMIN: RoleType = 0;
 
     const MINIMUM_AMOUNT: Balance = 1_000_000_000_000;
 
@@ -89,13 +89,9 @@ pub mod abax_tge {
                 .unwrap();
             //
 
-            let mut psp22_mintable: PSP22MintableRef = instance.tge.generated_token_address.into();
-            psp22_mintable
-                .mint(
-                    instance.env().account_id(),
-                    80 * instance.tge.phase_one_token_cap / 100,
-                )
-                .expect("mint failed");
+            instance
+                .mint_to_self(80 * instance.tge.phase_one_token_cap / 100)
+                .expect("init mint failed");
             instance.tge.reserve_tokens(
                 instance.tge.founders_address,
                 20 * instance.tge.phase_one_token_cap / 100,
@@ -165,14 +161,17 @@ pub mod abax_tge {
             receiver: AccountId,
         ) -> Result<(), TGEError> {
             self._ensure_has_role(ADMIN, Some(self.env().caller()))?;
-
+            self._ensure_has_not_started()?;
             self.tge.increase_contributed_amount(receiver, fee_paid);
 
-            self.generate_tokens(receiver, amount, Generate::Distribute)?;
+            let bonus = self.get_bonus(receiver, amount, None)?;
+            self.mint_to_self(amount + bonus)?;
+            self.tge.reserve_tokens(receiver, amount + bonus);
 
             self.env().emit_event(Stakedrop {
                 receiver,
                 amount,
+                bonus,
                 fee_paid,
             });
             Ok(())
@@ -210,8 +209,12 @@ pub mod abax_tge {
             if self.env().block_timestamp() < self.tge.start_time {
                 return Err(TGEError::TGENotStarted);
             }
-            if self.tge.total_amount_distributed() == 0 {
-                return Err(TGEError::TGENotStarted);
+            Ok(())
+        }
+
+        fn _ensure_has_not_started(&self) -> Result<(), TGEError> {
+            if self.env().block_timestamp() >= self.tge.start_time {
+                return Err(TGEError::TGEStarted);
             }
             Ok(())
         }
@@ -258,9 +261,9 @@ pub mod abax_tge {
     }
 
     impl TGEContract {
-        //returns a tuple with all of the TGE state properties
+        //returns a tuple with all of the TGE state properties that are not mappings
         #[ink(message)]
-        pub fn get_tge_params(
+        pub fn get_tge_storage(
             &self,
         ) -> (
             u64,
@@ -276,22 +279,29 @@ pub mod abax_tge {
             u128,
             u128,
             u128,
+            u128,
         ) {
             (
                 self.tge.start_time,
                 self.tge.phase_two_start_time,
                 self.tge.phase_two_duration,
                 self.tge.generated_token_address,
+                self.tge.wazero.to_account_id(),
                 self.tge.vester.to_account_id(),
                 self.tge.founders_address,
                 self.tge.foundation_address,
                 self.tge.strategic_reserves_address,
-                self.tge.wazero.to_account_id(),
                 self.tge.phase_one_token_cap,
                 self.tge.cost_to_mint_milion_tokens,
-                self.tge.total_amount_distributed(),
+                self.tge.total_amount_minted(),
+                self.tge.total_staking_airdrop_cap,
                 self.tge.total_staking_airdrop_amount,
             )
+        }
+
+        #[ink(message)]
+        pub fn reserved_tokens(&self, account: AccountId) -> Balance {
+            self.tge.get_reserved_tokens(&account)
         }
 
         #[ink(message)]
@@ -304,6 +314,10 @@ pub mod abax_tge {
             self.tge
                 .bonus_multiplier_e3_by_address
                 .insert(contributor, &bonus_multiplier_e3);
+            self.env().emit_event(BonusMultiplierSet {
+                account: contributor,
+                multiplier: bonus_multiplier_e3 as u128,
+            });
             Ok(())
         }
 
@@ -368,19 +382,17 @@ pub mod abax_tge {
         // During phase 2
         // The cost is
         // amount_to_create * effective_cost_per_million / 1_000_000
-        // where effective cost is equal amount_to_create * (total_amount_distributed + amount_to_create/2) / 1_000_000
+        // where effective cost is equal amount_to_create * (total_amount_minted + amount_to_create/2) / 1_000_000
         fn calculate_cost(&self, to_create: Balance) -> Result<u128, TGEError> {
             let mut amount_phase1 = 0;
             let mut amount_phase2 = 0;
 
-            if self.tge.total_amount_distributed() >= self.tge.phase_one_token_cap {
+            if self.tge.total_amount_minted() >= self.tge.phase_one_token_cap {
                 amount_phase2 = to_create;
-            } else if self.tge.total_amount_distributed() + to_create
-                <= self.tge.phase_one_token_cap
-            {
+            } else if self.tge.total_amount_minted() + to_create <= self.tge.phase_one_token_cap {
                 amount_phase1 = to_create;
             } else {
-                amount_phase1 = self.tge.phase_one_token_cap - self.tge.total_amount_distributed();
+                amount_phase1 = self.tge.phase_one_token_cap - self.tge.total_amount_minted();
                 amount_phase2 = to_create - amount_phase1;
             }
 
@@ -392,10 +404,10 @@ pub mod abax_tge {
                     0
                 } else {
                     let avaraged_amount =
-                        if self.tge.total_amount_distributed() < self.tge.phase_one_token_cap {
+                        if self.tge.total_amount_minted() < self.tge.phase_one_token_cap {
                             self.tge.phase_one_token_cap + to_create / 2
                         } else {
-                            self.tge.total_amount_distributed() + to_create / 2
+                            self.tge.total_amount_minted() + to_create / 2
                         };
 
                     let effective_cost_per_million =
@@ -423,10 +435,10 @@ pub mod abax_tge {
             amount: Balance,
             gen: Generate,
         ) -> Result<(), TGEError> {
-            let new_total_amount_distributed = self.tge.total_amount_distributed() + amount;
+            let total_amount_minted_plus_amount = self.tge.total_amount_minted() + amount;
 
-            if self.tge.total_amount_distributed() < self.tge.phase_one_token_cap
-                && new_total_amount_distributed > self.tge.phase_one_token_cap
+            if self.tge.total_amount_minted() < self.tge.phase_one_token_cap
+                && total_amount_minted_plus_amount > self.tge.phase_one_token_cap
             {
                 self.env().emit_event(PhaseChanged {});
             }
@@ -434,16 +446,18 @@ pub mod abax_tge {
             let mut amount_phase1 = 0;
             let mut amount_phase2 = 0;
 
-            if self.tge.total_amount_distributed() >= self.tge.phase_one_token_cap {
+            if self.tge.total_amount_minted() >= self.tge.phase_one_token_cap {
                 amount_phase2 = amount;
-            } else if new_total_amount_distributed <= self.tge.phase_one_token_cap {
+            } else if total_amount_minted_plus_amount <= self.tge.phase_one_token_cap {
                 amount_phase1 = amount;
             } else {
-                amount_phase1 = self.tge.phase_one_token_cap - self.tge.total_amount_distributed();
+                amount_phase1 = self.tge.phase_one_token_cap - self.tge.total_amount_minted();
                 amount_phase2 = amount - amount_phase1;
             }
 
-            self.tge.increase_total_amount_distributed(amount);
+            let amount_to_mint_phase2 = ALL_TO_PUBLIC_RATIO * amount_phase2;
+            let amount_to_mint = amount_phase1 + amount_to_mint_phase2;
+            self.mint_to_self(amount_to_mint)?;
 
             if amount_phase1 > 0 {
                 match gen {
@@ -457,9 +471,6 @@ pub mod abax_tge {
             }
 
             if amount_phase2 > 0 {
-                let mut psp22: PSP22MintableRef = self.tge.generated_token_address.into();
-                let amount_to_mint = ALL_TO_PUBLIC_RATIO * amount_phase2;
-                psp22.mint(self.env().account_id(), amount_to_mint)?;
                 match gen {
                     Generate::Reserve => {
                         self.tge.reserve_tokens(to, amount_phase2);
@@ -468,19 +479,29 @@ pub mod abax_tge {
                         self.distribute(to, amount_phase2, PUBLIC_INSTANT_RELEASE_E3)?;
                     }
                 }
-                let founders_amount = mul_denom_e3(amount_to_mint, FOUNDERS_PART_E3 as u128)?;
+                let founders_amount =
+                    mul_denom_e3(amount_to_mint_phase2, FOUNDERS_PART_E3 as u128)?;
                 self.tge
                     .reserve_tokens(self.tge.founders_address, founders_amount);
-                let foundation_amount = mul_denom_e3(amount_to_mint, FOUNDATION_PART_E3 as u128)?;
+                let foundation_amount =
+                    mul_denom_e3(amount_to_mint_phase2, FOUNDATION_PART_E3 as u128)?;
                 self.tge
                     .reserve_tokens(self.tge.foundation_address, foundation_amount);
                 let strategic_reserves_amount =
-                    amount_to_mint - founders_amount - foundation_amount - amount_phase2;
+                    amount_to_mint_phase2 - founders_amount - foundation_amount - amount_phase2;
                 self.tge.reserve_tokens(
                     self.tge.strategic_reserves_address,
                     strategic_reserves_amount,
                 );
             }
+            Ok(())
+        }
+
+        fn mint_to_self(&mut self, amount: Balance) -> Result<(), TGEError> {
+            let mut psp22: PSP22MintableRef = self.tge.generated_token_address.into();
+
+            psp22.mint(self.env().account_id(), amount)?;
+            self.tge.increase_total_amount_minted(amount);
             Ok(())
         }
 

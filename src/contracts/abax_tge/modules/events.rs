@@ -14,6 +14,7 @@ pub struct Stakedrop {
     #[ink(topic)]
     pub receiver: AccountId,
     pub amount: Balance,
+    pub bonus: Balance,
     pub fee_paid: Balance,
 }
 
@@ -21,7 +22,7 @@ pub struct Stakedrop {
 pub struct BonusMultiplierSet {
     #[ink(topic)]
     pub account: AccountId,
-    pub multiplier: u128,
+    pub multiplier: u16,
 }
 
 #[ink::event]

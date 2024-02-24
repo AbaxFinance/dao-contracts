@@ -33,7 +33,7 @@ pub struct PublicContributionStorage {
     // cost to mint 1 million tokens [ in wzero]
     pub cost_to_mint_milion_tokens: u128,
     // total amount of distributed tokens.
-    total_amount_distributed: Balance,
+    total_amount_minted: Balance,
     // bonus multiplier based on the Zealy EXP.
     pub bonus_multiplier_e3_by_address: Mapping<AccountId, u16>,
     // amount of tokens contributed by each account.
@@ -71,7 +71,7 @@ impl PublicContributionStorage {
             foundation_address,
             strategic_reserves_address,
             cost_to_mint_milion_tokens,
-            total_amount_distributed: 0,
+            total_amount_minted: 0,
             bonus_multiplier_e3_by_address: Default::default(),
             contributed_amount_by_account: Default::default(),
             reserved_tokens: Default::default(),
@@ -82,12 +82,12 @@ impl PublicContributionStorage {
         instance
     }
 
-    pub fn total_amount_distributed(&self) -> Balance {
-        self.total_amount_distributed
+    pub fn total_amount_minted(&self) -> Balance {
+        self.total_amount_minted
     }
 
-    pub fn increase_total_amount_distributed(&mut self, amount: Balance) {
-        self.total_amount_distributed += amount;
+    pub fn increase_total_amount_minted(&mut self, amount: Balance) {
+        self.total_amount_minted += amount;
     }
 
     pub fn increase_contributed_amount(&mut self, account: AccountId, amount: Balance) {
@@ -99,13 +99,14 @@ impl PublicContributionStorage {
             .insert(account, &(contributed_amount + amount));
     }
 
+    pub fn get_reserved_tokens(&self, account: &AccountId) -> Balance {
+        self.reserved_tokens.get(account).unwrap_or(0)
+    }
+
     pub fn reserve_tokens(&mut self, account: AccountId, amount: Balance) {
         let reserved_amount = self.reserved_tokens.get(&account).unwrap_or_default();
         self.reserved_tokens
             .insert(account, &(reserved_amount + amount));
-
-        let total_distributed = self.total_amount_distributed;
-        self.total_amount_distributed = total_distributed + amount;
     }
 
     pub fn collect_reserved_tokens(&mut self, account: AccountId) -> Result<Balance, TGEError> {

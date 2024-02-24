@@ -12,6 +12,7 @@ pub enum TGEError {
     AmountLessThanMinimum,
     MathError,
     TGENotStarted,
+    TGEStarted,
     TGEEnded,
     Phase1TokenCapReached,
     ContributionViaContract,
