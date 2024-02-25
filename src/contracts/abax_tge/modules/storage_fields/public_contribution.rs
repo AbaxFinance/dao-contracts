@@ -38,11 +38,14 @@ pub struct PublicContributionStorage {
     pub bonus_multiplier_e3_by_address: Mapping<AccountId, u16>,
     // amount of tokens contributed by each account.
     pub contributed_amount_by_account: Mapping<AccountId, Balance>,
+    /// amount of tokens received by each account - doesnt include bonus.
+    base_created_by_account: Mapping<AccountId, Balance>,
+    /// amount of bonus tokens received by each account.
+    bonus_created_by_account: Mapping<AccountId, Balance>,
     // reserved tokens for beneficiaries of referals / foundation / strategic reserves / founders.
     reserved_tokens: Mapping<AccountId, Balance>,
+    // contains referrers.
     pub referrers: Mapping<AccountId, ()>,
-    pub total_staking_airdrop_amount: Balance,
-    pub total_staking_airdrop_cap: Balance,
 }
 
 impl PublicContributionStorage {
@@ -57,7 +60,6 @@ impl PublicContributionStorage {
         strategic_reserves_address: AccountId,
         phase_one_token_cap: u128,
         cost_to_mint_milion_tokens: u128,
-        total_staking_airdrop_cap: u128,
     ) -> Self {
         let instance = Self {
             start_time,
@@ -74,10 +76,10 @@ impl PublicContributionStorage {
             total_amount_minted: 0,
             bonus_multiplier_e3_by_address: Default::default(),
             contributed_amount_by_account: Default::default(),
+            base_created_by_account: Default::default(),
+            bonus_created_by_account: Default::default(),
             reserved_tokens: Default::default(),
             referrers: Default::default(),
-            total_staking_airdrop_amount: 0,
-            total_staking_airdrop_cap,
         };
         instance
     }
@@ -90,6 +92,42 @@ impl PublicContributionStorage {
         self.total_amount_minted += amount;
     }
 
+    pub fn increase_base_amount_received(&mut self, account: &AccountId, amount: Balance) {
+        let received_base_amount = self
+            .base_created_by_account
+            .get(account)
+            .unwrap_or_default();
+        self.base_created_by_account
+            .insert(account, &(received_base_amount + amount));
+    }
+
+    pub fn base_amount_received(&self, account: &AccountId) -> Balance {
+        self.base_created_by_account
+            .get(account)
+            .unwrap_or_default()
+    }
+
+    pub fn increase_bonus_amount_received(&mut self, account: &AccountId, amount: Balance) {
+        let received_bonus_amount = self
+            .bonus_created_by_account
+            .get(account)
+            .unwrap_or_default();
+        self.bonus_created_by_account
+            .insert(account, &(received_bonus_amount + amount));
+    }
+
+    pub fn bonus_amount_received(&self, account: &AccountId) -> Balance {
+        self.bonus_created_by_account
+            .get(account)
+            .unwrap_or_default()
+    }
+
+    pub fn contributed_amount(&self, account: &AccountId) -> Balance {
+        self.contributed_amount_by_account
+            .get(account)
+            .unwrap_or_default()
+    }
+
     pub fn increase_contributed_amount(&mut self, account: AccountId, amount: Balance) {
         let contributed_amount = self
             .contributed_amount_by_account
@@ -99,7 +137,7 @@ impl PublicContributionStorage {
             .insert(account, &(contributed_amount + amount));
     }
 
-    pub fn get_reserved_tokens(&self, account: &AccountId) -> Balance {
+    pub fn reserved_tokens(&self, account: &AccountId) -> Balance {
         self.reserved_tokens.get(account).unwrap_or(0)
     }
 

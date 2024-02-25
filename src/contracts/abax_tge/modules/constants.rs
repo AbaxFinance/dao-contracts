@@ -25,6 +25,8 @@ pub const BONUSE_FOR_CODE_USE_E3: u16 = 10; // 1%
 
 pub const REFERER_REWARD_E3: u16 = 10; // 1%
 
+pub const MAX_BONUS_MULTIPLIER_E3: u16 = 100; // 10%
+
 pub const CONTRIBUTION_BONUS_DENOMINATOR: u128 = 1000 * 10_u128.pow(12);
 
 // pub const ABAX_ALLOCATION_DISTRIBUTION_PARAMS: TokenAllocationDistribution =

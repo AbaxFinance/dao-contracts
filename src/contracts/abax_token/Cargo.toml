@@ -1,6 +1,6 @@
 [package]
-name = "abax_tge"
-version = "0.1.0-alpha"
+name = "abax_token"
+version = "0.1.1"
 authors = [""]
 edition = "2021"
 
@@ -14,21 +14,17 @@ scale-info = { version = "2.10", default-features = false, features = [
     "derive",
 ], optional = true }
 
-# These dependencies
+
 pendzl = { version = "0.1.0-beta2", default-features = false, features = [
-    "psp22",
-    "general_vest",
+    "psp22_impl",
+    "psp22_metadata_impl",
     "psp22_mintable",
     "access_control_impl",
 ] }
 
 
-primitive-types = { version = "0.12.1", default-features = false, features = [
-    "codec",
-] }
-
 [lib]
-name = "abax_tge"
+name = "abax_token"
 path = "lib.rs"
 
 
@@ -37,13 +33,14 @@ default = ["std"]
 std = [
     "ink/std",
     "scale/std",
+    "scale-info",
     "scale-info/std",
+
     # These dependencies
     "pendzl/std",
-    "primitive-types/std",
-    "primitive-types/scale-info",
 ]
 ink-as-dependency = []
+e2e-tests = []
 
 [profile.dev]
 codegen-units = 16

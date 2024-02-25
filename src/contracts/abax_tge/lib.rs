@@ -11,30 +11,28 @@ pub mod abax_tge {
         constants::{
             ALL_TO_PUBLIC_RATIO, BONUSE_FOR_CODE_USE_E3, CONTRIBUTION_BONUS_DENOMINATOR, E3_U128,
             E6_U128, FOUNDATION_PART_E3, FOUNDERS_INSTANT_RELEASE_E3, FOUNDERS_PART_E3,
-            PUBLIC_INSTANT_RELEASE_E3, REFERER_REWARD_E3, VEST_DURATION,
+            MAX_BONUS_MULTIPLIER_E3, PUBLIC_INSTANT_RELEASE_E3, REFERER_REWARD_E3, VEST_DURATION,
         },
         errors::TGEError,
         events::{BonusMultiplierSet, Contribution, PhaseChanged, Stakedrop},
         storage_fields::public_contribution::PublicContributionStorage,
-        traits::AbaxTGE,
+        traits::{AbaxTGE, AbaxToken, AbaxTokenRef},
     };
     use ink::{
         prelude::{vec, vec::Vec},
         ToAccountId,
     };
+
     use pendzl::contracts::{
         finance::general_vest::{GeneralVest, GeneralVestRef, VestingSchedule},
-        token::psp22::{
-            extensions::mintable::{PSP22Mintable, PSP22MintableRef},
-            PSP22Ref, PSP22,
-        },
+        token::psp22::{PSP22Ref, PSP22},
     };
 
     use ink::codegen::Env;
 
     const ADMIN: RoleType = 0;
 
-    const MINIMUM_AMOUNT: Balance = 1_000_000_000_000;
+    const MINIMUM_AMOUNT: Balance = 100_000_000_000_000; // 100 WAZERO
 
     enum Generate {
         // used to generate for referrers
@@ -65,7 +63,6 @@ pub mod abax_tge {
             strategic_reserves_address: AccountId,
             phase_one_token_cap: u128,
             cost_to_mint_milion_tokens: u128,
-            total_staking_airdrop_cap: u128,
         ) -> Self {
             let mut instance = Self {
                 access_control: Default::default(),
@@ -80,7 +77,6 @@ pub mod abax_tge {
                     strategic_reserves_address,
                     phase_one_token_cap,
                     cost_to_mint_milion_tokens,
-                    total_staking_airdrop_cap,
                 ),
             };
             // set admin to caller
@@ -90,7 +86,7 @@ pub mod abax_tge {
             //
 
             instance
-                .mint_to_self(80 * instance.tge.phase_one_token_cap / 100)
+                .generate_to_self(80 * instance.tge.phase_one_token_cap / 100)
                 .expect("init mint failed");
             instance.tge.reserve_tokens(
                 instance.tge.founders_address,
@@ -109,6 +105,12 @@ pub mod abax_tge {
     }
 
     impl AbaxTGE for TGEContract {
+        // creates tokens for the contributor (amount + bonus)
+        // 40% of the tokens are instantly transfered to the contributor
+        // the rest is scheduled to be vested over 4 years
+        // takes into account the exp bonus, contribution bonus and refferer bonus
+        // if refferer is passed generates tokens for the referer
+        // updates the base created and bonus created amounts
         #[ink(message)]
         fn contribute(
             &mut self,
@@ -134,7 +136,11 @@ pub mod abax_tge {
             )?; //TODO handle reentrancy // I think reentrancy is not required and not possible
             self.tge.increase_contributed_amount(contributor, cost);
 
-            let bonus = self.get_bonus(contributor, to_create, referrer)?;
+            let bonus = self.calculate_bonus_and_update_created_base_and_bonus(
+                contributor,
+                to_create,
+                referrer,
+            )?;
 
             self.generate_tokens(receiver, to_create + bonus, Generate::Distribute)?;
 
@@ -147,12 +153,14 @@ pub mod abax_tge {
                 contributor,
                 receiver,
                 to_create,
-                bonus,
                 referrer,
             });
             Ok(cost)
         }
 
+        // reserves amount + bonus of tokens for the receiver
+        // updates the contributed amount of the  by the fee_paid
+        // updates the base created and bonus created amounts
         #[ink(message)]
         fn stakedrop(
             &mut self,
@@ -164,19 +172,22 @@ pub mod abax_tge {
             self._ensure_has_not_started()?;
             self.tge.increase_contributed_amount(receiver, fee_paid);
 
-            let bonus = self.get_bonus(receiver, amount, None)?;
-            self.mint_to_self(amount + bonus)?;
+            let bonus =
+                self.calculate_bonus_and_update_created_base_and_bonus(receiver, amount, None)?;
+            self.generate_to_self(amount + bonus)?;
             self.tge.reserve_tokens(receiver, amount + bonus);
 
             self.env().emit_event(Stakedrop {
                 receiver,
                 amount,
-                bonus,
                 fee_paid,
             });
             Ok(())
         }
 
+        // collects reserved tokens for the caller
+        // distributes the reserved tokens to the caller according to the rules (instnant / vesting)
+        // deletes the reserved tokens
         #[ink(message)]
         fn collect_reserved(&mut self) -> Result<(), TGEError> {
             self._ensure_has_started()?;
@@ -278,8 +289,6 @@ pub mod abax_tge {
             u128,
             u128,
             u128,
-            u128,
-            u128,
         ) {
             (
                 self.tge.start_time,
@@ -294,14 +303,20 @@ pub mod abax_tge {
                 self.tge.phase_one_token_cap,
                 self.tge.cost_to_mint_milion_tokens,
                 self.tge.total_amount_minted(),
-                self.tge.total_staking_airdrop_cap,
-                self.tge.total_staking_airdrop_amount,
             )
         }
 
         #[ink(message)]
-        pub fn reserved_tokens(&self, account: AccountId) -> Balance {
-            self.tge.get_reserved_tokens(&account)
+        pub fn get_account_storage(
+            &self,
+            account: AccountId,
+        ) -> (Balance, Balance, Balance, Balance) {
+            (
+                self.tge.reserved_tokens(&account),
+                self.tge.contributed_amount(&account),
+                self.tge.base_amount_received(&account),
+                self.tge.bonus_amount_received(&account),
+            )
         }
 
         #[ink(message)]
@@ -316,7 +331,7 @@ pub mod abax_tge {
                 .insert(contributor, &bonus_multiplier_e3);
             self.env().emit_event(BonusMultiplierSet {
                 account: contributor,
-                multiplier: bonus_multiplier_e3 as u128,
+                multiplier: bonus_multiplier_e3,
             });
             Ok(())
         }
@@ -355,11 +370,12 @@ pub mod abax_tge {
             u16::try_from(10 * amount_contributed / CONTRIBUTION_BONUS_DENOMINATOR).unwrap_or(100)
         }
 
-        /// returns the bonus amouunt of tokens based on the base_amount and zealy exp bonus, contribution bonus, referal bonus
-        fn get_bonus(
-            &self,
+        /// returns the bonus amount of tokens based on the base_amount and zealy exp bonus, contribution bonus and refferer
+        /// updates the base amount received and the bonus amount received
+        fn calculate_bonus_and_update_created_base_and_bonus(
+            &mut self,
             contributor: AccountId,
-            base_amount: u128,
+            to_create: u128,
             referrer: Option<AccountId>,
         ) -> Result<u128, TGEError> {
             let mut bonus_multiplier_e3 = self.get_exp_bonus_multiplier_e3(contributor)
@@ -369,11 +385,22 @@ pub mod abax_tge {
                 bonus_multiplier_e3 += BONUSE_FOR_CODE_USE_E3;
             }
 
-            if bonus_multiplier_e3 > 1000 {
-                bonus_multiplier_e3 = 1000;
+            if bonus_multiplier_e3 > MAX_BONUS_MULTIPLIER_E3 {
+                bonus_multiplier_e3 = MAX_BONUS_MULTIPLIER_E3;
             }
 
-            mul_denom_e3(base_amount, bonus_multiplier_e3 as u128)
+            self.tge
+                .increase_base_amount_received(&contributor, to_create);
+            let received_base = self.tge.base_amount_received(&contributor);
+
+            let eligible_bonus = mul_denom_e3(received_base, bonus_multiplier_e3 as u128)?;
+            let bonus_already_received = self.tge.bonus_amount_received(&contributor);
+
+            // it may happen that the previously one used refferers code and now one is not using one.
+            // This may result in a bonus_already_received being greater than eligible_bonus
+            let bonus = eligible_bonus.saturating_sub(bonus_already_received);
+            self.tge.increase_bonus_amount_received(&contributor, bonus);
+            Ok(bonus)
         }
 
         // Calculates the cost of creating tokens (doesn't include bonuses)
@@ -457,7 +484,7 @@ pub mod abax_tge {
 
             let amount_to_mint_phase2 = ALL_TO_PUBLIC_RATIO * amount_phase2;
             let amount_to_mint = amount_phase1 + amount_to_mint_phase2;
-            self.mint_to_self(amount_to_mint)?;
+            self.generate_to_self(amount_to_mint)?;
 
             if amount_phase1 > 0 {
                 match gen {
@@ -497,10 +524,10 @@ pub mod abax_tge {
             Ok(())
         }
 
-        fn mint_to_self(&mut self, amount: Balance) -> Result<(), TGEError> {
-            let mut psp22: PSP22MintableRef = self.tge.generated_token_address.into();
+        fn generate_to_self(&mut self, amount: Balance) -> Result<(), TGEError> {
+            let mut abax: AbaxTokenRef = self.tge.generated_token_address.into();
 
-            psp22.mint(self.env().account_id(), amount)?;
+            abax.generate(self.env().account_id(), amount)?;
             self.tge.increase_total_amount_minted(amount);
             Ok(())
         }

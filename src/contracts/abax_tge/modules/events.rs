@@ -6,7 +6,6 @@ pub struct Contribution {
     pub contributor: AccountId,
     pub receiver: AccountId,
     pub to_create: Balance,
-    pub bonus: Balance,
     pub referrer: Option<AccountId>,
 }
 #[ink::event]
@@ -14,7 +13,6 @@ pub struct Stakedrop {
     #[ink(topic)]
     pub receiver: AccountId,
     pub amount: Balance,
-    pub bonus: Balance,
     pub fee_paid: Balance,
 }
 
