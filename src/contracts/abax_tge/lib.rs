@@ -83,24 +83,29 @@ pub mod abax_tge {
             instance
                 ._grant_role(ADMIN, Some(Self::env().caller()))
                 .unwrap();
-            //
+            instance
+        }
 
-            instance
-                .generate_to_self(80 * instance.tge.phase_one_token_cap / 100)
-                .expect("init mint failed");
-            instance.tge.reserve_tokens(
-                instance.tge.founders_address,
-                20 * instance.tge.phase_one_token_cap / 100,
+        #[ink(message)]
+        pub fn init(&mut self) -> Result<(), TGEError> {
+            if self.tge.total_amount_minted() > 0 {
+                return Err(TGEError::AlreadyInitialized);
+            }
+
+            self.generate_to_self(80 * self.tge.phase_one_token_cap / 100)?;
+            self.tge.reserve_tokens(
+                self.tge.founders_address,
+                20 * self.tge.phase_one_token_cap / 100,
             );
-            instance.tge.reserve_tokens(
-                instance.tge.foundation_address,
-                2 * instance.tge.phase_one_token_cap / 100,
+            self.tge.reserve_tokens(
+                self.tge.foundation_address,
+                2 * self.tge.phase_one_token_cap / 100,
             );
-            instance.tge.reserve_tokens(
-                instance.tge.strategic_reserves_address,
-                58 * instance.tge.phase_one_token_cap / 100,
+            self.tge.reserve_tokens(
+                self.tge.strategic_reserves_address,
+                58 * self.tge.phase_one_token_cap / 100,
             );
-            instance
+            Ok(())
         }
     }
 

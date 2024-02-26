@@ -1,8 +1,5 @@
-import { replaceNumericPropsWithStrings } from '@abaxfinance/contract-helpers';
-import { E6, E6bn, toE6 } from '@abaxfinance/utils';
-import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
-import { ABAX_DECIMALS, AZERO_DECIMALS, ONE_DAY, ONE_YEAR } from 'tests/consts';
+import { ABAX_DECIMALS, AZERO_DECIMALS, ContractRoles } from 'tests/consts';
 import { expect } from 'tests/setup/chai';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import AbaxToken from 'typechain/contracts/abax_token';
@@ -13,10 +10,8 @@ import AbaxTokenDeployer from 'typechain/deployers/abax_token';
 import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
-import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
 import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
-import 'wookashwackomytest-polkahat-chai-matchers';
+import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
 
 const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(AZERO_DECIMALS)));
 
@@ -41,8 +36,8 @@ async function deployTGE(
   abaxToken: AbaxToken,
   wAZERO: PSP22Emitable,
   vester: Vester,
-): Promise<{ contract: AbaxTge; result: SignAndSendSuccessResponse }> {
-  return await new AbaxTgeDeployer(await localApi.get(), admin).new(
+): Promise<{ contract: AbaxTge; initTx: SignAndSendSuccessResponse }> {
+  const res = await new AbaxTgeDeployer(await localApi.get(), admin).new(
     now + DAY,
     90 * DAY,
     abaxToken.address,
@@ -54,6 +49,11 @@ async function deployTGE(
     toTokenDecimals(100_000_000),
     COST_TO_MINT_MILLION_TOKENS,
   );
+
+  const tx = await abaxToken.withSigner(admin).tx.grantRole(ContractRoles.GENERATOR, res.contract.address);
+  await res.contract.withSigner(admin).tx.init();
+
+  return { contract: res.contract, initTx: tx };
 }
 
 describe.only('TGE', () => {
@@ -65,6 +65,7 @@ describe.only('TGE', () => {
   beforeEach(async () => {
     const api = await localApi.get();
     abaxToken = (await new AbaxTokenDeployer(api, admin).new('ABAX', 'ABAX', ABAX_DECIMALS)).contract;
+
     wAZERO = (await new Psp22EmitableDeployer(api, admin).new('WAZERO', 'WAZERO', AZERO_DECIMALS)).contract;
     vester = (await new VesterDeployer(api, admin).new()).contract;
 
@@ -73,12 +74,12 @@ describe.only('TGE', () => {
     }
   });
 
-  describe('constructor', () => {
-    let deployment_tx: SignAndSendSuccessResponse;
+  describe.only('constructor', () => {
+    let initTx: SignAndSendSuccessResponse;
     beforeEach(async () => {
       const deploymentResult = await deployTGE(now, abaxToken, wAZERO, vester);
       tge = deploymentResult.contract;
-      deployment_tx = deploymentResult.result;
+      initTx = deploymentResult.initTx;
     });
     it(`should properly assign parameters of the tge`, async function () {
       await expect(tge.query.getTgeStorage()).to.haveOkResult([
@@ -97,17 +98,17 @@ describe.only('TGE', () => {
       ]);
     });
     it(`should mint tokens for the founders, foundation, strategic reserves`, async function () {
-      await expect(deployment_tx).to.changePSP22Balances(abaxToken, [tge.address], [PHASE_ONE_TOKEN_CAP.muln(80).divn(100)]);
+      await expect(initTx).to.changePSP22Balances(abaxToken, [tge.address], [PHASE_ONE_TOKEN_CAP.muln(80).divn(100)]);
     });
-    // it('should reserve tokens for founders', async function () {
-    //   await expect(tge.query.reservedTokens(founders.address)).to.haveOkResult(PHASE_ONE_TOKEN_CAP.muln(20).divn(100));
-    // });
-    // it('should reserve tokens for foundation', async function () {
-    //   await expect(tge.query.reservedTokens(foundation.address)).to.haveOkResult(PHASE_ONE_TOKEN_CAP.muln(2).divn(100));
-    // });
-    // it('should reserve tokens for strategic reserves', async function () {
-    //   await expect(tge.query.reservedTokens(strategicReserves.address)).to.haveOkResult(PHASE_ONE_TOKEN_CAP.muln(58).divn(100));
-    // });
+    it('should reserve tokens for founders', async function () {
+      await expect(initTx).to.changeReservedTokenAmounts(tge, [founders.address], [PHASE_ONE_TOKEN_CAP.muln(20).divn(100)]);
+    });
+    it('should reserve tokens for foundation', async function () {
+      await expect(initTx).to.changeReservedTokenAmounts(tge, [foundation.address], [PHASE_ONE_TOKEN_CAP.muln(2).divn(100)]);
+    });
+    it('should reserve tokens for strategic reserves', async function () {
+      await expect(initTx).to.changeReservedTokenAmounts(tge, [strategicReserves.address], [PHASE_ONE_TOKEN_CAP.muln(58).divn(100)]);
+    });
     it('should assign ADMIN role to deployer - admin', async function () {
       await expect(tge.query.hasRole(0, admin.address)).to.haveOkResult(true);
     });

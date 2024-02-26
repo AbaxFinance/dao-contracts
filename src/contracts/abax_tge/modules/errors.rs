@@ -18,6 +18,7 @@ pub enum TGEError {
     ContributionViaContract,
     InvalidReferrer,
     NoReservedTokens,
+    AlreadyInitialized,
 }
 
 impl From<PSP22Error> for TGEError {

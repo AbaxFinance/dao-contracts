@@ -1,9 +1,15 @@
-import chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { E12, parseAmountToBN } from '@abaxfinance/utils';
 import type { AccountId } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
+import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import { supportChangeBaseCreatedAmounts } from 'tests/setup/changeBaseCreatedAmounts';
+import { supportChangeBonusCreatedAmounts } from 'tests/setup/changeBonusCreatedAmounts';
+import { supportChangeContributedAmounts } from 'tests/setup/changeContributedAmounts';
+import { supportChangeReservedTokenAmounts } from 'tests/setup/changeReservedTokenAmounts';
+import { supportCreateVestingSchedule } from 'tests/setup/createVestingSchedule';
 import { flush, proxy } from 'tests/soft-assert';
-import { E12, parseAmountToBN } from '@abaxfinance/utils';
+import 'wookashwackomytest-polkahat-chai-matchers';
 const softExpect = proxy(chai.expect);
 
 export interface ExpectStaticWithSoft extends Chai.ExpectStatic {
@@ -20,6 +26,12 @@ declare global {
       almostEqualOrEqualNumber<TData extends number | string>(expected: TData, epsilon?: number): void;
       equalUpTo1Digit<TData extends BN | number | string>(expected: TData): void;
       almostDeepEqual<TData>(expected: TData): void;
+      // tge specific
+      changeReservedTokenAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeContributedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeBaseCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeBonusCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      createVestingSchedule(contract: any, account: string, token: string, amount: BN, waitingTime: BN, vestingTime: BN): AsyncAssertion;
     }
   }
 }
@@ -157,6 +169,14 @@ chai.use(
     return `:\n${JSON.stringify(obj, getCircularReplacer(), 2)}`;
   }),
 );
+
+chai.use((c, utils) => {
+  supportChangeBaseCreatedAmounts(c.Assertion, utils);
+  supportChangeBonusCreatedAmounts(c.Assertion, utils);
+  supportChangeContributedAmounts(c.Assertion, utils);
+  supportChangeReservedTokenAmounts(c.Assertion, utils);
+  supportCreateVestingSchedule(c.Assertion, utils);
+});
 
 const expectWithSoft = chai.expect as ExpectStaticWithSoft;
 expectWithSoft.soft = function (val: any, message?: string) {
