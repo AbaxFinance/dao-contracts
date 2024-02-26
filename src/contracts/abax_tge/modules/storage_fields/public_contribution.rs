@@ -92,7 +92,7 @@ impl PublicContributionStorage {
         self.total_amount_minted += amount;
     }
 
-    pub fn increase_base_amount_received(&mut self, account: &AccountId, amount: Balance) {
+    pub fn increase_base_amount_created(&mut self, account: &AccountId, amount: Balance) {
         let received_base_amount = self
             .base_created_by_account
             .get(account)
@@ -101,13 +101,13 @@ impl PublicContributionStorage {
             .insert(account, &(received_base_amount + amount));
     }
 
-    pub fn base_amount_received(&self, account: &AccountId) -> Balance {
+    pub fn base_amount_created(&self, account: &AccountId) -> Balance {
         self.base_created_by_account
             .get(account)
             .unwrap_or_default()
     }
 
-    pub fn increase_bonus_amount_received(&mut self, account: &AccountId, amount: Balance) {
+    pub fn increase_bonus_amount_created(&mut self, account: &AccountId, amount: Balance) {
         let received_bonus_amount = self
             .bonus_created_by_account
             .get(account)
@@ -116,7 +116,7 @@ impl PublicContributionStorage {
             .insert(account, &(received_bonus_amount + amount));
     }
 
-    pub fn bonus_amount_received(&self, account: &AccountId) -> Balance {
+    pub fn bonus_amount_created(&self, account: &AccountId) -> Balance {
         self.bonus_created_by_account
             .get(account)
             .unwrap_or_default()

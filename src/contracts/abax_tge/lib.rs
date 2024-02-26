@@ -314,8 +314,8 @@ pub mod abax_tge {
             (
                 self.tge.reserved_tokens(&account),
                 self.tge.contributed_amount(&account),
-                self.tge.base_amount_received(&account),
-                self.tge.bonus_amount_received(&account),
+                self.tge.base_amount_created(&account),
+                self.tge.bonus_amount_created(&account),
             )
         }
 
@@ -390,16 +390,16 @@ pub mod abax_tge {
             }
 
             self.tge
-                .increase_base_amount_received(&contributor, to_create);
-            let received_base = self.tge.base_amount_received(&contributor);
+                .increase_base_amount_created(&contributor, to_create);
+            let received_base = self.tge.base_amount_created(&contributor);
 
             let eligible_bonus = mul_denom_e3(received_base, bonus_multiplier_e3 as u128)?;
-            let bonus_already_received = self.tge.bonus_amount_received(&contributor);
+            let bonus_already_received = self.tge.bonus_amount_created(&contributor);
 
             // it may happen that the previously one used refferers code and now one is not using one.
             // This may result in a bonus_already_received being greater than eligible_bonus
             let bonus = eligible_bonus.saturating_sub(bonus_already_received);
-            self.tge.increase_bonus_amount_received(&contributor, bonus);
+            self.tge.increase_bonus_amount_created(&contributor, bonus);
             Ok(bonus)
         }
 
