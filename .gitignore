@@ -44,5 +44,5 @@ yarn.lock
 *deployedContracts.json
 *deployedContracts.*.*.json
 
-build.log
-build.log.html
+*.log
+*.log.html
