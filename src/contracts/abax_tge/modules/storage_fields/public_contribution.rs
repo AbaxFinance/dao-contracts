@@ -37,7 +37,7 @@ pub struct PublicContributionStorage {
     // bonus multiplier based on the Zealy EXP.
     pub bonus_multiplier_e3_by_address: Mapping<AccountId, u16>,
     // amount of tokens contributed by each account.
-    pub contributed_amount_by_account: Mapping<AccountId, Balance>,
+    contributed_amount_by_account: Mapping<AccountId, Balance>,
     /// amount of tokens received by each account - doesnt include bonus.
     base_created_by_account: Mapping<AccountId, Balance>,
     /// amount of bonus tokens received by each account.

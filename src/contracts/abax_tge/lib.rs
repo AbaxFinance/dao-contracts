@@ -361,11 +361,7 @@ pub mod abax_tge {
 
         // return bonus multiplier awarded for contribution
         fn get_contribution_bonus_multiplier_e3(&self, contributor: AccountId) -> u16 {
-            let amount_contributed = self
-                .tge
-                .contributed_amount_by_account
-                .get(&contributor)
-                .unwrap_or(0);
+            let amount_contributed = self.tge.contributed_amount(&contributor);
 
             u16::try_from(10 * amount_contributed / CONTRIBUTION_BONUS_DENOMINATOR).unwrap_or(100)
         }
