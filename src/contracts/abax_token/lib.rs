@@ -105,6 +105,7 @@ pub mod abax_token {
         #[ink(message)]
         fn mint(&mut self, to: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             self._ensure_has_role(MINTER, Some(self.env().caller()))?;
+            self._inflate_cap();
             self._mint_to(&to, &amount)
         }
     }

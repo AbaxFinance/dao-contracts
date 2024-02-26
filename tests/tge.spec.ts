@@ -56,7 +56,7 @@ async function deployTGE(
   return { contract: res.contract, initTx: tx };
 }
 
-describe.only('TGE', () => {
+describe('TGE', () => {
   const now = Date.now();
   let tge: AbaxTge;
   let abaxToken: AbaxToken;
@@ -74,7 +74,7 @@ describe.only('TGE', () => {
     }
   });
 
-  describe.only('constructor', () => {
+  describe('constructor', () => {
     let initTx: SignAndSendSuccessResponse;
     beforeEach(async () => {
       const deploymentResult = await deployTGE(now, abaxToken, wAZERO, vester);
