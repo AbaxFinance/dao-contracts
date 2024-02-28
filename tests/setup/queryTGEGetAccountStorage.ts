@@ -10,5 +10,5 @@ type ExtractRawNumbers<T> = {
 type RetTypeFin = ExtractRawNumbers<RetType>;
 
 export async function queryTGEGetAccountStorage(apiAt: ApiDecoration<'promise'>, contract: any, address: string): Promise<RetTypeFin> {
-  return queryAt(apiAt, contract, address, address);
+  return queryAt(apiAt, contract, address, 'get_account_storage', address);
 }

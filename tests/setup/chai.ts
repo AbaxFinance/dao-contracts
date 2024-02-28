@@ -7,7 +7,9 @@ import { supportChangeBaseCreatedAmounts } from 'tests/setup/changeBaseCreatedAm
 import { supportChangeBonusCreatedAmounts } from 'tests/setup/changeBonusCreatedAmounts';
 import { supportChangeContributedAmounts } from 'tests/setup/changeContributedAmounts';
 import { supportChangeReservedTokenAmounts } from 'tests/setup/changeReservedTokenAmounts';
+import { supportChangeTgeStorage } from 'tests/setup/changeTgeStorage';
 import { supportCreateVestingSchedule } from 'tests/setup/createVestingSchedule';
+import { TgeStorage, TgeStorageNumericKey } from 'tests/setup/queryTGEGetStorage';
 import { flush, proxy } from 'tests/soft-assert';
 import 'wookashwackomytest-polkahat-chai-matchers';
 const softExpect = proxy(chai.expect);
@@ -32,6 +34,7 @@ declare global {
       changeBaseCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       changeBonusCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       createVestingSchedule(contract: any, account: string, token: string, amount: BN, waitingTime: BN, vestingTime: BN): AsyncAssertion;
+      changeTgeStorage<TKey extends TgeStorageNumericKey>(contract: any, key: TKey, delta: BN): AsyncAssertion;
     }
   }
 }
@@ -176,6 +179,7 @@ chai.use((c, utils) => {
   supportChangeContributedAmounts(c.Assertion, utils);
   supportChangeReservedTokenAmounts(c.Assertion, utils);
   supportCreateVestingSchedule(c.Assertion, utils);
+  supportChangeTgeStorage(c.Assertion, utils);
 });
 
 const expectWithSoft = chai.expect as ExpectStaticWithSoft;

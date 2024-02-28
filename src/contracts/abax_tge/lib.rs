@@ -31,6 +31,7 @@ pub mod abax_tge {
     use ink::codegen::Env;
 
     const ADMIN: RoleType = 0;
+    const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN");
 
     const MINIMUM_AMOUNT: Balance = 100_000_000_000_000; // 100 WAZERO
 
@@ -63,6 +64,7 @@ pub mod abax_tge {
             strategic_reserves_address: AccountId,
             phase_one_token_cap: u128,
             cost_to_mint_milion_tokens: u128,
+            stakedrop_admin: AccountId,
         ) -> Self {
             let mut instance = Self {
                 access_control: Default::default(),
@@ -82,6 +84,10 @@ pub mod abax_tge {
             // set admin to caller
             instance
                 ._grant_role(ADMIN, Some(Self::env().caller()))
+                .unwrap();
+            // set stakedrop admin to stakedrop_admin
+            instance
+                ._grant_role(STAKEDROP_ADMIN, Some(stakedrop_admin))
                 .unwrap();
             instance
         }
@@ -173,12 +179,13 @@ pub mod abax_tge {
             fee_paid: Balance,
             receiver: AccountId,
         ) -> Result<(), TGEError> {
-            self._ensure_has_role(ADMIN, Some(self.env().caller()))?;
+            self._ensure_has_role(STAKEDROP_ADMIN, Some(self.env().caller()))?;
             self._ensure_has_not_started()?;
             self.tge.increase_contributed_amount(receiver, fee_paid);
 
             let bonus =
                 self.calculate_bonus_and_update_created_base_and_bonus(receiver, amount, None)?;
+            ink::env::debug_println!("bonus {:?}", bonus);
             self.generate_to_self(amount + bonus)?;
             self.tge.reserve_tokens(receiver, amount + bonus);
 

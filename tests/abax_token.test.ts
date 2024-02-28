@@ -1,15 +1,8 @@
 import BN from 'bn.js';
-import { ABAX_DECIMALS, AZERO_DECIMALS, ContractRoles, ONE_YEAR } from 'tests/consts';
+import { ABAX_DECIMALS, ContractRoles, ONE_YEAR } from 'tests/consts';
 import { expect } from 'tests/setup/chai';
-import AbaxTge from 'typechain/contracts/abax_tge';
 import AbaxToken from 'typechain/contracts/abax_token';
-import PSP22Emitable from 'typechain/contracts/psp22_emitable';
-import Vester from 'typechain/contracts/vester';
-import AbaxTgeDeployer from 'typechain/deployers/abax_tge';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
-import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
-import VesterDeployer from 'typechain/deployers/vester';
-import { AccessControlError } from 'typechain/types-arguments/abax_tge';
 import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
 

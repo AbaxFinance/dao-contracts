@@ -1,5 +1,6 @@
 import BN from 'bn.js';
 import { ABAX_DECIMALS, AZERO_DECIMALS, ContractRoles } from 'tests/consts';
+import { getTgeParams } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import AbaxToken from 'typechain/contracts/abax_token';
@@ -10,8 +11,13 @@ import AbaxTokenDeployer from 'typechain/deployers/abax_token';
 import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
-import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
+import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
+import { getSigners, localApi, time, generateRandomSignerWithBalance, E3bn } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+
+function failTest() {
+  expect(false, 'Test not implemented').to.be.true;
+}
 
 const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(AZERO_DECIMALS)));
 
@@ -19,7 +25,9 @@ const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const PHASE_ONE_TOKEN_CAP = new BN(10).pow(new BN(8 + 12)); // 10^8 tokens
 const COST_TO_MINT_MILLION_TOKENS = new BN(10).pow(new BN(6)).divn(40); // 10^18 tokens
-const [admin, founders, foundation, strategicReserves, other, ...contributors] = getSigners();
+
+const [admin, stakedropAdmin, founders, foundation, strategicReserves, other, ...contributors] = getSigners();
+
 const INIT_CONTRIBUTOR_BALANCE = toTokenDecimals(100_000);
 
 const ONE_TOKEN = toTokenDecimals(1);
@@ -48,12 +56,13 @@ async function deployTGE(
     strategicReserves.address,
     toTokenDecimals(100_000_000),
     COST_TO_MINT_MILLION_TOKENS,
+    stakedropAdmin.address,
   );
 
-  const tx = await abaxToken.withSigner(admin).tx.grantRole(ContractRoles.GENERATOR, res.contract.address);
-  await res.contract.withSigner(admin).tx.init();
+  await abaxToken.withSigner(admin).tx.grantRole(ContractRoles.GENERATOR, res.contract.address);
+  const initTx = await res.contract.withSigner(admin).tx.init();
 
-  return { contract: res.contract, initTx: tx };
+  return { contract: res.contract, initTx: initTx };
 }
 
 describe('TGE', () => {
@@ -121,15 +130,15 @@ describe('TGE', () => {
       });
       it('should fail if called by non-admin', async function () {
         await expect(tge.withSigner(other).tx.setBonusMultiplierE3(contributors[0].address, bonusMultiplierE3)).to.be.revertedWithError({
-          missingRole: AccessControlError,
+          accessControlError: 'MissingRole',
         });
       });
       it('should work if called by admin', async function () {
         const tx = tge.withSigner(admin).tx.setBonusMultiplierE3(contributors[0].address, bonusMultiplierE3);
         await expect(tx).to.be.fulfilled;
         await expect(tx).to.emitEvent(tge, 'BonusMultiplierSet', {
-          contributor: contributors[0].address,
-          bonusMultiplierE3: bonusMultiplierE3,
+          account: contributors[0].address,
+          multiplier: bonusMultiplierE3,
         });
 
         await expect(tge.query.getBonusMultiplierE3(contributors[0].address)).to.haveOkResult(bonusMultiplierE3);
@@ -140,7 +149,7 @@ describe('TGE', () => {
       beforeEach(async function () {
         tge = (await deployTGE(now, abaxToken, wAZERO, vester)).contract;
       });
-      describe('jsut after deployment', function () {
+      describe('just after deployment', function () {
         it('contribute fails', async function () {
           await expect(tge.withSigner(contributors[0]).query.contribute(ONE_TOKEN, contributors[0].address, null)).to.be.revertedWithError({
             tgeNotStarted: null,
@@ -150,10 +159,10 @@ describe('TGE', () => {
           await expect(tge.withSigner(founders).query.collectReserved()).to.be.revertedWithError({ tgeNotStarted: null });
         });
 
-        testStakedrop(tge);
+        testStakedrop(() => ({ tge, abaxToken }));
       });
 
-      describe('jsut before start', function () {
+      describe('just before start', function () {
         beforeEach(async function () {
           await time.setTo(now + DAY - 1);
         });
@@ -166,7 +175,7 @@ describe('TGE', () => {
           await expect(tge.withSigner(founders).query.collectReserved()).to.be.revertedWithError({ tgeNotStarted: null });
         });
 
-        testStakedrop(tge);
+        testStakedrop(() => ({ tge, abaxToken }));
       });
     });
     describe('phase one', function () {
@@ -183,29 +192,29 @@ describe('TGE', () => {
       describe('collect_reserved', function () {
         describe('when called by the founders', function () {
           it('should transfer 20% of tokens', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
           it('should create the vesting schedule of 80% over 4 years', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
           it('should set reserved to 0', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
         });
         describe('when called by the foundation', function () {
           it('should transfer 100% of tokens', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
           it('should set reserved to 0', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
         });
         describe('when called by the strategic reserves', function () {
           it('should transfer 100% of tokens', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
           it('should set reserved to 0', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
         });
         describe('when called by stakedroped account', function () {
@@ -214,18 +223,18 @@ describe('TGE', () => {
             await tge.withSigner(admin).tx.stakedrop(ONE_TOKEN, ONE_TOKEN, stakedroped.address);
           });
           it('should transfer 40% of tokens', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
           it('should create the vesting schedule of 60% over 4 years', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
           it('should set reserved to 0', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
         });
         describe('when called by other', function () {
           it('should fail', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
         });
       });
@@ -283,27 +292,28 @@ describe('TGE', () => {
           });
         });
         describe('when trigering the 2nd phase', function () {
+          let tx: SignAndSendSuccessResponse;
           beforeEach(async function () {
             await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, -1);
-            await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_TOKEN_CAP.sub(ONE_TOKEN), contributors[0].address, null);
+            tx = await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_TOKEN_CAP.sub(ONE_TOKEN), contributors[0].address, null);
           });
-          it('should correctyl calculate the cost', async function () {
-            expect(false).to.be.true;
+          it('should correctly calculate the cost', async function () {
+            failTest();
           });
           it('should emit event', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
         });
       });
     });
     describe('phase two', function () {
       it('stakesdrop should fail', async function () {
-        expect(false).to.be.true;
+        failTest();
       });
 
       describe('collect_reserved', function () {
         it('should work', async function () {
-          expect(false).to.be.true;
+          failTest();
         });
       });
 
@@ -313,8 +323,8 @@ describe('TGE', () => {
             await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, -1);
             await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_TOKEN_CAP, contributors[0].address, null);
           });
-          it('should correctyl calculate the cost and work', async function () {
-            expect(false).to.be.true;
+          it('should correctly calculate the cost and work', async function () {
+            failTest();
           });
         });
       });
@@ -325,24 +335,24 @@ describe('TGE', () => {
             await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, -1);
             await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_TOKEN_CAP, contributors[0].address, null);
           });
-          it('should correctyl calculate the cost and work', async function () {
-            expect(false).to.be.true;
+          it('should correctly calculate the cost and work', async function () {
+            failTest();
           });
         });
       });
 
       describe('after phase two', function () {
         it('stakesdrop should fail', async function () {
-          expect(false).to.be.true;
+          failTest();
         });
 
         it('contribute should fail', async function () {
-          expect(false).to.be.true;
+          failTest();
         });
 
         describe('collect_reserved', function () {
           it('should work', async function () {
-            expect(false).to.be.true;
+            failTest();
           });
         });
       });
@@ -350,7 +360,7 @@ describe('TGE', () => {
   });
 });
 
-// describe('phase 1', () => {
+// describe('phase one', () => {
 //   describe('initialization/access control', () => {
 //     it('Contribute fails if desired amount of ABAX to get is less than one', async () => {
 //       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
@@ -776,59 +786,95 @@ describe('TGE', () => {
 //     });
 //   });
 // });
-function testStakedrop(tge: AbaxTge) {
+function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
   describe('stakedrop', function () {
-    it('failes if called by non-admin', async function () {
-      await expect(tge.withSigner(other).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError({
-        missingRole: AccessControlError,
-      });
+    let tge: AbaxTge;
+    let abaxToken: AbaxToken;
+    beforeEach(async function () {
+      tge = getCtx().tge;
+      abaxToken = getCtx().abaxToken;
+    });
+    it('fails if called by non-admin', async function () {
+      await expect(tge.withSigner(other).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError(
+        TGEErrorBuilder.AccessControlError(AccessControlError.missingRole),
+      );
+    });
+    it('fails if called by default admin', async function () {
+      await expect(tge.withSigner(admin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError(
+        TGEErrorBuilder.AccessControlError(AccessControlError.missingRole),
+      );
     });
 
-    describe('when called by admin', function () {
+    describe('when called by stakedrop admin', function () {
       describe('when the receiver has no bonus_multiplier', function () {
         const receiver = contributors[0].address;
+        const FEE_PAID = ONE_TOKEN.muln(10);
+        const AMOUNT = FEE_PAID.muln(40);
+        let tx: SignAndSendSuccessResponse;
+        beforeEach(async function () {
+          tx = await tge.withSigner(stakedropAdmin).tx.stakedrop(AMOUNT, FEE_PAID, receiver);
+        });
         it('should mint tokens to apropariate amount to self', async function () {
-          expect(false).to.be.true;
+          await expect(tx).to.changePSP22Balances(abaxToken, [tge.address], [AMOUNT]);
         });
         it('should update the total amount of tokens generated', async function () {
-          expect(false).to.be.true;
+          await expect(tx).to.changeTgeStorage(tge, 'totalAmountMinted', AMOUNT);
         });
         it('should update the receiver reserved tokens amount', async function () {
-          expect(false).to.be.true;
+          await expect(tx).to.changeReservedTokenAmounts(tge, [receiver], [AMOUNT]);
         });
         it('should update the receiver contributed amount', async function () {
-          expect(false).to.be.true;
+          await expect(tx).to.changeContributedAmounts(tge, [receiver], [FEE_PAID]);
         });
         it('should update the receiver received base amount', async function () {
-          expect(false).to.be.true;
+          await expect(tx).to.changeBaseCreatedAmounts(tge, [receiver], [AMOUNT]);
         });
         it('should update the receiver received bonus amount', async function () {
-          expect(false).to.be.true;
+          await expect(tx).to.changeBonusCreatedAmounts(tge, [receiver], [new BN(0)]);
+        });
+
+        it('should emit Stakedrop event', async function () {
+          await expect(tx).to.emitEvent(tge, 'Stakedrop', {
+            receiver: receiver,
+            amount: AMOUNT,
+            feePaid: FEE_PAID,
+          });
         });
       });
-      for (const bonusMultiplierE3 of [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]) {
-        describe(`when the receiver has no ${bonusMultiplierE3} bonus_multiplier`, function () {
+      for (const bonusMultiplierE3 of [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) {
+        describe(`when the receiver has ${(bonusMultiplierE3 * 100) / 1000}% bonus_multiplier`, function () {
           const receiver = contributors[0].address;
+          const FEE_PAID = ONE_TOKEN.muln(10);
+          const AMOUNT = FEE_PAID.muln(40);
+          let tx: SignAndSendSuccessResponse;
           beforeEach(async function () {
             await tge.withSigner(admin).tx.setBonusMultiplierE3(receiver, bonusMultiplierE3);
+            tx = await tge.withSigner(stakedropAdmin).tx.stakedrop(AMOUNT, FEE_PAID, receiver);
           });
           it('should mint tokens to apropariate amount to self', async function () {
-            expect(false).to.be.true;
+            await expect(tx).to.changePSP22Balances(abaxToken, [tge.address], [AMOUNT.mul(E3bn.add(new BN(bonusMultiplierE3))).divn(1000)]);
           });
           it('should update the total amount of tokens generated', async function () {
-            expect(false).to.be.true;
+            await expect(tx).to.changeTgeStorage(tge, 'totalAmountMinted', AMOUNT.mul(E3bn.add(new BN(bonusMultiplierE3))).divn(1000));
           });
           it('should update the receiver reserved tokens amount', async function () {
-            expect(false).to.be.true;
+            await expect(tx).to.changeReservedTokenAmounts(tge, [receiver], [AMOUNT.mul(E3bn.add(new BN(bonusMultiplierE3))).divn(1000)]);
           });
           it('should update the receiver contributed amount', async function () {
-            expect(false).to.be.true;
+            await expect(tx).to.changeContributedAmounts(tge, [receiver], [FEE_PAID]);
           });
           it('should update the receiver received base amount', async function () {
-            expect(false).to.be.true;
+            await expect(tx).to.changeBaseCreatedAmounts(tge, [receiver], [AMOUNT]);
           });
           it('should update the receiver received bonus amount', async function () {
-            expect(false).to.be.true;
+            await expect(tx).to.changeBonusCreatedAmounts(tge, [receiver], [AMOUNT.muln(bonusMultiplierE3).divn(1000)]);
+          });
+          it('should emit Stakedrop event', async function () {
+            await expect(tx).to.emitEvent(tge, 'Stakedrop', {
+              receiver: receiver,
+              amount: AMOUNT,
+              feePaid: FEE_PAID,
+            });
           });
         });
       }
