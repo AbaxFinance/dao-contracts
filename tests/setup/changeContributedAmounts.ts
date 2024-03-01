@@ -24,10 +24,14 @@ async function changeContributedAmounts(this: Chai.AssertionPrototype, contract:
 
   //get balances pre
   const apiPre = await getApiAt(contract.nativeAPI, preTxBlockNumber);
-  const preBalances = await Promise.all(addresses.map((address) => queryTGEGetAccountStorage(apiPre, contract, address).then((res) => res[1])));
+  const preBalances = await Promise.all(
+    addresses.map((address) => queryTGEGetAccountStorage(apiPre, contract, address).then((res) => res.contributedAmount)),
+  );
   //get balances post
   const apiPost = await getApiAt(contract.nativeAPI, postTxBlockNumber);
-  const postBalances = await Promise.all(addresses.map((address) => queryTGEGetAccountStorage(apiPost, contract, address).then((res) => res[1])));
+  const postBalances = await Promise.all(
+    addresses.map((address) => queryTGEGetAccountStorage(apiPost, contract, address).then((res) => res.contributedAmount)),
+  );
   //check
   for (let i = 0; i < addresses.length; i++) {
     const pre = preBalances[i];

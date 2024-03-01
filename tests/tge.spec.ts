@@ -1,8 +1,14 @@
+import { ReturnPromiseType } from '@abaxfinance/utils';
+import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
 import { ABAX_DECIMALS, AZERO_DECIMALS, ContractRoles } from 'tests/consts';
 import { getTgeParams } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
-import AbaxTge from 'typechain/contracts/abax_tge';
+import { getApiPreAndPostTx } from 'tests/setup/queryAt';
+import { queryTGEGetAccountStorage } from 'tests/setup/queryTGEGetAccountStorage';
+import { queryTGEGetStorage } from 'tests/setup/queryTGEGetStorage';
+import { queryNextIdVestOfAt } from 'tests/setup/queryVester';
+import { default as AbaxTge, default as AbaxTgeContract } from 'typechain/contracts/abax_tge';
 import AbaxToken from 'typechain/contracts/abax_token';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
@@ -12,31 +18,113 @@ import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
 import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
-import { getSigners, localApi, time, generateRandomSignerWithBalance, E3bn } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { MAX_U128, ONE_YEAR, replaceNumericPropsWithStrings } from 'wookashwackomytest-polkahat-chai-matchers';
+import { E3bn, E6bn, generateRandomSignerWithBalance, getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
+import { ReturnNumber, SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
 
-function failTest() {
-  expect(false, 'Test not implemented').to.be.true;
-}
+const toE3 = (n: number) => new BN(n * 1e3);
 
-const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(AZERO_DECIMALS)));
+const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(ABAX_DECIMALS)));
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
-const PHASE_ONE_TOKEN_CAP = new BN(10).pow(new BN(8 + 12)); // 10^8 tokens
-const COST_TO_MINT_MILLION_TOKENS = new BN(10).pow(new BN(6)).divn(40); // 10^18 tokens
+const PHASE_ONE_TOKEN_CAP = toTokenDecimals(1).mul(new BN((100_000_000).toString()));
+const PHASE_ONE_PUBLIC_CONTRIBUTION_CAP = toTokenDecimals(20_000_000);
+const COST_TO_MINT_MILLION_TOKENS = new BN(1_000_000).divn(40);
 
-const [admin, stakedropAdmin, founders, foundation, strategicReserves, other, ...contributors] = getSigners();
+const [admin, stakedropAdmin, founders, foundation, strategicReserves, other] = getSigners();
 
 const INIT_CONTRIBUTOR_BALANCE = toTokenDecimals(100_000);
 
 const ONE_TOKEN = toTokenDecimals(1);
+const MINIMUM_AMOUNT_TO_GENERATE = ONE_TOKEN.muln(40);
 
-const CONTRIBUTION_BONUS_DENOMINATOR = ONE_TOKEN.muln(1000);
+const REFERRAL_BONUS_E3 = {
+  CONTRIBUTOR: new BN(toE3(0.01)),
+  REFERRER: new BN(toE3(0.01)),
+};
 
 //makes a contribution and checks if eceryhing is allright
-function testContribute() {
-  console.log('testContribute');
+function createContributeTest() {
+  let bonusMultiplierE3Internal: BN | null = null;
+  let referrerInternal: KeyringPair | null = null;
+  type ContributeTestCtx = {
+    tge: AbaxTgeContract;
+    abaxToken: AbaxToken;
+    wAZERO: PSP22Emitable;
+    vester: Vester;
+    contributor: KeyringPair;
+  };
+  async function testContribute(
+    ctx: ContributeTestCtx,
+    bonusMultiplierE3: BN | null = null,
+    referrer: KeyringPair | null = null,
+    previousClaimableByReferer: BN,
+  ) {
+    const { tge, abaxToken, wAZERO, vester, contributor } = ctx;
+    const amountToContribute = toTokenDecimals(10);
+    const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
+    await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
+
+    if (bonusMultiplierE3) {
+      await tge.withSigner(admin).tx.setBonusMultiplierE3(contributor.address, bonusMultiplierE3);
+    }
+
+    if (referrer) {
+      await tge.withSigner(admin).tx.registerReferrer(referrer.address);
+    }
+
+    const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer?.address ?? null))
+      .value.ok;
+    expect(queryRes?.err).to.be.undefined;
+    expect(queryRes?.ok).not.to.be.null;
+    expect(queryRes?.ok?.toString()).to.equal(amountToContribute.toString());
+    const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer?.address ?? null);
+    await expect(tx).to.eventually.be.fulfilled;
+    const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet
+      .mul(E6bn.add(REFERRAL_BONUS_E3.CONTRIBUTOR).add(bonusMultiplierE3 ?? new BN(0)))
+      .div(E3bn);
+    const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
+    const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
+
+    const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+    expect(cotributorABAXBalance?.toString()).to.equal(expectedTokensReceivedInstant);
+    const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
+
+    expect(vestData).not.to.be.null;
+    expect(vestData).not.to.be.undefined;
+    expect(vestData?.amount.toString()).to.equal(expectedTokensReceivedVested);
+    expect(vestData?.released.toString()).to.equal(new BN(0).toString());
+    expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
+
+    if (referrer) {
+      await expect(tx).to.changePSP22Balances(abaxToken, [referrer.address], [new BN(0)]);
+      await expect(tge.withSigner(referrer).query.collectReserved()).to.haveOkResult(
+        previousClaimableByReferer.add(desiredAmountOfAbaxToGet.mul(REFERRAL_BONUS_E3.REFERRER).div(E3bn)),
+      );
+    }
+  }
+
+  return {
+    run: async function (ctx: ContributeTestCtx) {
+      let previousClaimableByReferer = new BN(0);
+      if (referrerInternal) {
+        const qr = await ctx.tge.withSigner(referrerInternal).query.collectReserved();
+        if (qr.value.ok?.ok) {
+          previousClaimableByReferer = new BN(qr.value.ok.ok.toString());
+        }
+      }
+      return testContribute(ctx, bonusMultiplierE3Internal, referrerInternal, previousClaimableByReferer);
+    },
+    withBonus: function (multiplierE3: BN) {
+      bonusMultiplierE3Internal = multiplierE3;
+      return this;
+    },
+    withReferrer: function (ref: KeyringPair) {
+      referrerInternal = ref;
+      return this;
+    },
+  };
 }
 
 async function deployTGE(
@@ -65,14 +153,27 @@ async function deployTGE(
   return { contract: res.contract, initTx: initTx };
 }
 
+const contributors: KeyringPair[] = [];
+
 describe('TGE', () => {
   const now = Date.now();
   let tge: AbaxTge;
   let abaxToken: AbaxToken;
   let wAZERO: PSP22Emitable;
   let vester: Vester;
+  const TGE_START_TIME = now + DAY;
+
+  before(async () => {
+    const api = await localApi.get();
+    for (let i = 0; i < 10; i++) {
+      const contributor = await generateRandomSignerWithBalance(api);
+      contributors.push(contributor);
+    }
+  });
+
   beforeEach(async () => {
     const api = await localApi.get();
+    await time.setTo(now);
     abaxToken = (await new AbaxTokenDeployer(api, admin).new('ABAX', 'ABAX', ABAX_DECIMALS)).contract;
 
     wAZERO = (await new Psp22EmitableDeployer(api, admin).new('WAZERO', 'WAZERO', AZERO_DECIMALS)).contract;
@@ -81,6 +182,7 @@ describe('TGE', () => {
     for (const contributor of contributors) {
       await wAZERO.tx.mint(contributor.address, INIT_CONTRIBUTOR_BALANCE);
     }
+    tge = (await deployTGE(now, abaxToken, wAZERO, vester)).contract;
   });
 
   describe('constructor', () => {
@@ -125,11 +227,8 @@ describe('TGE', () => {
   describe('messages', () => {
     describe('set bonus multiplier', function () {
       const bonusMultiplierE3 = 100;
-      beforeEach(async function () {
-        tge = (await deployTGE(now, abaxToken, wAZERO, vester)).contract;
-      });
       it('should fail if called by non-admin', async function () {
-        await expect(tge.withSigner(other).tx.setBonusMultiplierE3(contributors[0].address, bonusMultiplierE3)).to.be.revertedWithError({
+        await expect(tge.withSigner(other).query.setBonusMultiplierE3(contributors[0].address, bonusMultiplierE3)).to.be.revertedWithError({
           accessControlError: 'MissingRole',
         });
       });
@@ -146,12 +245,14 @@ describe('TGE', () => {
     });
 
     describe('before phase one starts', function () {
-      beforeEach(async function () {
-        tge = (await deployTGE(now, abaxToken, wAZERO, vester)).contract;
-      });
       describe('just after deployment', function () {
+        beforeEach(async function () {
+          await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, MINIMUM_AMOUNT_TO_GENERATE);
+        });
         it('contribute fails', async function () {
-          await expect(tge.withSigner(contributors[0]).query.contribute(ONE_TOKEN, contributors[0].address, null)).to.be.revertedWithError({
+          await expect(
+            tge.withSigner(contributors[0]).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[0].address, null),
+          ).to.be.revertedWithError({
             tgeNotStarted: null,
           });
         });
@@ -167,7 +268,9 @@ describe('TGE', () => {
           await time.setTo(now + DAY - 1);
         });
         it('contribute fails', async function () {
-          await expect(tge.withSigner(contributors[0]).query.contribute(ONE_TOKEN, contributors[0].address, null)).to.be.revertedWithError({
+          await expect(
+            tge.withSigner(contributors[0]).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[0].address, null),
+          ).to.be.revertedWithError({
             tgeNotStarted: null,
           });
         });
@@ -176,183 +279,707 @@ describe('TGE', () => {
         });
 
         testStakedrop(() => ({ tge, abaxToken }));
-      });
-    });
-    describe('phase one', function () {
-      beforeEach(async function () {
-        await time.setTo(now + DAY);
-      });
 
-      it('stakedrop should fail', async function () {
-        await expect(tge.withSigner(admin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError({
-          tgeStarted: null,
-        });
-      });
-
-      describe('collect_reserved', function () {
-        describe('when called by the founders', function () {
-          it('should transfer 20% of tokens', async function () {
-            failTest();
-          });
-          it('should create the vesting schedule of 80% over 4 years', async function () {
-            failTest();
-          });
-          it('should set reserved to 0', async function () {
-            failTest();
-          });
-        });
-        describe('when called by the foundation', function () {
-          it('should transfer 100% of tokens', async function () {
-            failTest();
-          });
-          it('should set reserved to 0', async function () {
-            failTest();
-          });
-        });
-        describe('when called by the strategic reserves', function () {
-          it('should transfer 100% of tokens', async function () {
-            failTest();
-          });
-          it('should set reserved to 0', async function () {
-            failTest();
-          });
-        });
-        describe('when called by stakedroped account', function () {
-          const stakedroped = contributors[0];
+        describe('phase one', function () {
+          let stakedropped: KeyringPair;
           beforeEach(async function () {
-            await tge.withSigner(admin).tx.stakedrop(ONE_TOKEN, ONE_TOKEN, stakedroped.address);
+            await time.setTo(TGE_START_TIME);
+            stakedropped = contributors[contributors.length - 1];
           });
-          it('should transfer 40% of tokens', async function () {
-            failTest();
-          });
-          it('should create the vesting schedule of 60% over 4 years', async function () {
-            failTest();
-          });
-          it('should set reserved to 0', async function () {
-            failTest();
-          });
-        });
-        describe('when called by other', function () {
-          it('should fail', async function () {
-            failTest();
-          });
-        });
-      });
 
-      describe('contribute', function () {
-        it('should fail with no allowance', async function () {
-          await expect(tge.withSigner(contributors[0]).query.contribute(ONE_TOKEN, contributors[0].address, null)).to.be.revertedWithError({
-            allowance: null,
-          });
-        });
-        describe('when not trigering the 2nd phase', function () {
-          beforeEach(async function () {
-            await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, ONE_TOKEN);
-          });
-          it('should fail with less than minimum', async function () {
-            await expect(tge.withSigner(contributors[0]).query.contribute(ONE_TOKEN.subn(1), contributors[0].address, null)).to.be.revertedWithError({
-              amountLessThanMinimum: null,
+          it('stakedrop should fail', async function () {
+            await expect(tge.withSigner(stakedropAdmin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError({
+              tgeStarted: null,
             });
           });
 
-          describe('with no exp bonus and with no referrer', function () {
-            it('single contribution works', async function () {
-              testContribute();
+          describe('collect_reserved', function () {
+            describe('when called by the founders', function () {
+              let tx: SignAndSendSuccessResponse;
+              const expectedTokensReceivedTotal = PHASE_ONE_TOKEN_CAP.muln(20).divn(100);
+              const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(2).divn(10);
+              const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(8).divn(10);
+              let accStorageBefore: ReturnPromiseType<typeof queryTGEGetAccountStorage>;
+              beforeEach(async function () {
+                accStorageBefore = await queryTGEGetAccountStorage(await localApi.get(), tge, founders.address);
+                (await tge.withSigner(founders).query.collectReserved()).value.unwrapRecursively();
+                tx = await tge.withSigner(founders).tx.collectReserved();
+              });
+              it('should transfer 20% of tokens', async function () {
+                await expect(tx).to.changePSP22Balances(abaxToken, [founders.address], [expectedTokensReceivedInstant]);
+              });
+              it('should create the vesting schedule of 80% over 4 years', async function () {
+                await expect(tx).to.createVestingSchedule(vester, founders.address, abaxToken.address, [
+                  expectedTokensReceivedVested,
+                  new BN(0),
+                  ONE_YEAR.muln(4),
+                ]);
+              });
+              it('should set reserved to 0', async function () {
+                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, founders.address);
+                expect(accStorageAfter.reservedTokens.toString()).to.equal('0');
+                expect(accStorageAfter.contributedAmount.toString()).to.equal(accStorageBefore.contributedAmount.toString());
+                expect(accStorageAfter.baseAmountCreated.toString()).to.equal(accStorageBefore.baseAmountCreated.toString());
+                expect(accStorageAfter.bonusAmountCreated.toString()).to.equal(accStorageBefore.bonusAmountCreated.toString());
+              });
             });
-            it('multiple contributions work', async function () {
-              testContribute();
-              testContribute();
-              testContribute();
-              testContribute();
+            describe('when called by the foundation', function () {
+              let tx: SignAndSendSuccessResponse;
+              const expectedTokensReceivedTotal = PHASE_ONE_TOKEN_CAP.muln(2).divn(100);
+              const expectedTokensReceivedInstant = expectedTokensReceivedTotal;
+              const expectedTokensReceivedVested = new BN(0);
+              let accStorageBefore: ReturnPromiseType<typeof queryTGEGetAccountStorage>;
+              beforeEach(async function () {
+                accStorageBefore = await queryTGEGetAccountStorage(await localApi.get(), tge, foundation.address);
+                (await tge.withSigner(foundation).query.collectReserved()).value.unwrapRecursively();
+                tx = await tge.withSigner(foundation).tx.collectReserved();
+              });
+              it('should transfer 100% of tokens', async function () {
+                await expect(tx).to.changePSP22Balances(abaxToken, [foundation.address], [expectedTokensReceivedInstant]);
+              });
+              it('should set reserved to 0', async function () {
+                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, founders.address);
+                expect(accStorageAfter.reservedTokens.toString()).to.equal('0');
+                expect(accStorageAfter.contributedAmount.toString()).to.equal(accStorageBefore.contributedAmount.toString());
+                expect(accStorageAfter.baseAmountCreated.toString()).to.equal(accStorageBefore.baseAmountCreated.toString());
+                expect(accStorageAfter.bonusAmountCreated.toString()).to.equal(accStorageBefore.bonusAmountCreated.toString());
+              });
+              it('should not create any vesting', async function () {
+                await expect(tx).not.to.createVestingSchedule(vester, foundation.address, abaxToken.address);
+              });
+            });
+            describe('when called by the strategic reserves', function () {
+              let tx: SignAndSendSuccessResponse;
+              const expectedTokensReceivedTotal = PHASE_ONE_TOKEN_CAP.muln(58).divn(100);
+              const expectedTokensReceivedInstant = expectedTokensReceivedTotal;
+              let accStorageBefore: ReturnPromiseType<typeof queryTGEGetAccountStorage>;
+              beforeEach(async function () {
+                accStorageBefore = await queryTGEGetAccountStorage(await localApi.get(), tge, strategicReserves.address);
+                (await tge.withSigner(strategicReserves).query.collectReserved()).value.unwrapRecursively();
+                tx = await tge.withSigner(strategicReserves).tx.collectReserved();
+              });
+              it('should transfer 100% of tokens', async function () {
+                await expect(tx).to.changePSP22Balances(abaxToken, [strategicReserves.address], [expectedTokensReceivedInstant]);
+              });
+              it('should set reserved to 0', async function () {
+                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, founders.address);
+                expect(accStorageAfter.reservedTokens.toString()).to.equal('0');
+                expect(accStorageAfter.contributedAmount.toString()).to.equal(accStorageBefore.contributedAmount.toString());
+                expect(accStorageAfter.baseAmountCreated.toString()).to.equal(accStorageBefore.baseAmountCreated.toString());
+                expect(accStorageAfter.bonusAmountCreated.toString()).to.equal(accStorageBefore.bonusAmountCreated.toString());
+              });
+              it('should not create any vesting', async function () {
+                await expect(tx).not.to.createVestingSchedule(vester, strategicReserves.address, abaxToken.address);
+              });
+            });
+            describe('when called by other', function () {
+              it('should fail', async function () {
+                await expect(tge.withSigner(other).query.collectReserved()).to.be.revertedWithError({
+                  noReservedTokens: null,
+                });
+              });
+            });
+          });
+          describe('collect_reserved (stakedropped)', function () {
+            beforeEach(async function () {
+              await time.setTo(now);
+              //v prerequisite for stakedrop test, has to be done prior to phase one start
+              (await tge.withSigner(stakedropAdmin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, stakedropped.address)).value.unwrapRecursively();
+              await tge.withSigner(stakedropAdmin).tx.stakedrop(ONE_TOKEN, ONE_TOKEN, stakedropped.address);
+              //^ prerequisite for stakedrop test, has to be done prior to phase one start
+              await time.setTo(TGE_START_TIME);
+            });
+            describe('when called by stakedroped account', function () {
+              let tx: SignAndSendSuccessResponse;
+              const expectedTokensReceivedTotal = ONE_TOKEN;
+              const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(40).divn(100);
+              const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(60).divn(100);
+              beforeEach(async function () {
+                (await tge.withSigner(stakedropped).query.collectReserved()).value.unwrapRecursively();
+                tx = await tge.withSigner(stakedropped).tx.collectReserved();
+              });
+              it('should transfer 40% of tokens', async function () {
+                await expect(tx).to.changePSP22Balances(abaxToken, [stakedropped.address], [expectedTokensReceivedInstant]);
+              });
+              it('should create the vesting schedule of 60% over 4 years', async function () {
+                await expect(tx).to.createVestingSchedule(vester, stakedropped.address, abaxToken.address, [
+                  expectedTokensReceivedVested,
+                  new BN(0),
+                  ONE_YEAR.muln(4),
+                ]);
+              });
+              it('should set reserved to 0', async function () {
+                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, stakedropped.address);
+                expect(accStorageAfter.reservedTokens.toString()).to.equal('0');
+              });
+            });
+          });
+          describe('contribute', function () {
+            it('should fail with no allowance', async function () {
+              await expect(
+                tge.withSigner(contributors[0]).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[0].address, null),
+              ).to.be.revertedWithError({ psp22Error: { insufficientAllowance: null } });
+            });
+            describe('when not trigering the 2nd phase', function () {
+              beforeEach(async function () {
+                await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, MINIMUM_AMOUNT_TO_GENERATE);
+              });
+              it('should fail with less than minimum', async function () {
+                await expect(
+                  tge.withSigner(contributors[0]).query.contribute(MINIMUM_AMOUNT_TO_GENERATE.subn(1), contributors[0].address, null),
+                ).to.be.revertedWithError({
+                  amountLessThanMinimum: null,
+                });
+              });
+
+              describe('with no exp bonus and with no referrer', function () {
+                it('single contribution works', async function () {
+                  await createContributeTest().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                });
+                it('multiple contributions work', async function () {
+                  await createContributeTest().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                });
+              });
+
+              describe('with exp bonus and with no referrer', function () {
+                it('single contribution works', async function () {
+                  await createContributeTest().withBonus(toE3(0.3)).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                });
+                it('multiple contributions work', async function () {
+                  await createContributeTest().withBonus(toE3(0.3)).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest().withBonus(toE3(0.3)).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest().withBonus(toE3(0.3)).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest().withBonus(toE3(0.3)).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                });
+              });
+
+              describe('with exp bonus and with referrer', function () {
+                it('single contribution works', async function () {
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[5])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                });
+                it('multiple contributions work - different referers', async function () {
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[5])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[6])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[7])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                });
+                it('multiple contributions work - same referrer', async function () {
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[5])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[5])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[5])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                  await createContributeTest()
+                    .withBonus(toE3(0.3))
+                    .withReferrer(contributors[5])
+                    .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4] });
+                });
+              });
+            });
+            describe('when trigering the 2nd phase', function () {
+              beforeEach(async function () {
+                await time.increase(DAY);
+                await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, MAX_U128);
+                await wAZERO.withSigner(contributors[0]).tx.mint(contributors[0].address, PHASE_ONE_PUBLIC_CONTRIBUTION_CAP);
+                const amountToGetClose = PHASE_ONE_PUBLIC_CONTRIBUTION_CAP.sub(ONE_TOKEN).muln(10).divn(11);
+                (await tge.withSigner(contributors[0]).query.contribute(amountToGetClose, contributors[0].address, null)).value.unwrapRecursively();
+                await tge.withSigner(contributors[0]).tx.contribute(amountToGetClose, contributors[0].address, null);
+              });
+              it('should correctly calculate the cost & emit event', async () => {
+                await wAZERO.withSigner(contributors[1]).tx.approve(tge.address, MAX_U128);
+                const cost = (
+                  await tge.withSigner(contributors[1]).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[1].address, null)
+                ).value.unwrapRecursively() as any as ReturnNumber;
+                const tx = await tge.withSigner(contributors[1]).tx.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[1].address, null);
+                await expect(tx).to.emitEvent(tge, 'PhaseChanged');
+                await time.increase(DAY);
+                const currentParams = await queryTGEGetStorage(await localApi.get(), tge);
+                expect(currentParams.phaseTwoStartTime?.toString()).to.equal((now + DAY).toString());
+                expect(parseInt(cost.toString()) / 1e6)
+                  .to.be.greaterThan(0.0025)
+                  .but.lessThan(0.0025001);
+
+                const { apiPre, apiPost } = await getApiPreAndPostTx(tx, tge.nativeAPI);
+
+                const nextIdVestOfPre = await queryNextIdVestOfAt(apiPre, vester, contributors[1].address, abaxToken.address);
+                const nextIdVestOfPost = await queryNextIdVestOfAt(apiPost, vester, contributors[1].address, abaxToken.address);
+
+                await expect(tx).to.changePSP22Balances(
+                  abaxToken,
+                  [contributors[1].address],
+                  [MINIMUM_AMOUNT_TO_GENERATE.muln(40).divn(100).subn(1)],
+                ); //TODO
+                expect(nextIdVestOfPost).to.equal(nextIdVestOfPre + 2); // during switch to phase 2 creates 2 vesting schedules, 1 for each phase
+
+                let totalVestedAmount = new BN(0);
+                for (let i = nextIdVestOfPre; i < nextIdVestOfPost; i++) {
+                  const postVestingScheduleOf = (
+                    await vester.query.vestingScheduleOf(contributors[1].address, abaxToken.address, i, [])
+                  ).value.unwrapRecursively()!;
+                  totalVestedAmount = totalVestedAmount.add(postVestingScheduleOf.amount.rawNumber);
+                  expect(postVestingScheduleOf.released.rawNumber).to.equal(0);
+                  expect(postVestingScheduleOf.schedule.constant).to.exist;
+                  expect(postVestingScheduleOf.schedule.constant![0]).to.equal(0);
+                  expect(postVestingScheduleOf.schedule.constant![1]).to.equal(ONE_YEAR.muln(4));
+                }
+                expect(totalVestedAmount).to.equal(MINIMUM_AMOUNT_TO_GENERATE.muln(60).divn(100));
+              });
+              describe('phase two', function () {
+                beforeEach(async function () {
+                  await wAZERO.withSigner(contributors[1]).tx.approve(tge.address, MAX_U128);
+                  const tx = await tge.withSigner(contributors[1]).tx.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[1].address, null);
+                  await expect(tx).to.emitEvent(tge, 'PhaseChanged');
+                });
+                it('stakedrop should fail', async function () {
+                  await expect(tge.withSigner(stakedropAdmin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError(
+                    {
+                      tgeStarted: null,
+                    },
+                  );
+                });
+
+                describe('collect_reserved', function () {
+                  it('should work', async function () {
+                    await expect(tge.withSigner(founders).query.collectReserved()).to.haveOkResult();
+                  });
+                });
+
+                describe('just after started', function () {
+                  beforeEach(async function () {
+                    await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, MAX_U128);
+                    (
+                      await tge.withSigner(contributors[0]).query.contribute(PHASE_ONE_PUBLIC_CONTRIBUTION_CAP, contributors[0].address, null)
+                    ).value.unwrapRecursively();
+                    await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_PUBLIC_CONTRIBUTION_CAP, contributors[0].address, null);
+                  });
+                  describe('contribute', function () {
+                    it('should correctly calculate the cost and work', async function () {
+                      const contributor = contributors[1];
+                      const desiredAmountOfAbaxToGet = toTokenDecimals(5_000_000);
+                      const amountToContribute = desiredAmountOfAbaxToGet.muln(2);
+                      await wAZERO.tx.mint(contributor.address, amountToContribute);
+                      await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
+                      const cost =
+                        (
+                          await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)
+                        ).value.ok?.ok?.toString() ?? '0';
+                      const pricePer1 = new BN(cost).mul(E6bn).div(desiredAmountOfAbaxToGet).toNumber() / 1e6;
+                      expect(pricePer1).to.equal(0.028125); //0.02825
+                    });
+                  });
+                  describe('just before ended', function () {
+                    beforeEach(async function () {
+                      await time.increase(90 * DAY - 1);
+                    });
+                    describe('contribute', function () {
+                      it('should correctly calculate the cost and work', async function () {
+                        const contributor = contributors[0];
+                        const desiredAmountOfAbaxToGet = toTokenDecimals(5_000_000);
+                        const amountToContribute = desiredAmountOfAbaxToGet.muln(2);
+                        await wAZERO.tx.mint(contributor.address, amountToContribute);
+                        await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
+                        const cost =
+                          (
+                            await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)
+                          ).value.ok?.ok?.toString() ?? '0';
+                        const pricePer1 = new BN(cost).mul(E6bn).div(desiredAmountOfAbaxToGet).toNumber() / 1e6;
+                        expect(pricePer1).to.equal(0.028125); //0.02825
+                      });
+                    });
+                    describe('after phase two', function () {
+                      beforeEach(async function () {
+                        await time.increase(2);
+                      });
+                      it('stakesdrop should fail', async function () {
+                        await expect(
+                          tge.withSigner(stakedropAdmin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address),
+                        ).to.be.revertedWithError({
+                          tgeStarted: null,
+                        });
+                      });
+
+                      it('contribute should fail', async function () {
+                        await expect(
+                          tge.withSigner(contributors[0]).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[0].address, null),
+                        ).to.be.revertedWithError({
+                          tgeEnded: null,
+                        });
+                      });
+
+                      describe('collect_reserved', function () {
+                        it('should work', async function () {
+                          await expect(tge.withSigner(founders).query.collectReserved()).to.haveOkResult();
+                        });
+                      });
+                    });
+                  });
+                });
+              });
             });
           });
 
-          describe('with exp bonus and with no referrer', function () {
-            it('single contribution works', async function () {
-              testContribute();
+          describe('holistic', () => {
+            describe('phase one', () => {
+              describe('user has no bonus', () => {
+                it('Gets the correct amount of tokens & vesting', async () => {
+                  const amountToContribute = toTokenDecimals(10);
+                  const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
+                  await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, amountToContribute);
+                  const contributor = contributors[0];
+
+                  const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)).value.ok;
+                  expect(queryRes?.err).to.be.undefined;
+                  expect(queryRes?.ok).not.to.be.null;
+                  expect(queryRes?.ok?.toString()).to.equal(amountToContribute.toString());
+                  const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                  await expect(tx).to.eventually.be.fulfilled;
+                  const txRes = await tx;
+
+                  expect(txRes.events).to.have.lengthOf(1);
+                  expect(txRes.events?.[0].name).to.equal('Contribution');
+                  expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
+                    contributor: contributors[0].address,
+                    toCreate: desiredAmountOfAbaxToGet.toString(),
+                  });
+                  const expectedAbaxAmountReceived = desiredAmountOfAbaxToGet.muln(4).divn(10);
+                  const expectedAbaxAmountVested = desiredAmountOfAbaxToGet.muln(6).divn(10);
+                  const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                  expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceived.toString());
+
+                  const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
+
+                  expect(vestData).not.to.be.null;
+                  expect(vestData).not.to.be.undefined;
+                  expect(vestData?.amount.toString()).to.equal(expectedAbaxAmountVested.toString());
+                  expect(vestData?.released.toString()).to.equal(new BN(0).toString());
+                  expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
+                  expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(ONE_YEAR.muln(4).toString());
+                });
+
+                it('Uses referral address and receives bonus, as well as the referee address', async () => {
+                  const amountToContribute = toTokenDecimals(10);
+                  const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
+                  const contributor = contributors[0];
+                  await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
+                  const referrer = contributors[1];
+                  await tge.withSigner(admin).tx.registerReferrer(referrer.address);
+
+                  const queryRes = (
+                    await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer.address)
+                  ).value.ok;
+                  expect(queryRes?.err).to.be.undefined;
+                  expect(queryRes?.ok).not.to.be.null;
+                  expect(queryRes?.ok?.toString()).to.equal(amountToContribute.toString());
+                  const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer.address);
+                  await expect(tx).to.eventually.be.fulfilled;
+                  const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet.mul(E6bn.add(REFERRAL_BONUS_E3.CONTRIBUTOR)).div(E3bn);
+                  const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
+                  const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
+
+                  const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                  expect(cotributorABAXBalance?.toString()).to.equal(expectedTokensReceivedInstant);
+                  const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
+
+                  expect(vestData).not.to.be.null;
+                  expect(vestData).not.to.be.undefined;
+                  expect(vestData?.amount.toString()).to.equal(expectedTokensReceivedVested);
+                  expect(vestData?.released.toString()).to.equal(new BN(0).toString());
+                  expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
+
+                  await expect(tx).to.changePSP22Balances(abaxToken, [referrer.address], [new BN(0)]);
+                  await expect(tge.withSigner(referrer).query.collectReserved()).to.haveOkResult(
+                    desiredAmountOfAbaxToGet.mul(REFERRAL_BONUS_E3.REFERRER).div(E3bn),
+                  );
+                });
+              });
+
+              describe('user has bonus', () => {
+                it('Gets the correct amount of tokens & vesting', async () => {
+                  const desiredAmountOfAbaxToGet = MINIMUM_AMOUNT_TO_GENERATE;
+                  const amountToContribute = MINIMUM_AMOUNT_TO_GENERATE.divn(40);
+                  const contributor = contributors[1];
+                  await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
+                  const queryPreMultiplier = await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                  expect(queryPreMultiplier.value.ok?.err).to.be.undefined;
+                  expect(queryPreMultiplier.value.ok?.ok?.toString()).to.equal(amountToContribute.toString());
+
+                  const bonusMultiplierE3 = new BN(toE3(0.08));
+                  await tge.withSigner(admin).tx.setBonusMultiplierE3(contributor.address, bonusMultiplierE3);
+
+                  const queryPostMultiplierSet = await tge
+                    .withSigner(contributor)
+                    .query.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                  expect(queryPostMultiplierSet.value.ok?.ok?.toString()).to.equal(amountToContribute.toString());
+                  const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet.mul(E6bn.add(bonusMultiplierE3)).div(E3bn);
+                  const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
+                  const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
+
+                  const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                  await expect(tx).to.eventually.be.fulfilled;
+
+                  const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                  expect(cotributorABAXBalance?.toString()).to.equal(expectedTokensReceivedInstant);
+                  const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
+
+                  expect(vestData).not.to.be.null;
+                  expect(vestData).not.to.be.undefined;
+                  expect(vestData?.amount.toString()).to.equal(expectedTokensReceivedVested);
+                  expect(vestData?.released.toString()).to.equal(new BN(0).toString());
+                  expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
+                  expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(ONE_YEAR.muln(4).toString());
+                });
+
+                it('Uses referral address and receives bonus, as well as the referee address', async () => {
+                  const amountToContribute = toTokenDecimals(10);
+                  const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
+                  const contributor = contributors[0];
+                  await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
+                  const referrer = contributors[1];
+
+                  const bonusMultiplierE3 = new BN(toE3(0.08));
+                  await tge.withSigner(admin).tx.setBonusMultiplierE3(contributor.address, bonusMultiplierE3);
+
+                  await tge.withSigner(admin).tx.registerReferrer(referrer.address);
+
+                  const queryRes = (
+                    await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer.address)
+                  ).value.ok;
+                  expect(queryRes?.err).to.be.undefined;
+                  expect(queryRes?.ok).not.to.be.null;
+                  expect(queryRes?.ok?.toString()).to.equal(amountToContribute.toString());
+                  const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer.address);
+                  await expect(tx).to.eventually.be.fulfilled;
+                  const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet
+                    .mul(E6bn.add(REFERRAL_BONUS_E3.CONTRIBUTOR).add(bonusMultiplierE3))
+                    .div(E3bn);
+                  const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
+                  const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
+
+                  const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                  expect(cotributorABAXBalance?.toString()).to.equal(expectedTokensReceivedInstant);
+                  const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
+
+                  expect(vestData).not.to.be.null;
+                  expect(vestData).not.to.be.undefined;
+                  expect(vestData?.amount.toString()).to.equal(expectedTokensReceivedVested);
+                  expect(vestData?.released.toString()).to.equal(new BN(0).toString());
+                  expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
+
+                  await expect(tx).to.changePSP22Balances(abaxToken, [referrer.address], [new BN(0)]);
+                  await expect(tge.withSigner(referrer).query.collectReserved()).to.haveOkResult(
+                    desiredAmountOfAbaxToGet.mul(REFERRAL_BONUS_E3.REFERRER).div(E3bn),
+                  );
+                });
+              });
             });
-            it('multiple contributions work', async function () {
-              testContribute();
-              testContribute();
-              testContribute();
-              testContribute();
+
+            describe('phase 2', () => {
+              beforeEach(async () => {
+                await time.setTo(TGE_START_TIME + 100);
+
+                await wAZERO.withSigner(admin).tx.approve(tge.address, MAX_U128);
+                await wAZERO.withSigner(admin).tx.mint(admin.address, PHASE_ONE_PUBLIC_CONTRIBUTION_CAP);
+                const amountToGetClose = PHASE_ONE_PUBLIC_CONTRIBUTION_CAP.sub(ONE_TOKEN).muln(10).divn(11);
+                (await tge.withSigner(admin).query.contribute(amountToGetClose, admin.address, null)).value.unwrapRecursively();
+                await tge.withSigner(admin).tx.contribute(amountToGetClose, admin.address, null);
+                await tge.withSigner(admin).tx.contribute(MINIMUM_AMOUNT_TO_GENERATE, admin.address, null);
+                await time.increase(100);
+                const currentParams = await queryTGEGetStorage(await localApi.get(), tge);
+                expect(currentParams.phaseTwoStartTime).to.equal((TGE_START_TIME + 100).toString());
+              });
+              describe('user has no bonus', () => {
+                describe('Generates 40 ABAX tokens', async () => {
+                  const desiredAmountOfAbaxToGet = toTokenDecimals(40);
+                  const expectedAbaxAmountReceivedInstantly = desiredAmountOfAbaxToGet.muln(4).divn(10);
+                  const expectedAbaxAmountVested = desiredAmountOfAbaxToGet.muln(6).divn(10);
+                  let txRes: SignAndSendSuccessResponse;
+                  let contributor;
+                  beforeEach(async () => {
+                    contributor = contributors[0];
+                    await wAZERO.tx.mint(contributors[0].address, PHASE_ONE_TOKEN_CAP);
+                    await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, PHASE_ONE_TOKEN_CAP);
+
+                    const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)).value
+                      .ok;
+                    expect(queryRes?.err).to.be.undefined;
+                    expect(queryRes?.ok).not.to.be.null;
+                    expect(queryRes?.ok?.toString()).to.almostEqualOrEqualNumber('1000040000000');
+                    const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                    await expect(tx).to.eventually.be.fulfilled;
+                    txRes = await tx;
+                  });
+                  it('Gets the correct amount of tokens & vesting', async () => {
+                    expect(txRes.events).to.have.lengthOf(1);
+                    expect(txRes.events?.[0].name).to.equal('Contribution');
+                    expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
+                      contributor: contributors[0].address,
+                      toCreate: desiredAmountOfAbaxToGet.toString(),
+                    });
+                    const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                    expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceivedInstantly.toString());
+                  });
+
+                  it('Has correct vesting schedule & is able to collect vested tokens after the time passes', async () => {
+                    const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
+                    const expectedVestingDuration = ONE_YEAR.muln(4).toNumber();
+                    expect(vestData).not.to.be.null;
+                    expect(vestData).not.to.be.undefined;
+                    expect(vestData?.amount.toString()).to.equal(expectedAbaxAmountVested.toString());
+                    expect(vestData?.released.toString()).to.equal(new BN(0).toString());
+                    expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
+                    expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(expectedVestingDuration.toString());
+                    await time.increase(expectedVestingDuration);
+                    const queryRes = await vester.withSigner(contributor).query.release(contributor.address, abaxToken.address, []);
+                    expect(queryRes.value.ok?.err).to.be.undefined;
+                    expect(queryRes.value.ok?.ok?.toString()).to.equal(expectedAbaxAmountVested.toString());
+                    const tx = vester.withSigner(contributor).tx.release(contributor.address, abaxToken.address, []);
+                    await expect(tx).to.eventually.be.fulfilled;
+                    const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                    expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountVested.add(expectedAbaxAmountReceivedInstantly).toString());
+                  });
+                });
+              });
+
+              describe('user has bonus', () => {
+                describe('Generates 40 ABAX tokens with bonus', async () => {
+                  const desiredAmountOfAbaxToGet = toTokenDecimals(40);
+                  const bonusMultiplierE3 = new BN(toE3(0.08)); // 8% bonus multiplier
+                  const expectedAbaxAmountReceivedInstantlyWithBonus = desiredAmountOfAbaxToGet
+                    .mul(bonusMultiplierE3.add(E3bn))
+                    .div(E3bn)
+                    .muln(4)
+                    .divn(10);
+                  const expectedAbaxAmountVestedWithBonus = desiredAmountOfAbaxToGet.mul(bonusMultiplierE3.add(E3bn)).div(E3bn).muln(6).divn(10);
+                  let txRes: SignAndSendSuccessResponse;
+                  let contributor: KeyringPair;
+                  beforeEach(async () => {
+                    contributor = contributors[1];
+                    await wAZERO.withSigner(contributor).tx.approve(tge.address, MAX_U128);
+                    await tge.withSigner(admin).tx.setBonusMultiplierE3(contributor.address, bonusMultiplierE3);
+
+                    const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)).value
+                      .ok;
+                    expect(queryRes?.err).to.be.undefined;
+                    expect(queryRes?.ok).not.to.be.null;
+                    expect(queryRes?.ok?.toString()).to.almostEqualOrEqualNumber('1000040000000');
+                    const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                    await expect(tx).to.eventually.be.fulfilled;
+                    txRes = await tx;
+                  });
+                  it('Gets the correct amount of tokens & vesting with bonus', async () => {
+                    expect(txRes.events).to.have.lengthOf(1);
+                    expect(txRes.events?.[0].name).to.equal('Contribution');
+                    expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
+                      contributor: contributor.address,
+                      toCreate: toTokenDecimals(40).toString(),
+                    });
+                    const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                    expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceivedInstantlyWithBonus.toString());
+                  });
+
+                  it('Has correct vesting schedule & is able to collect vested tokens with bonus after the time passes', async () => {
+                    const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
+                    expect(vestData).not.to.be.null;
+                    expect(vestData).not.to.be.undefined;
+                    expect(vestData?.amount.toString()).to.equal(expectedAbaxAmountVestedWithBonus.toString());
+                    expect(vestData?.released.toString()).to.equal(new BN(0).toString());
+
+                    const expectedVestingDuration = ONE_YEAR.muln(4).toNumber();
+                    expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(expectedVestingDuration.toString());
+
+                    await time.increase(expectedVestingDuration);
+                    const queryRes = await vester.withSigner(contributor).query.release(contributor.address, abaxToken.address, []);
+                    expect(queryRes.value.ok?.err).to.be.undefined;
+                    expect(queryRes.value.ok?.ok?.toString()).to.equal(expectedAbaxAmountVestedWithBonus.toString());
+
+                    const tx = vester.withSigner(contributor).tx.release(contributor.address, abaxToken.address, []);
+                    await expect(tx).to.eventually.be.fulfilled;
+                    const cotributorABAXBalanceAfter = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
+                    expect(cotributorABAXBalanceAfter?.toString()).to.equal(
+                      expectedAbaxAmountVestedWithBonus.add(expectedAbaxAmountReceivedInstantlyWithBonus).toString(),
+                    );
+                  });
+                });
+              });
+
+              describe('price discovery', () => {
+                it('5 million tokens get minted on top of the 20 million intended for Public Contributors. 25 million ABAX tokens being created. Price increases to 0.0315', async () => {
+                  const contributor = contributors[0];
+                  const desiredAmountOfAbaxToGet = toTokenDecimals(5_000_000);
+                  const amountToContribute = desiredAmountOfAbaxToGet.muln(2);
+                  await wAZERO.tx.mint(contributor.address, amountToContribute);
+                  await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
+                  const cost =
+                    (
+                      await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)
+                    ).value.ok?.ok?.toString() ?? '0';
+                  const pricePer1 = new BN(cost).mul(E6bn).div(desiredAmountOfAbaxToGet).toNumber() / 1e6;
+                  expect(pricePer1).to.equal(0.028125); //0.02825
+
+                  await tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                  const totalAmountDistributed = (await queryTGEGetStorage(await localApi.get(), tge)).totalAmountMinted.toString();
+                  expect(totalAmountDistributed).to.equal(toTokenDecimals(125_000_000).toString());
+                  const nextCostPerMinimum =
+                    (
+                      await tge.withSigner(contributor).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributor.address, null)
+                    ).value.ok?.ok?.toString() ?? '0';
+                  const nextPricePer1 = new BN(nextCostPerMinimum).mul(E6bn).div(MINIMUM_AMOUNT_TO_GENERATE).toNumber() / 1e6;
+                  expect(nextPricePer1).to.equal(0.03125); // 0.0315
+                });
+                it('100 contributions - each generates 50 thousands tokens to self. Price increases on subsequent contributions', async () => {
+                  const contributor = contributors[3];
+                  const initAzeroBalance = toTokenDecimals(1_000_000);
+                  await wAZERO.tx.mint(contributor.address, initAzeroBalance);
+                  await wAZERO.withSigner(contributor).tx.approve(tge.address, initAzeroBalance);
+
+                  let previousPricePer1 = 0;
+                  const previousPricePer1Log: number[] = [];
+                  for (let i = 0; i < 100; i++) {
+                    const queryRes = (await tge.withSigner(contributor).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributor.address, null)).value
+                      .ok;
+                    const currentCostPerMinimum = queryRes?.ok?.toString() ?? '0';
+                    const currentPricePer1 = new BN(currentCostPerMinimum).mul(E6bn).div(MINIMUM_AMOUNT_TO_GENERATE).toNumber() / 1e6;
+                    expect(currentPricePer1).to.be.greaterThan(previousPricePer1);
+                    previousPricePer1 = currentPricePer1;
+                    previousPricePer1Log.push(currentPricePer1);
+                    const desiredAmountOfAbaxToGet = toTokenDecimals(50_000);
+
+                    const qv = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)).value;
+                    expect(qv?.ok?.err, `failed on contribution number ${i}`).to.be.undefined;
+                    await tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
+                  }
+                  console.log('price over time');
+                  console.table(previousPricePer1Log);
+                  console.log('totalAmountMinted', new BN((await getTgeParams(tge)).totalAmountMinted.toString()).div(ONE_TOKEN).toString());
+                  const queryRes = (await tge.withSigner(contributor).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributor.address, null)).value
+                    .ok;
+                  const currentCostPerMinimum = queryRes?.ok?.toString() ?? '0';
+                  const currentPricePer1 = new BN(currentCostPerMinimum).mul(E6bn).div(MINIMUM_AMOUNT_TO_GENERATE).toNumber() / 1e6;
+                  console.log('final price', currentPricePer1);
+                });
+              });
             });
-          });
-
-          describe('with exp bonus and with referrer', function () {
-            it('single contribution works', async function () {
-              testContribute();
-            });
-            it('multiple contributions work', async function () {
-              testContribute();
-              testContribute();
-              testContribute();
-              testContribute();
-            });
-          });
-        });
-        describe('when trigering the 2nd phase', function () {
-          let tx: SignAndSendSuccessResponse;
-          beforeEach(async function () {
-            await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, -1);
-            tx = await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_TOKEN_CAP.sub(ONE_TOKEN), contributors[0].address, null);
-          });
-          it('should correctly calculate the cost', async function () {
-            failTest();
-          });
-          it('should emit event', async function () {
-            failTest();
-          });
-        });
-      });
-    });
-    describe('phase two', function () {
-      it('stakesdrop should fail', async function () {
-        failTest();
-      });
-
-      describe('collect_reserved', function () {
-        it('should work', async function () {
-          failTest();
-        });
-      });
-
-      describe('just after started', function () {
-        describe('contribute', function () {
-          beforeEach(async function () {
-            await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, -1);
-            await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_TOKEN_CAP, contributors[0].address, null);
-          });
-          it('should correctly calculate the cost and work', async function () {
-            failTest();
-          });
-        });
-      });
-
-      describe('just before ended', function () {
-        describe('contribute', function () {
-          beforeEach(async function () {
-            await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, -1);
-            await tge.withSigner(contributors[0]).tx.contribute(PHASE_ONE_TOKEN_CAP, contributors[0].address, null);
-          });
-          it('should correctly calculate the cost and work', async function () {
-            failTest();
-          });
-        });
-      });
-
-      describe('after phase two', function () {
-        it('stakesdrop should fail', async function () {
-          failTest();
-        });
-
-        it('contribute should fail', async function () {
-          failTest();
-        });
-
-        describe('collect_reserved', function () {
-          it('should work', async function () {
-            failTest();
           });
         });
       });
@@ -360,432 +987,6 @@ describe('TGE', () => {
   });
 });
 
-// describe('phase one', () => {
-//   describe('initialization/access control', () => {
-//     it('Contribute fails if desired amount of ABAX to get is less than one', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
-//       const minimum = ONE_ABAX;
-//       expect((await tge.withSigner(contributors[0]).query.contribute(minimum.subn(1), null)).value.ok?.err).to.deep.equal(
-//         TGEErrorBuilder.AmountLessThanMinimum(),
-//       );
-//       const queryRes = (await tge.withSigner(contributors[0]).query.contribute(minimum, null)).value.ok;
-//       expect(queryRes?.err).to.be.undefined;
-//     });
-
-//     it('Contribute fails if TGE is not started', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
-//       await time.setTo(tgeStartTime - 1);
-//       const queryRes = (await tge.withSigner(contributors[0]).query.contribute(1, null)).value.ok;
-//       expect(queryRes?.err).to.deep.equal(TGEErrorBuilder.TGENotStarted());
-//     });
-
-//     it('Fails if contribution amount exceeds phase one cap', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
-//       const desiredAmountOfAbaxToGet = publicContributionInitAmount.addn(1);
-//       const queryRes = (await tge.withSigner(contributors[0]).query.contribute(desiredAmountOfAbaxToGet, null)).value.ok;
-//       expect(queryRes?.err).to.deep.equal(TGEErrorBuilder.Phase1TokenCapReached());
-//     });
-
-//     it('Upon reaching phase one cap switches to phase 2', async () => {
-//       await time.setTo(tgeStartTime + 100);
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
-//       const desiredAmountOfAbaxToGet = publicContributionInitAmount;
-//       const tx = tge.withSigner(contributors[0]).tx.contribute(desiredAmountOfAbaxToGet, null);
-//       await expect(tx).to.eventually.be.fulfilled;
-//       await time.setTo(tgeStartTime + 100);
-//       const currentParams = await getTgeParams(tge);
-//       expect(currentParams.phaseTwoStartTime.toString()).to.equal((tgeStartTime + 100).toString());
-//     });
-
-//     it('On first contribution handles founders, foundation and strategic reserves (and only on first one)', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
-//       const contributor = contributors[0];
-//       const desiredAmountOfAbaxToGet = toTokenDecimals(40);
-//       const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-//       await expect(tx).to.eventually.be.fulfilled;
-//       const contributorBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//       expect(contributorBalance?.toString()).to.equal(desiredAmountOfAbaxToGet.muln(4).divn(10).toString());
-
-//       const foundersBalance = (await abaxToken.query.balanceOf(foundersAddress.address)).value.ok;
-//       expect(foundersBalance?.toString()).to.equal(phaseOneTokenCap.muln(4).divn(100).toString());
-
-//       const foundationBalance = (await abaxToken.query.balanceOf(foundationAddress.address)).value.ok;
-//       expect(foundationBalance?.toString()).to.equal(phaseOneTokenCap.muln(2).divn(100).toString());
-
-//       const strategicReservesBalance = (await abaxToken.query.balanceOf(strategicReservesAddress.address)).value.ok;
-//       expect(strategicReservesBalance?.toString()).to.equal(phaseOneTokenCap.muln(58).divn(100).toString());
-
-//       await tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-
-//       const contributorBalance2 = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//       expect(contributorBalance2?.toString()).to.equal(desiredAmountOfAbaxToGet.muln(4).divn(10).muln(2).toString());
-
-//       const foundersBalancePost2 = (await abaxToken.query.balanceOf(foundersAddress.address)).value.ok;
-//       expect(foundersBalancePost2?.toString()).to.equal(phaseOneTokenCap.muln(4).divn(100).toString());
-
-//       const foundationBalancePost2 = (await abaxToken.query.balanceOf(foundationAddress.address)).value.ok;
-//       expect(foundationBalancePost2?.toString()).to.equal(phaseOneTokenCap.muln(2).divn(100).toString());
-
-//       const strategicReservesBalancePost2 = (await abaxToken.query.balanceOf(strategicReservesAddress.address)).value.ok;
-//       expect(strategicReservesBalancePost2?.toString()).to.equal(phaseOneTokenCap.muln(58).divn(100).toString());
-//     });
-
-//     it('Only admin can set bonus multiplier', async () => {
-//       const contributor = contributors[1];
-//       const bonusMultiplierE6 = new BN(toE6(1.08));
-//       const queryRes = await tge.withSigner(contributor).query.setBonusMultiplierE6(contributor.address, bonusMultiplierE6);
-//       expect(queryRes.value.ok?.err).to.deep.equal(TGEErrorBuilder.AccessControlError(AccessControlError.missingRole));
-//       const tx = tge.withSigner(contributor).tx.setBonusMultiplierE6(contributor.address, bonusMultiplierE6);
-//       await expect(tx).to.eventually.be.rejected;
-
-//       const queryRes2 = await tge.withSigner(admin).query.setBonusMultiplierE6(contributor.address, bonusMultiplierE6);
-//       expect(queryRes2.value.ok?.err).to.be.undefined;
-//       const tx2 = tge.withSigner(admin).tx.setBonusMultiplierE6(contributor.address, bonusMultiplierE6);
-//       await expect(tx2).to.eventually.be.fulfilled;
-//       const bonusMultiplier = (await tge.query.getBonusMultiplierE6(contributor.address)).value.ok;
-//       expect(bonusMultiplier?.toString()).to.equal(bonusMultiplierE6.toString());
-//     });
-//   });
-
-//   describe('user has no bonus', () => {
-//     it('Gets the correct amount of tokens & vesting', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       const amountToContribute = toTokenDecimals(10);
-//       const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
-//       await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, amountToContribute);
-//       const contributor = contributors[0];
-
-//       const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, null)).value.ok;
-//       expect(queryRes?.err).to.be.undefined;
-//       expect(queryRes?.ok).not.to.be.null;
-//       expect(queryRes?.ok?.toString()).to.equal(amountToContribute.toString());
-//       const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-//       await expect(tx).to.eventually.be.fulfilled;
-//       const txRes = await tx;
-
-//       expect(txRes.events).to.have.lengthOf(1);
-//       expect(txRes.events?.[0].name).to.equal('Contribution');
-//       expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
-//         contributor: contributors[0].address,
-//         toCreate: desiredAmountOfAbaxToGet.toString(),
-//       });
-//       const expectedAbaxAmountReceived = desiredAmountOfAbaxToGet.muln(4).divn(10);
-//       const expectedAbaxAmountVested = desiredAmountOfAbaxToGet.muln(6).divn(10);
-//       const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//       expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceived.toString());
-
-//       const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
-
-//       expect(vestData).not.to.be.null;
-//       expect(vestData).not.to.be.undefined;
-//       expect(vestData?.amount.toString()).to.equal(expectedAbaxAmountVested.toString());
-//       expect(vestData?.released.toString()).to.equal(new BN(0).toString());
-//       expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
-//       expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(ONE_YEAR.muln(4).toString());
-//     });
-
-//     it('Uses referral address and receives bonus, as well as the referee address', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       const amountToContribute = toTokenDecimals(10);
-//       const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
-//       const contributor = contributors[0];
-//       await wAZERO.tx.mint(contributor.address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
-//       const referrer = contributors[1];
-//       const referralBonusMultiplierE6 = new BN(toE6(0.01));
-//       await tge.withSigner(admin).tx.registerReferrer(referrer.address);
-
-//       const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, referrer.address)).value.ok;
-//       expect(queryRes?.err).to.be.undefined;
-//       expect(queryRes?.ok).not.to.be.null;
-//       expect(queryRes?.ok?.toString()).to.equal(amountToContribute.toString());
-//       const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, referrer.address);
-//       await expect(tx).to.eventually.be.fulfilled;
-//       const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet.mul(E6bn.add(referralBonusMultiplierE6)).div(E6bn);
-//       const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
-//       const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
-
-//       const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//       expect(cotributorABAXBalance?.toString()).to.equal(expectedTokensReceivedInstant);
-//       const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
-
-//       expect(vestData).not.to.be.null;
-//       expect(vestData).not.to.be.undefined;
-//       expect(vestData?.amount.toString()).to.equal(expectedTokensReceivedVested);
-//       expect(vestData?.released.toString()).to.equal(new BN(0).toString());
-//       expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
-//       expect;
-//     });
-//   });
-
-//   describe('user has bonus', () => {
-//     it('Gets the correct amount of tokens & vesting', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       const amountToContribute = ONE_ABAX;
-//       const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
-//       const contributor = contributors[1];
-//       await wAZERO.tx.mint(contributor.address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
-//       const queryPreMultiplier = await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, null);
-//       expect(queryPreMultiplier.value.ok?.err).to.be.undefined;
-//       expect(queryPreMultiplier.value.ok?.ok?.toString()).to.equal(amountToContribute.toString());
-
-//       const bonusMultiplierE6 = new BN(toE6(0.08));
-//       await tge.withSigner(admin).tx.setBonusMultiplierE6(contributor.address, bonusMultiplierE6);
-
-//       const queryPostMultiplierSet = await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, null);
-//       expect(queryPostMultiplierSet.value.ok?.ok?.toString()).to.equal(amountToContribute.toString());
-//       const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet.mul(E6bn.add(bonusMultiplierE6)).div(E6bn);
-//       const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
-//       const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
-
-//       const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-//       await expect(tx).to.eventually.be.fulfilled;
-
-//       const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//       expect(cotributorABAXBalance?.toString()).to.equal(expectedTokensReceivedInstant);
-//       const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
-
-//       expect(vestData).not.to.be.null;
-//       expect(vestData).not.to.be.undefined;
-//       expect(vestData?.amount.toString()).to.equal(expectedTokensReceivedVested);
-//       expect(vestData?.released.toString()).to.equal(new BN(0).toString());
-//       expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
-//       expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(ONE_YEAR.muln(4).toString());
-//     });
-
-//     it('Uses referral address and receives bonus, as well as the referee address', async () => {
-//       await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//       const amountToContribute = toTokenDecimals(10);
-//       const desiredAmountOfAbaxToGet = amountToContribute.muln(40);
-//       const contributor = contributors[0];
-//       await wAZERO.tx.mint(contributor.address, phaseOneTokenCap);
-//       await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
-//       const referrer = contributors[1];
-
-//       const bonusMultiplierE6 = new BN(toE6(0.08));
-//       await tge.withSigner(admin).tx.setBonusMultiplierE6(contributor.address, bonusMultiplierE6);
-
-//       const referralBonusMultiplierE6 = new BN(toE6(0.01));
-//       await tge.withSigner(admin).tx.registerReferrer(referrer.address);
-
-//       const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, referrer.address)).value.ok;
-//       expect(queryRes?.err).to.be.undefined;
-//       expect(queryRes?.ok).not.to.be.null;
-//       expect(queryRes?.ok?.toString()).to.equal(amountToContribute.toString());
-//       const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, referrer.address);
-//       await expect(tx).to.eventually.be.fulfilled;
-//       const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet.mul(E6bn.add(referralBonusMultiplierE6).add(bonusMultiplierE6)).div(E6bn);
-//       const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
-//       const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
-
-//       const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//       expect(cotributorABAXBalance?.toString()).to.equal(expectedTokensReceivedInstant);
-//       const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
-
-//       expect(vestData).not.to.be.null;
-//       expect(vestData).not.to.be.undefined;
-//       expect(vestData?.amount.toString()).to.equal(expectedTokensReceivedVested);
-//       expect(vestData?.released.toString()).to.equal(new BN(0).toString());
-//       expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
-//       expect;
-//     });
-//   });
-// });
-
-// describe('phase 2', () => {
-//   beforeEach(async () => {
-//     await time.setTo(tgeStartTime + 100);
-//     await abaxToken.tx.mint(tge.address, phaseOneTokenCap);
-//     await wAZERO.tx.mint(admin.address, phaseOneTokenCap);
-//     await wAZERO.withSigner(admin).tx.approve(tge.address, phaseOneTokenCap);
-//     const tx = tge.withSigner(admin).tx.contribute(publicContributionInitAmount, null);
-//     await expect(tx).to.eventually.be.fulfilled;
-//     await time.setTo(tgeStartTime + 100);
-//     const currentParams = await getTgeParams(tge);
-//     expect(currentParams.phaseTwoStartTime.toString()).to.equal((tgeStartTime + 100).toString());
-//   });
-
-//   it('Contribute fails if TGE is finished', async () => {
-//     await time.setTo(tgeStartTime + 100 + 100);
-//     const contributor = contributors[0];
-//     await wAZERO.tx.mint(contributor.address, phaseOneTokenCap);
-//     await wAZERO.withSigner(contributor).tx.approve(tge.address, phaseOneTokenCap);
-//     const queryResPhaseTwo = (await tge.withSigner(contributor).query.contribute(ONE_ABAX, null)).value.ok;
-//     expect(queryResPhaseTwo?.err).to.be.undefined;
-
-//     await time.setTo(tgeStartTime + 100 + phaseTwoDuration.toNumber() + 1);
-//     const queryRes = (await tge.withSigner(contributor).query.contribute(ONE_ABAX, null)).value.ok;
-//     expect(queryRes?.err).to.deep.equal(TGEErrorBuilder.TGEEnded());
-//   });
-
-//   describe('user has no bonus', () => {
-//     describe('Generates 40 ABAX tokens', async () => {
-//       const contributor = contributors[0];
-//       const desiredAmountOfAbaxToGet = toTokenDecimals(40);
-//       const expectedAbaxAmountReceivedInstantly = desiredAmountOfAbaxToGet.muln(4).divn(10);
-//       const expectedAbaxAmountVested = desiredAmountOfAbaxToGet.muln(6).divn(10);
-//       let txRes: SignAndSendSuccessResponse;
-//       beforeEach(async () => {
-//         await wAZERO.tx.mint(contributors[0].address, phaseOneTokenCap);
-//         await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, phaseOneTokenCap);
-
-//         const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, null)).value.ok;
-//         expect(queryRes?.err).to.be.undefined;
-//         expect(queryRes?.ok).not.to.be.null;
-//         expect(queryRes?.ok?.toString()).to.almostEqualOrEqualNumber('1000001000000');
-//         const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-//         await expect(tx).to.eventually.be.fulfilled;
-//         txRes = await tx;
-//       });
-//       it('Gets the correct amount of tokens & vesting', async () => {
-//         expect(txRes.events).to.have.lengthOf(1);
-//         expect(txRes.events?.[0].name).to.equal('Contribution');
-//         expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
-//           contributor: contributors[0].address,
-//           toCreate: desiredAmountOfAbaxToGet.toString(),
-//         });
-//         const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//         expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceivedInstantly.toString());
-//       });
-
-//       it('Has correct vesting schedule & is able to collect vested tokens after the time passes', async () => {
-//         const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
-//         const expectedVestingDuration = ONE_YEAR.muln(4).toNumber();
-//         expect(vestData).not.to.be.null;
-//         expect(vestData).not.to.be.undefined;
-//         expect(vestData?.amount.toString()).to.equal(expectedAbaxAmountVested.toString());
-//         expect(vestData?.released.toString()).to.equal(new BN(0).toString());
-//         expect(vestData?.schedule.constant?.[0]?.toString()).to.equal(new BN(0).toString());
-//         expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(expectedVestingDuration.toString());
-//         await time.increase(expectedVestingDuration);
-//         const queryRes = await vester.withSigner(contributor).query.release(contributor.address, abaxToken.address, []);
-//         expect(queryRes.value.ok?.err).to.be.undefined;
-//         expect(queryRes.value.ok?.ok?.toString()).to.equal(expectedAbaxAmountVested.toString());
-//         const tx = vester.withSigner(contributor).tx.release(contributor.address, abaxToken.address, []);
-//         await expect(tx).to.eventually.be.fulfilled;
-//         const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//         expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountVested.add(expectedAbaxAmountReceivedInstantly).toString());
-//       });
-//     });
-//   });
-
-//   describe('user has bonus', () => {
-//     describe('Generates 40 ABAX tokens with bonus', async () => {
-//       const contributor = contributors[1];
-
-//       const desiredAmountOfAbaxToGet = toTokenDecimals(40);
-//       const bonusMultiplierE6 = new BN(toE6(0.08)); // 8% bonus multiplier
-//       const expectedAbaxAmountReceivedInstantlyWithBonus = desiredAmountOfAbaxToGet.mul(bonusMultiplierE6.add(E6bn)).div(E6bn).muln(4).divn(10);
-//       const expectedAbaxAmountVestedWithBonus = desiredAmountOfAbaxToGet.mul(bonusMultiplierE6.add(E6bn)).div(E6bn).muln(6).divn(10);
-//       let txRes: SignAndSendSuccessResponse;
-//       beforeEach(async () => {
-//         await wAZERO.tx.mint(contributor.address, phaseOneTokenCap);
-//         await wAZERO.withSigner(contributor).tx.approve(tge.address, phaseOneTokenCap);
-//         await tge.withSigner(admin).tx.setBonusMultiplierE6(contributor.address, bonusMultiplierE6);
-
-//         const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, null)).value.ok;
-//         expect(queryRes?.err).to.be.undefined;
-//         expect(queryRes?.ok).not.to.be.null;
-//         expect(queryRes?.ok?.toString()).to.almostEqualOrEqualNumber('1000001080000'); // Adjusted for 8% bonus
-//         const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-//         await expect(tx).to.eventually.be.fulfilled;
-//         txRes = await tx;
-//       });
-//       it('Gets the correct amount of tokens & vesting with bonus', async () => {
-//         expect(txRes.events).to.have.lengthOf(1);
-//         expect(txRes.events?.[0].name).to.equal('Contribution');
-//         expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
-//           contributor: contributor.address,
-//           toCreate: toTokenDecimals(40).toString(),
-//         });
-//         const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//         expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceivedInstantlyWithBonus.toString());
-//       });
-
-//       it('Has correct vesting schedule & is able to collect vested tokens with bonus after the time passes', async () => {
-//         const vestData = (await vester.query.vestingScheduleOf(contributor.address, abaxToken.address, 0, [])).value.ok;
-//         expect(vestData).not.to.be.null;
-//         expect(vestData).not.to.be.undefined;
-//         expect(vestData?.amount.toString()).to.equal(expectedAbaxAmountVestedWithBonus.toString());
-//         expect(vestData?.released.toString()).to.equal(new BN(0).toString());
-
-//         const expectedVestingDuration = ONE_YEAR.muln(4).toNumber();
-//         expect(vestData?.schedule.constant?.[1]?.toString()).to.equal(expectedVestingDuration.toString());
-
-//         await time.increase(expectedVestingDuration);
-//         const queryRes = await vester.withSigner(contributor).query.release(contributor.address, abaxToken.address, []);
-//         expect(queryRes.value.ok?.err).to.be.undefined;
-//         expect(queryRes.value.ok?.ok?.toString()).to.equal(expectedAbaxAmountVestedWithBonus.toString());
-
-//         const tx = vester.withSigner(contributor).tx.release(contributor.address, abaxToken.address, []);
-//         await expect(tx).to.eventually.be.fulfilled;
-//         const cotributorABAXBalanceAfter = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
-//         expect(cotributorABAXBalanceAfter?.toString()).to.equal(
-//           expectedAbaxAmountVestedWithBonus.add(expectedAbaxAmountReceivedInstantlyWithBonus).toString(),
-//         );
-//       });
-//     });
-//   });
-
-//   describe('price discovery', () => {
-//     it('5 million tokens get minted on top of the 20 million intended for Public Contributors. 25 million ABAX tokens being created. Price increases to 0.0315', async () => {
-//       const contributor = contributors[0];
-//       const desiredAmountOfAbaxToGet = toTokenDecimals(5_000_000);
-//       const amountToContribute = desiredAmountOfAbaxToGet.muln(2);
-//       await wAZERO.tx.mint(contributor.address, amountToContribute);
-//       await wAZERO.withSigner(contributor).tx.approve(tge.address, amountToContribute);
-//       const cost = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, null)).value.ok?.ok?.toString() ?? '0';
-//       const pricePer1 = new BN(cost).mul(E6bn).div(desiredAmountOfAbaxToGet).toNumber() / E6;
-//       expect(pricePer1).to.equal(0.028125); //0.02825
-
-//       await tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-//       const totalAmountDistributed = replaceNumericPropsWithStrings(await getTgeParams(tge)).totalAmountDistributed.toString();
-//       expect(totalAmountDistributed).to.equal(toTokenDecimals(125_000_000).toString());
-//       const nextCostPer1 = (await tge.withSigner(contributor).query.contribute(ONE_ABAX, null)).value.ok?.ok?.toString() ?? '0';
-//       const nextPricePer1 = new BN(nextCostPer1).mul(E6bn).div(ONE_ABAX).toNumber() / E6;
-//       expect(nextPricePer1).to.equal(0.03125); // 0.0315
-//     });
-//     it('25 contributions of 10 thousands tokens each. Price increases on subsequent contributions', async () => {
-//       const contributor = contributors[0];
-//       const initAzeroBalance = toTokenDecimals(1_000_000);
-//       await wAZERO.tx.mint(contributor.address, initAzeroBalance);
-//       await wAZERO.withSigner(contributor).tx.approve(tge.address, initAzeroBalance);
-
-//       const amountToContribute = toTokenDecimals(10_000);
-//       let previousPricePer1 = 0;
-//       for (let i = 0; i < 25; i++) {
-//         const queryRes = (await tge.withSigner(contributor).query.contribute(ONE_ABAX, null)).value.ok;
-//         const currentCostPer1 = queryRes?.ok?.toString() ?? '0';
-//         const currentPricePer1 = new BN(currentCostPer1).mul(E6bn).div(ONE_ABAX).toNumber() / E6;
-//         expect(currentPricePer1).to.be.greaterThan(previousPricePer1);
-//         previousPricePer1 = currentPricePer1;
-//         const desiredAmountOfAbaxToGet = amountToContribute.mul(ONE_ABAX).div(new BN(currentCostPer1));
-//         // console.log({ desiredAmountOfAbaxToGet: desiredAmountOfAbaxToGet.toString() });
-//         const qv = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, null)).value;
-//         expect(qv?.ok?.err, `failed on contribution number ${i}`).to.be.undefined;
-//         await tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, null);
-//       }
-//       // const params = await getTgeParams(tge);
-//       // console.log('totalAmountDistributed', new BN(params.totalAmountDistributed.toString()).div(ONE_ABAX).toString());
-//       // const queryRes = (await tge.withSigner(contributor).query.contribute(ONE_ABAX, null)).value.ok;
-//       // const currentCostPer1 = queryRes?.ok?.toString() ?? '0';
-//       // const currentPricePer1 = new BN(currentCostPer1).mul(E6bn).div(ONE_ABAX).toNumber() / E6;
-//       // console.log({ currentPricePer1 });
-//     });
-//   });
-// });
 function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
   describe('stakedrop', function () {
     let tge: AbaxTge;
@@ -807,11 +1008,12 @@ function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
 
     describe('when called by stakedrop admin', function () {
       describe('when the receiver has no bonus_multiplier', function () {
-        const receiver = contributors[0].address;
+        let receiver: string;
         const FEE_PAID = ONE_TOKEN.muln(10);
         const AMOUNT = FEE_PAID.muln(40);
         let tx: SignAndSendSuccessResponse;
         beforeEach(async function () {
+          receiver = contributors[0].address;
           tx = await tge.withSigner(stakedropAdmin).tx.stakedrop(AMOUNT, FEE_PAID, receiver);
         });
         it('should mint tokens to apropariate amount to self', async function () {
@@ -843,11 +1045,12 @@ function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
       });
       for (const bonusMultiplierE3 of [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) {
         describe(`when the receiver has ${(bonusMultiplierE3 * 100) / 1000}% bonus_multiplier`, function () {
-          const receiver = contributors[0].address;
+          let receiver: string;
           const FEE_PAID = ONE_TOKEN.muln(10);
           const AMOUNT = FEE_PAID.muln(40);
           let tx: SignAndSendSuccessResponse;
           beforeEach(async function () {
+            receiver = contributors[0].address;
             await tge.withSigner(admin).tx.setBonusMultiplierE3(receiver, bonusMultiplierE3);
             tx = await tge.withSigner(stakedropAdmin).tx.stakedrop(AMOUNT, FEE_PAID, receiver);
           });

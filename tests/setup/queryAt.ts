@@ -4,14 +4,23 @@ import type { ApiDecoration } from '@polkadot/api/types';
 import type { ContractExecResult } from '@polkadot/types/interfaces';
 import { firstValueFrom, map } from 'rxjs';
 import { convertWeight } from 'wookashwackomytest-polkahat-chai-matchers';
-import { _genValidGasLimitAndValue } from 'wookashwackomytest-typechain-types';
-export async function queryAt<T>(
-  apiAt: ApiDecoration<'promise'>,
-  contract: any,
-  asAddress: string,
-  messageLabel: string,
-  ...args: any[]
-): Promise<T> {
+import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
+import { SignAndSendSuccessResponse, _genValidGasLimitAndValue } from 'wookashwackomytest-typechain-types';
+import type { ApiPromise } from '@polkadot/api';
+
+export async function getApiPreAndPostTx(tx: SignAndSendSuccessResponse, api: ApiPromise) {
+  if (!tx.blockHash) {
+    throw new Error('blockHash is not defined');
+  }
+  const block = await api.rpc.chain.getBlock(tx.blockHash);
+  const postTxBlockNumber = block.block.header.number.toNumber();
+  const apiPost = await getApiAt(api, postTxBlockNumber);
+  const preTxBlockNumber = postTxBlockNumber - 1;
+  const apiPre = await getApiAt(api, preTxBlockNumber);
+  return { apiPre, apiPost };
+}
+
+export async function queryAt<T>(apiAt: ApiDecoration<'promise'>, contract: any, asAddress: string, messageLabel: string, args: any[]): Promise<T> {
   const message = (contract.contractAbi as Abi).findMessage(messageLabel);
   const encoded = message.toU8a([...args]);
   const observable = apiAt.rx.call.contractsApi

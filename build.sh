@@ -13,4 +13,3 @@ end_time=$(date +%s.%3N)
 elapsed=$(echo "scale=3; $end_time - $start_time" | bc)
 
 printf 'Build took %02dm:%02fs\n' $(echo -e "$elapsed%3600/60\n$elapsed%60"| bc)
-pnpm ansiToHtml $SCRIPT_DIR/build.log  $SCRIPT_DIR/build.log.html

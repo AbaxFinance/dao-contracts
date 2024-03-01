@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "ansiToHtml": "npx tsx ./scripts/ansiToHtml.ts",
     "cs": "npx tsx ./scripts/compile/compileSingleContract.ts",
     "ts": "tsc --noEmit --incremental --preserveWatchOutput --pretty",
     "build:debug": "./build.sh $*",
@@ -61,8 +60,8 @@
     "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "wookashwackomytest-pendzl-tests": "^0.0.7",
-    "wookashwackomytest-polkahat-chai-matchers": "0.0.51",
-    "wookashwackomytest-polkahat-network-helpers": "^0.0.4",
+    "wookashwackomytest-polkahat-chai-matchers": "0.0.52",
+    "wookashwackomytest-polkahat-network-helpers": "^0.0.5",
     "wookashwackomytest-typechain-compiler": "0.0.37",
     "wookashwackomytest-typechain-polkadot": "0.0.37",
     "wookashwackomytest-typechain-types": "0.0.37"

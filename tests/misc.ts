@@ -1,6 +1,7 @@
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import { AnyAbaxContractEvent } from 'typechain/events/enum';
+import { replaceNumericPropsWithStrings } from 'wookashwackomytest-polkahat-chai-matchers';
 
 //based on the above
 export async function getTgeParams(tge: AbaxTge) {

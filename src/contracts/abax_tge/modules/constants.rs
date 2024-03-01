@@ -1,6 +1,7 @@
 use pendzl::traits::Timestamp;
 
 pub const E6_U128: u128 = 10_u128.pow(6);
+pub const E8_U128: u128 = 10_u128.pow(8);
 pub const E3_U128: u128 = 10_u128.pow(3);
 pub const E12_U128: u128 = 10_u128.pow(12);
 pub const AZERO_DECIMALS: u128 = 12;

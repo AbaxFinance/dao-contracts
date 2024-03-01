@@ -9,6 +9,12 @@ type ExtractRawNumbers<T> = {
 };
 type RetTypeFin = ExtractRawNumbers<RetType>;
 
-export async function queryTGEGetAccountStorage(apiAt: ApiDecoration<'promise'>, contract: any, address: string): Promise<RetTypeFin> {
-  return queryAt(apiAt, contract, address, 'get_account_storage', address);
+export async function queryTGEGetAccountStorage(apiAt: ApiDecoration<'promise'>, contract: any, address: string) {
+  const res = await queryAt<RetTypeFin>(apiAt, contract, address, 'get_account_storage', [address]);
+  return {
+    reservedTokens: res[0],
+    contributedAmount: res[1],
+    baseAmountCreated: res[2],
+    bonusAmountCreated: res[3],
+  };
 }

@@ -33,7 +33,7 @@ declare global {
       changeContributedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       changeBaseCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       changeBonusCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
-      createVestingSchedule(contract: any, account: string, token: string, amount: BN, waitingTime: BN, vestingTime: BN): AsyncAssertion;
+      createVestingSchedule(contract: any, account: string, token: string, args?: [amount: BN, waitingTime: BN, vestingTime: BN]): AsyncAssertion;
       changeTgeStorage<TKey extends TgeStorageNumericKey>(contract: any, key: TKey, delta: BN): AsyncAssertion;
     }
   }
@@ -140,7 +140,7 @@ chai.use((c, utils) => {
   });
   c.Assertion.addMethod('almostEqualOrEqualNumber', function (this: Chai.AssertionPrototype, expected: number | string, epsilon = 0.000001) {
     const actual = (expected as string) ? <string>this._obj : <number>this._obj;
-    almostEqualOrEqualNumber.apply(this, [expected, actual, epsilon]);
+    almostEqualOrEqualNumber.apply(this, [actual, expected, epsilon]);
   });
   c.Assertion.addMethod('equalUpTo1Digit', function (this: Chai.AssertionPrototype, expected: BN | number | string) {
     const actual = (expected as BN) ? <BN>this._obj : (expected as string) ? <string>this._obj : <number>this._obj;

@@ -17,8 +17,8 @@ type ExtractRawNumbers<T> = {
 };
 type RetTypeFin = ExtractRawNumbers<RetType>;
 
-export async function queryTGEGetStorage(apiAt: ApiDecoration<'promise'>, contract: any) {
-  const res = await queryAt<RetTypeFin>(apiAt, contract, nobody().address, 'get_tge_storage');
+export async function queryTGEGetStorage(apiAt: ApiDecoration<'promise'>, tge: any) {
+  const res = await queryAt<RetTypeFin>(apiAt, tge, nobody().address, 'get_tge_storage', []);
   return {
     startTime: res[0],
     phaseTwoStartTime: res[1],

@@ -124,13 +124,13 @@ dependencies:
     version: 5.3.3
   wookashwackomytest-pendzl-tests:
     specifier: ^0.0.7
-    version: 0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.51)
+    version: 0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.52)
   wookashwackomytest-polkahat-chai-matchers:
-    specifier: 0.0.51
-    version: 0.0.51(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
+    specifier: 0.0.52
+    version: 0.0.52(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
   wookashwackomytest-polkahat-network-helpers:
-    specifier: ^0.0.4
-    version: 0.0.4(@polkadot/util@12.6.2)
+    specifier: ^0.0.5
+    version: 0.0.5(@polkadot/util@12.6.2)
   wookashwackomytest-typechain-compiler:
     specifier: 0.0.37
     version: 0.0.37(@types/node@20.11.20)(typescript@5.3.3)
@@ -5381,7 +5381,7 @@ packages:
       isexe: 2.0.0
     dev: false
 
-  /wookashwackomytest-pendzl-tests@0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.51):
+  /wookashwackomytest-pendzl-tests@0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.52):
     resolution: {integrity: sha512-i8dQ1KlfKtAYhBvqyNWyoHQZhDTLI5F8HerIMHiOR9pUP75U3EuUFTKBpqwMJ42ECImfxwsNUbktzLJW6zzXYQ==}
     peerDependencies:
       chai: ^4.2.0
@@ -5400,7 +5400,7 @@ packages:
       deep-eql: 4.1.3
       ordinal: 1.0.3
       rxjs: 7.8.1
-      wookashwackomytest-polkahat-chai-matchers: 0.0.51(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
+      wookashwackomytest-polkahat-chai-matchers: 0.0.52(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
       wookashwackomytest-polkahat-network-helpers: 0.0.1(@polkadot/util@12.6.2)
       wookashwackomytest-typechain-types: 0.0.37
     transitivePeerDependencies:
@@ -5409,8 +5409,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /wookashwackomytest-polkahat-chai-matchers@0.0.51(@polkadot/util-crypto@12.6.2)(chai@4.4.1):
-    resolution: {integrity: sha512-XAYzUTVrtA4gJCrLVMFd5BjSPtAupb8m0HlnpvCPlMICOHP8p6pKVaIhWLnK30Rl5H15qfGcgLjLxjU/zj97DQ==}
+  /wookashwackomytest-polkahat-chai-matchers@0.0.52(@polkadot/util-crypto@12.6.2)(chai@4.4.1):
+    resolution: {integrity: sha512-NnQC1XZZJ6vvwJ3R0GpXVeWj1Z9YgOYtujH4JvjLCxlUJNdOtHOHYkCwhJQbOPzOpGH/KoJ+Ldgrx2rOaDs2ZQ==}
     peerDependencies:
       chai: ^4.2.0
     dependencies:
@@ -5447,8 +5447,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /wookashwackomytest-polkahat-network-helpers@0.0.4(@polkadot/util@12.6.2):
-    resolution: {integrity: sha512-3jtTEYJqfP7SoUV11YntiD7jQgA+bzZ1pT109HtAOZ0roQqwnaX4tjiU/mPN1/tpLII7y+fQxJWUxOsdB3umQQ==}
+  /wookashwackomytest-polkahat-network-helpers@0.0.5(@polkadot/util@12.6.2):
+    resolution: {integrity: sha512-H9N1ETCf9VNr1ImdCQzIoQLEU2GPo9KB945SmiA/1OzddOAnHUU5JoLJ16dTET04SMlRbTwRR1dc8n4dc02GIQ==}
     dependencies:
       '@polkadot/util-crypto': 12.6.2(@polkadot/util@12.6.2)
       '@types/bn.js': 5.1.5

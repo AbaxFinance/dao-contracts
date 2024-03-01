@@ -24,7 +24,7 @@ pub trait AbaxTGE {
     ) -> Result<(), TGEError>;
 
     #[ink(message)]
-    fn collect_reserved(&mut self) -> Result<(), TGEError>;
+    fn collect_reserved(&mut self) -> Result<Balance, TGEError>;
 }
 
 use ink::{contract_ref, env::DefaultEnvironment};
