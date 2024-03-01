@@ -6,7 +6,19 @@ use pendzl::{
 use crate::modules::errors::TGEError;
 
 #[ink::trait_definition]
+/// Trait defining the functions for the TGE module.
 pub trait AbaxTGE {
+    /// Contribute function for the TGE module.
+    ///
+    /// # Arguments
+    ///
+    /// * `to_create` - The amount of tokens to create.
+    /// * `receiver` - The account ID of the receiver.
+    /// * `referrer` - An optional account ID of the referrer.
+    ///
+    /// # Returns
+    ///
+    /// Returns the amount of tokens created as a result of the contribution, or an error if the contribution fails.
     #[ink(message)]
     fn contribute(
         &mut self,
@@ -15,6 +27,17 @@ pub trait AbaxTGE {
         referrer: Option<AccountId>,
     ) -> Result<u128, TGEError>;
 
+    /// Stakedrop function for the TGE module.
+    ///
+    /// # Arguments
+    ///
+    /// * `to_create` - The amount of tokens to create.
+    /// * `fee_paid` - The fee paid for the stakedrop.
+    /// * `receiver` - The account ID of the receiver.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the stakedrop is successful, or an error if the stakedrop fails.
     #[ink(message)]
     fn stakedrop(
         &mut self,
@@ -23,6 +46,11 @@ pub trait AbaxTGE {
         receiver: AccountId,
     ) -> Result<(), TGEError>;
 
+    /// Collect reserved function for the TGE module.
+    ///
+    /// # Returns
+    ///
+    /// Returns the amount of reserved tokens collected, or an error if the collection fails.
     #[ink(message)]
     fn collect_reserved(&mut self) -> Result<Balance, TGEError>;
 }
