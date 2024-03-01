@@ -457,19 +457,18 @@ pub mod abax_tge {
                 if amount_phase2 == 0 {
                     0
                 } else {
-                    let avaraged_amount =
+                    let averaged_amount =
                         if self.tge.total_amount_minted() < self.tge.phase_one_token_cap {
                             self.tge.phase_one_token_cap + to_create / 2
                         } else {
                             self.tge.total_amount_minted() + to_create / 2
                         };
-                    ink::env::debug_println!("avaraged_amount: {:?}", avaraged_amount);
+                    ink::env::debug_println!("averaged_amount: {:?}", averaged_amount);
 
-                    let effective_cost_per_million =
-                        mul_denom_e12(avaraged_amount, self.tge.cost_to_mint_milion_tokens)?
-                            .checked_div(E8_U128)
+                    let effective_cost_per_million = mul_denom_e12(averaged_amount, self.tge.cost_to_mint_milion_tokens)?
+                            .checked_div(E8_U128) //TODO
                             .ok_or(TGEError::MathError)?
-                            + 1;
+                        + 1;
 
                     ink::env::debug_println!(
                         "amount_phase2: effective_cost_per_million: {:?}",
