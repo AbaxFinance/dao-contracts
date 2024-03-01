@@ -1,8 +1,16 @@
 #[ink::trait_definition]
-pub trait GovernView {
+pub trait AbaxGovernView {
+    /// Returns account of the vester which is used to unstake tokens.
+    #[ink(message)]
+    fn vester(&self) -> AccountId;
+
     /// Returns hash of the `proposal`.
     #[ink(message)]
     fn hash(&self, proposal: Proposal) -> ProposalHash;
+
+    /// Returns hash of the `proposal`.
+    #[ink(message)]
+    fn hash_description(&self, describtion: String) -> Hash;
 
     /// Returns hash of the `proposal.
     #[ink(message)]

@@ -1,4 +1,4 @@
-pub trait GovernInternal {
+pub trait AbaxGovernInternal {
     /// Creates new `proposal` with `proposal_id` and `description`
     ///
     /// On success emits `ProposalCreated` event.

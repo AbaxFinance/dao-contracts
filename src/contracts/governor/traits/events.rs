@@ -1,4 +1,4 @@
-use pendzl::traits::AccountId;
+use pendzl::traits::{AccountId, Timestamp};
 
 use crate::ProposalHash;
 
@@ -40,4 +40,9 @@ pub struct VoteCasted {
 #[ink::event]
 pub struct RulesChanged {
     pub rules: VotingRules,
+}
+
+#[ink::event]
+pub struct UnstakePeriodChanged {
+    pub unstake_period: Timestamp,
 }

@@ -16,7 +16,7 @@ import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
 const [deployer, updater, minter, generator, other] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
 
-describe.only('AbaxToken', () => {
+describe('AbaxToken', () => {
   let abaxToken: AbaxToken;
   beforeEach(async () => {
     const api = await localApi.get();

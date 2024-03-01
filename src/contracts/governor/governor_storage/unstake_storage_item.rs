@@ -1,4 +1,5 @@
-use ink::primitives::AccountId;
+use crate::UnstakePeriodChanged;
+use ink::{env::DefaultEnvironment, primitives::AccountId};
 pub use pendzl::contracts::finance::general_vest::GeneralVestRef;
 use pendzl::traits::Timestamp;
 
@@ -9,6 +10,18 @@ pub struct UnstakeData {
     general_vester: GeneralVestRef,
     #[lazy]
     unstake_period: Timestamp,
+}
+
+impl UnstakeData {
+    pub fn new(general_vester_address: AccountId, unstake_period: Timestamp) -> Self {
+        let mut instance = Self::default();
+        instance.set_general_vester(&general_vester_address);
+        instance.set_unstake_period(unstake_period);
+        ink::env::emit_event::<DefaultEnvironment, UnstakePeriodChanged>(UnstakePeriodChanged {
+            unstake_period,
+        });
+        instance
+    }
 }
 
 impl UnstakeData {

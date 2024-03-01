@@ -1,5 +1,5 @@
 #[ink::trait_definition]
-pub trait GovernManage {
+pub trait AbaxGovernManage {
     /// change `VotingRules` used for voting
     ///
     /// On Success emits `VotingRulesChanged` event.

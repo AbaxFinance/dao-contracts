@@ -1,7 +1,7 @@
 pub type ProposalHash = Hash;
 
 #[ink::trait_definition]
-pub trait Govern {
+pub trait AbaxGovern {
     /// Propose `proposal` with `describtion`.
     ///
     /// On success emits `ProposalCreated` event.
@@ -43,5 +43,10 @@ pub trait Govern {
     /// Returns `ProposalDoesntExist` if proposal doesn't exist.
     /// Returns `WrongStatus` if proposal status isn't `Active`.
     #[ink(message)]
-    fn vote(&mut self, proposal_id: ProposalId, vote: Vote, reason: Vec<u8>) -> Result<(), GovernError>;
+    fn vote(
+        &mut self,
+        proposal_id: ProposalId,
+        vote: Vote,
+        reason: Vec<u8>,
+    ) -> Result<(), GovernError>;
 }

@@ -6,7 +6,7 @@ use crate::{
     ProposalId, ProposalState, ProposalStatus, UserVote, Vote, VotingRules,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[pendzl::storage_item]
 pub struct GovernData {
     #[lazy]
@@ -26,6 +26,22 @@ pub struct GovernData {
 }
 
 impl GovernData {
+    pub fn new(rules: &VotingRules) -> Self {
+        let mut instance = Self {
+            rules: Default::default(),
+            active_proposals: Default::default(),
+            finalized_proposals: Default::default(),
+            executed_proposals: Default::default(),
+            next_proposal_id: Default::default(),
+            proposal_id_to_hash: Default::default(),
+            proposal_hash_to_id: Default::default(),
+            state: Default::default(),
+            votes: Default::default(),
+        };
+        instance.rules.set(rules);
+        instance
+    }
+
     pub fn rules(&self) -> VotingRules {
         self.rules.get().unwrap_or_default()
     }
@@ -61,20 +77,18 @@ impl GovernData {
     pub fn register_new_proposal(
         &mut self,
         proposer: &AccountId,
-        proposal: &Proposal,
+        proposal_hash: &Hash,
         votes_at_start: Balance,
         counter_at_start: u128,
-    ) -> Result<(ProposalId, ProposalHash), GovernError> {
-        let proposal_hash = hash_proposal(proposal);
-        if self.proposal_hash_to_id(&proposal_hash).is_some() {
+    ) -> Result<ProposalId, GovernError> {
+        if self.proposal_hash_to_id(proposal_hash).is_some() {
             return Err(GovernError::ProposalAlreadyExists);
         }
 
         let proposal_id = self.next_proposal_id();
         self.next_proposal_id.set(&(proposal_id + 1));
 
-        self.proposal_id_to_hash
-            .insert(&proposal_id, &proposal_hash);
+        self.proposal_id_to_hash.insert(&proposal_id, proposal_hash);
         self.proposal_hash_to_id
             .insert(&proposal_hash, &proposal_id);
 
@@ -95,7 +109,7 @@ impl GovernData {
 
         self.active_proposals.set(&(self.active_proposals() + 1));
 
-        Ok((self.next_proposal_id() - 1, proposal_hash))
+        Ok(self.next_proposal_id() - 1)
     }
 
     pub fn finalize(

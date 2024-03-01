@@ -13,10 +13,10 @@ scale-info = { version = "2.10", default-features = false, features = [
     "derive",
 ], optional = true }
 
-pendzl = { version = "0.1.0-beta1", default-features = false, features = [
+pendzl = { version = "0.1.0-beta4", default-features = false, features = [
     "psp22_impl",
     "psp22_vault_impl",
-    "psp22_metadata_impl",
+    "psp22_vault_metadata_impl",
     "access_control_impl",
     "general_vest_impl",
     "provide_vest_schedule_info",
