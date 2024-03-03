@@ -223,6 +223,9 @@ describe('TGE', () => {
     it('should assign ADMIN role to deployer - admin', async function () {
       await expect(tge.query.hasRole(0, admin.address)).to.haveOkResult(true);
     });
+    it('should assign STAKEDROP_ADMIN role to stakedropAdmin', async function () {
+      await expect(tge.query.hasRole(ContractRoles.STAKEDROP_ADMIN, stakedropAdmin.address)).to.haveOkResult(true);
+    });
   });
   describe('messages', () => {
     describe('set bonus multiplier', function () {

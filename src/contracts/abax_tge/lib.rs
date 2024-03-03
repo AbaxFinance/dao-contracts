@@ -32,7 +32,7 @@ pub mod abax_tge {
     use ink::codegen::Env;
 
     const ADMIN: RoleType = 0;
-    const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN");
+    const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN"); //4_193_574_647_u32
 
     const MINIMUM_AMOUNT: Balance = 40_000_000_000_000; // 10 WAZERO in phase one
 
@@ -425,7 +425,7 @@ pub mod abax_tge {
         // During phase 2
         // The cost is
         // amount_to_create * effective_cost_per_million / 1_000_000
-        // where effective cost is equal amount_to_create * (total_amount_minted + amount_to_create/2) / 1_000_000
+        // where effective cost is equal phase_one_cost_per_milllion_tokens * (total_amount_minted + amount_to_create/2) / 100_000_000
         fn calculate_cost(&self, to_create: Balance) -> Result<u128, TGEError> {
             let mut amount_phase1 = 0;
             let mut amount_phase2 = 0;
@@ -466,7 +466,7 @@ pub mod abax_tge {
                     ink::env::debug_println!("averaged_amount: {:?}", averaged_amount);
 
                     let effective_cost_per_million = mul_denom_e12(averaged_amount, self.tge.cost_to_mint_milion_tokens)?
-                            .checked_div(E8_U128) //TODO
+                            .checked_div(E8_U128) // from the formula
                             .ok_or(TGEError::MathError)?
                         + 1;
 
