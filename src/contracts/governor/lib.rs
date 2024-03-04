@@ -16,6 +16,9 @@ pub use traits::*;
 /// The contract allows for proposing and voting on proposals by implementing Govern trait.
 /// To create a proposal, the proposer must have enough votes (shares) to meet the minimum stake part.
 /// While proposal is created the proposer must deposit a part of his votes. This votes are returned when proposal is finalized unless the proposal is finalized with 'DefeatedWithSlash' status.
+/// One share is one vote.
+/// Proposal has 3 periods of voting: Intial, Flat and Final which influence the minimum votes to finalize.
+/// If proposal was finalized in Final phase, it's possible to force unstake an account that didn't vote on that proposal.
 ///
 /// Contract is using pendzl Access Control to manage access to the messages
 
@@ -87,6 +90,7 @@ mod governor {
         shares: &Balance,
     ) -> Result<(), PSP22Error> {
         self.counter.increase_counter(*shares);
+        self.govern.set_last_stake_timestamp(receiver);
         self._deposit_default_impl(caller, receiver, assets, shares)
     }
 
@@ -96,14 +100,18 @@ mod governor {
         caller: &AccountId,
         receiver: &AccountId,
         owner: &AccountId,
-        shares: &Balance,
         assets: &Balance,
+        shares: &Balance,
     ) -> Result<(), PSP22Error> {
-        if caller != owner {
+        if caller != owner && caller != self.env().account_id() {
             self._decrease_allowance_from_to(owner, caller, shares)?;
         }
 
         self._burn_from(owner, shares)?;
+
+        if self._balance_of(owner) == 0 {
+            self.govern.remove_last_stake_timestamp(owner);
+        }
 
         self.vault
             .asset()
@@ -207,6 +215,16 @@ mod governor {
         ) -> Result<(), GovernError> {
             self._cast_vote(&self.env().caller(), proposal_id, vote, _reason)
         }
+
+        #[ink(message)]
+        fn force_unstake(
+            &mut self,
+            account: AccountId,
+            proposal_id: ProposalId,
+        ) -> Result<(), GovernError> {
+            self._force_unstake(&account, &proposal_id)?;
+            Ok(())
+        }
     }
 
     impl AbaxGovernManage for Governor {
@@ -276,6 +294,16 @@ mod governor {
         #[ink(message)]
         fn vote_of_for(&self, account: AccountId, proposal_id: ProposalId) -> Option<UserVote> {
             self.govern.vote_of_for(&account, &proposal_id)
+        }
+
+        #[ink(message)]
+        fn last_force_unstakes(&self, account: AccountId) -> Option<ProposalId> {
+            self.govern.last_force_unstake(&account)
+        }
+
+        #[ink(message)]
+        fn last_stake_timestamp(&self, account: AccountId) -> Timestamp {
+            self.govern.last_stake_timestamp(&account)
         }
     }
 
@@ -389,6 +417,19 @@ mod governor {
             ink::env::emit_event::<DefaultEnvironment, ProposalExecuted>(ProposalExecuted {
                 proposal_id: *proposal_id,
             });
+
+            Ok(())
+        }
+
+        fn _force_unstake(
+            &mut self,
+            account: &AccountId,
+            proposal_id: &ProposalId,
+        ) -> Result<(), GovernError> {
+            self.govern.force_unstake(account, proposal_id)?;
+            let balance = self._balance_of(account);
+            let assets = self._preview_redeem(&balance)?;
+            self._withdraw(self.env().account_id(), account, account, &assets, &balance)?;
 
             Ok(())
         }

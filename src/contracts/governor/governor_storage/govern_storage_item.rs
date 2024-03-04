@@ -1,5 +1,5 @@
 use ink::{env::DefaultEnvironment, primitives::AccountId, storage::Mapping};
-use pendzl::traits::{Balance, Hash};
+use pendzl::traits::{Balance, Hash, Timestamp};
 
 use crate::{
     finalization::minimum_to_finalize, hashes::hash_proposal, GovernError, Proposal, ProposalHash,
@@ -23,6 +23,10 @@ pub struct GovernData {
     proposal_hash_to_id: Mapping<Hash, ProposalId>,
     state: Mapping<ProposalId, ProposalState>,
     votes: Mapping<(AccountId, ProposalId), UserVote>,
+    /// Last time when the user staked and had no stake before, when user has no stake it should be None.
+    last_stake_timestamp: Mapping<AccountId, Timestamp>,
+    /// Last proposal that account didnt vote and was in consequence force unstaked
+    last_force_unstake: Mapping<AccountId, ProposalId>,
 }
 
 impl GovernData {
@@ -37,9 +41,25 @@ impl GovernData {
             proposal_hash_to_id: Default::default(),
             state: Default::default(),
             votes: Default::default(),
+            last_stake_timestamp: Default::default(),
+            last_force_unstake: Default::default(),
         };
         instance.rules.set(rules);
         instance
+    }
+
+    pub fn set_last_stake_timestamp(&mut self, account: &AccountId) {
+        let timestamp = ink::env::block_timestamp::<DefaultEnvironment>();
+        if self.last_stake_timestamp(account).is_some() {
+            return;
+        }
+        self.last_stake_timestamp.insert(account, &timestamp);
+    }
+    pub fn remove_last_stake_timestamp(&mut self, account: &AccountId) {
+        self.last_stake_timestamp.remove(account);
+    }
+    pub fn last_stake_timestamp(&self, account: &AccountId) -> Timestamp {
+        self.last_stake_timestamp.get(account).unwtap_or_default()
     }
 
     pub fn rules(&self) -> VotingRules {
@@ -96,6 +116,7 @@ impl GovernData {
             &proposal_id,
             &ProposalState {
                 status: ProposalStatus::Active,
+                force_unstake_possible: false,
                 proposer: *proposer,
                 start: ink::env::block_timestamp::<DefaultEnvironment>(),
                 counter_at_start,
@@ -142,6 +163,12 @@ impl GovernData {
             state.status = ProposalStatus::Succeeded;
         } else {
             return Err(GovernError::FinalizeCondition);
+        }
+
+        if ink::env::block_timestamp::<DefaultEnvironment>()
+            >= state.start + self.rules().initial_period + self.rules().flat_period
+        {
+            state.force_unstake_possible = true;
         }
 
         state.finalized = Some(ink::env::block_timestamp::<DefaultEnvironment>());
@@ -259,6 +286,38 @@ impl GovernData {
         self.votes.insert(&(*account, *proposal_id), &new_vote);
 
         self.state.insert(proposal_id, &state);
+        Ok(())
+    }
+
+    pub fn force_unstake(
+        &mut self,
+        account: &AccountId,
+        proposal_id: &ProposalId,
+    ) -> Result<(), GovernError> {
+        let state = self
+            .state_of(proposal_id)
+            .ok_or(GovernError::ProposalDoesntExist)?;
+
+        if state.force_unstake_possible == false {
+            return Err(GovernError::CantForceUnstake);
+        }
+
+        if state.finalized.unwrap() <= self.last_stake_timestamp(account) {
+            return Err(GovernError::CantForceUnstake);
+        }
+        if self.vote_of_for(account, proposal_id).is_some() {
+            return Err(GovernError::CantForceUnstake);
+        }
+
+        match self.last_force_unstake(account) {
+            Some(last_proposal_id) => {
+                if last_proposal_id >= proposal_id {
+                    return Err(GovernError::CantForceUnstake);
+                }
+            }
+            None => {}
+        }
+        self.last_force_unstake.insert(account, proposal_id);
         Ok(())
     }
 }

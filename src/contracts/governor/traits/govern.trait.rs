@@ -49,4 +49,21 @@ pub trait AbaxGovern {
         vote: Vote,
         reason: Vec<u8>,
     ) -> Result<(), GovernError>;
+
+    /// Forcefully unstakes all tokens of `account` if:
+    /// 1. proposal with `proposal_id` was finalized in Final phase
+    /// 2. `account` has staked some tokens before the proposal was created.
+    ///
+    /// On success emits `ForcefullyUnstaked` event.
+    ///
+    /// # Errors
+    /// Returns `ProposalDoesntExist` if proposal doesn't exist.
+    /// Returns `WrongStatus` if proposal wasn't finalized in final phase.
+    /// Returns `CantForceUnstake` if proposal doesnt allow for force unstake or the 'account' was already force unstaked for not voting on proposal with id >= 'proposal_id'.
+    #[ink(message)]
+    fn force_unstake(
+        &mut self,
+        account: AccountId,
+        proposal_id: ProposalId,
+    ) -> Result<(), GovernError>;
 }

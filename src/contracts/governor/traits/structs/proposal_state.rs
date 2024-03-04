@@ -1,8 +1,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[cfg_attr(
+    feature = "std",
+    derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+)]
 pub struct ProposalState {
     /// proposal status
     pub status: ProposalStatus,
+    /// if proposal was finalized in final phase, then it's possible to force unstake
+    pub force_unstake_possible: bool,
     /// the proposer
     pub proposer: AccountId,
     /// time of proposition

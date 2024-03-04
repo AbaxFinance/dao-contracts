@@ -35,4 +35,12 @@ pub trait AbaxGovernView {
     /// Returns `account` vote for proposal `proposal_id` if it exists.
     #[ink(message)]
     fn vote_of_for(&self, account: AccountId, proposal_id: ProposalId) -> Option<UserVote>;
+
+    /// Returns `account` last proposalId that was used for force unstake.
+    #[ink(message)]
+    fn last_force_unstakes(&self, account: AccountId) -> Option<ProposalId>;
+
+    /// Returns last timestamp at which 'account' has staked while having empty stake.
+    #[ink(message)]
+    fn last_stake_timestamp(&self, account: AccountId) -> Option<Timestamp>;
 }

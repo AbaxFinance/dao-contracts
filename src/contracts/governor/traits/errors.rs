@@ -1,6 +1,7 @@
-pub use pendzl::contracts::access::access_control::AccessControlError;
-pub use pendzl::contracts::token::psp22::PSP22Error;
-pub use pendzl::math::errors::MathError;
+pub use pendzl::{
+    contracts::{access::access_control::AccessControlError, token::psp22::PSP22Error},
+    math::errors::MathError,
+};
 
 #[derive(scale::Encode, scale::Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -14,6 +15,7 @@ pub enum GovernError {
     FinalizeCondition,
     UnderlyingTransactionReverted,
     WrongDescriptionHash,
+    CantForceUnstake,
     AccessControlError(AccessControlError),
 }
 
