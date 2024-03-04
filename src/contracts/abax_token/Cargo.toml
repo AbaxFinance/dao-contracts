@@ -15,7 +15,7 @@ scale-info = { version = "2.10", default-features = false, features = [
 ], optional = true }
 
 
-pendzl = { version = "0.1.0-beta2", default-features = false, features = [
+pendzl = { version = "0.1.0-beta4", default-features = false, features = [
     "psp22_impl",
     "psp22_metadata_impl",
     "psp22_mintable",

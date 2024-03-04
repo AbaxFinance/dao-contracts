@@ -89,9 +89,17 @@ mod governor {
         assets: &Balance,
         shares: &Balance,
     ) -> Result<(), PSP22Error> {
+        ink::env::debug_println!("total supply pre {:?}", self._total_supply());
         self.counter.increase_counter(*shares);
         self.govern.set_last_stake_timestamp(receiver);
-        self._deposit_default_impl(caller, receiver, assets, shares)
+        self._deposit_default_impl(caller, receiver, assets, shares)?;
+        ink::env::debug_println!("total supply post {:?}", self._total_supply());
+        Ok(())
+    }
+
+    #[overrider(PSP22VaultInternal)]
+    fn _max_mint(&self, to: &AccountId) -> Balance {
+        0
     }
 
     #[overrider(PSP22VaultInternal)]
@@ -103,7 +111,7 @@ mod governor {
         assets: &Balance,
         shares: &Balance,
     ) -> Result<(), PSP22Error> {
-        if caller != owner && caller != self.env().account_id() {
+        if *caller != *owner && *caller != self.env().account_id() {
             self._decrease_allowance_from_to(owner, caller, shares)?;
         }
 
@@ -172,7 +180,7 @@ mod governor {
             rules: VotingRules,
         ) -> Self {
             let instance = Self {
-                access_control: AccessControlData::new(Some(Self::env().account_id())),
+                access_control: AccessControlData::new(Some(Self::env().caller())),
                 psp22: PSP22Data::default(),
                 vault: PSP22VaultData::new(asset, None),
                 metadata: PSP22MetadataData::new(Some(name), Some(symbol)),
@@ -189,7 +197,7 @@ mod governor {
         #[ink(message)]
         fn propose(&mut self, proposal: Proposal, description: String) -> Result<(), GovernError> {
             let description_hash = hash_description(&description);
-            if description_hash != proposal.describtion_hash {
+            if description_hash != proposal.description_hash {
                 return Err(GovernError::WrongDescriptionHash);
             }
             self._propose(&self.env().caller(), &proposal)
@@ -302,7 +310,7 @@ mod governor {
         }
 
         #[ink(message)]
-        fn last_stake_timestamp(&self, account: AccountId) -> Timestamp {
+        fn last_stake_timestamp(&self, account: AccountId) -> Option<Timestamp> {
             self.govern.last_stake_timestamp(&account)
         }
     }
@@ -313,7 +321,7 @@ mod governor {
             proposer: &AccountId,
             proposal: &Proposal,
         ) -> Result<(), GovernError> {
-            //check if the proposer has enoough votes to create a proposal
+            //check if the proposer has enough votes to create a proposal
             let total_votes = self._total_supply();
             let minimum_votes_to_propose = total_votes / 1000_u128
                 * u16::from(self.govern.rules().minimum_stake_part_e3) as u128;
@@ -322,6 +330,10 @@ mod governor {
                 return Err(GovernError::InnsuficientVotes);
             }
             let proposal_hash = hash_proposal(proposal);
+
+            // make a proposer deposit
+            let proposer_deposit = total_votes / 1000_u128
+                * u16::from(self.govern.rules().proposer_deposit_part_e3) as u128;
             // create proposal
             let proposal_id = self.govern.register_new_proposal(
                 proposer,
@@ -330,16 +342,12 @@ mod governor {
                 self.counter.counter(),
             )?;
 
-            // make a proposer deposit
-            let proposer_deposit = total_votes / 1000_u128
-                * u16::from(self.govern.rules().proposer_deposit_part_e3) as u128;
-
             self.lock.lock(&proposal_id, proposer_deposit)?;
-            self._transfer(
-                proposer,
-                &ink::env::account_id::<DefaultEnvironment>(),
-                &proposer_deposit,
-            )?;
+            let proposer_balance = self._balance_of(proposer);
+            ink::env::debug_println!("total supply {:?}", total_votes);
+            ink::env::debug_println!("proposer balance {:?}", proposer_balance);
+            ink::env::debug_println!("proposer deposit {:?}", proposer_deposit);
+            self._transfer(proposer, &self.env().account_id(), &proposer_deposit)?;
 
             ink::env::emit_event::<DefaultEnvironment, ProposalCreated>(ProposalCreated {
                 proposal_id,
@@ -356,8 +364,23 @@ mod governor {
             vote: Vote,
             #[allow(unused_variables)] reason: Vec<u8>,
         ) -> Result<(), GovernError> {
+            let voter_votes = {
+                let balance = self._balance_of(voter);
+                let locked = self.lock.locked(&proposal_id);
+                let proposer = self
+                    .govern
+                    .state_of(&proposal_id)
+                    .ok_or(GovernError::ProposalDoesntExist)?
+                    .proposer;
+                if self.env().caller() == proposer {
+                    balance + locked
+                } else {
+                    balance
+                }
+            };
+
             self.govern
-                .update_vote_of_for(voter, &proposal_id, &vote, &0)?;
+                .update_vote_of_for(voter, &proposal_id, &vote, &voter_votes)?;
 
             ink::env::emit_event::<DefaultEnvironment, VoteCasted>(VoteCasted {
                 account: *voter,
@@ -376,7 +399,7 @@ mod governor {
                 let locked = self.lock.locked(proposal_id);
                 self.lock.unlock(proposal_id, locked)?;
                 self._transfer(
-                    &ink::env::account_id::<DefaultEnvironment>(),
+                    &self.env().account_id(),
                     &self.govern.state_of(proposal_id).unwrap().proposer,
                     &locked,
                 )?;
@@ -402,6 +425,10 @@ mod governor {
             for tx in &proposal.transactions {
                 self.flush();
 
+                ink::env::debug_println!("{:?}", tx.callee);
+                ink::env::debug_println!("{:?}", tx.selector);
+                ink::env::debug_println!("{:?}", tx.input);
+
                 let result = build_call::<DefaultEnvironment>()
                     .call(tx.callee)
                     .transferred_value(tx.transferred_value)
@@ -409,7 +436,14 @@ mod governor {
                     .call_flags(CallFlags::default().set_allow_reentry(true))
                     .returns::<()>()
                     .try_invoke()
-                    .map_err(|_| GovernError::UnderlyingTransactionReverted);
+                    .map_err(|e| match e {
+                        ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
+                            ink::env::format!("Deeecooode {:?}", err),
+                        ),
+                        _ => {
+                            GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e))
+                        }
+                    });
                 self.load();
                 result?.unwrap()
             }
@@ -429,7 +463,13 @@ mod governor {
             self.govern.force_unstake(account, proposal_id)?;
             let balance = self._balance_of(account);
             let assets = self._preview_redeem(&balance)?;
-            self._withdraw(self.env().account_id(), account, account, &assets, &balance)?;
+            self._withdraw(
+                &self.env().account_id(),
+                account,
+                account,
+                &assets,
+                &balance,
+            )?;
 
             Ok(())
         }

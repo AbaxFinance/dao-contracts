@@ -1,5 +1,5 @@
 {
-  "name": "abacus-contracts",
+  "name": "dao-contracts",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -29,6 +29,7 @@
     "@polkadot/api": "^10.11.2",
     "@polkadot/api-contract": "^10.11.2",
     "@polkadot/keyring": "^12.6.2",
+    "@polkadot/types": "^10.12.1",
     "@polkadot/util-crypto": "^12.6.2",
     "@types/chroma-js": "^2.4.4",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
@@ -60,11 +61,11 @@
     "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "wookashwackomytest-pendzl-tests": "^0.0.7",
-    "wookashwackomytest-polkahat-chai-matchers": "0.0.52",
-    "wookashwackomytest-polkahat-network-helpers": "^0.0.5",
-    "wookashwackomytest-typechain-compiler": "0.0.37",
-    "wookashwackomytest-typechain-polkadot": "0.0.37",
-    "wookashwackomytest-typechain-types": "0.0.37"
+    "wookashwackomytest-polkahat-chai-matchers": "^0.0.60",
+    "wookashwackomytest-polkahat-network-helpers": "^0.0.6",
+    "wookashwackomytest-typechain-compiler": "0.0.38",
+    "wookashwackomytest-typechain-polkadot": "0.0.38",
+    "wookashwackomytest-typechain-types": "0.0.38"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.5",

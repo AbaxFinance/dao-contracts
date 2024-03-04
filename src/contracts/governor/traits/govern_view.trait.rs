@@ -8,9 +8,9 @@ pub trait AbaxGovernView {
     #[ink(message)]
     fn hash(&self, proposal: Proposal) -> ProposalHash;
 
-    /// Returns hash of the `proposal`.
+    /// Returns hash of the description.
     #[ink(message)]
-    fn hash_description(&self, describtion: String) -> Hash;
+    fn hash_description(&self, description: String) -> Hash;
 
     /// Returns hash of the `proposal.
     #[ink(message)]

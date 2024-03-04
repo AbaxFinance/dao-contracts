@@ -62,8 +62,8 @@ describe('AbaxToken', () => {
         let inflationRatePerMilisecondBefore;
         describe('single generate', () => {
           beforeEach(async () => {
-            capBefore = (await abaxToken.query.cap()).value.ok!.rawNumber;
-            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!.rawNumber;
+            capBefore = (await abaxToken.query.cap()).value.ok!;
+            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!;
             tx = abaxToken.withSigner(generator).tx.generate(other.address, amount);
           });
 
@@ -119,29 +119,29 @@ describe('AbaxToken', () => {
           });
           it('should increase cap', async () => {
             //1
-            capBefore = (await abaxToken.query.cap()).value.ok!.rawNumber;
+            capBefore = (await abaxToken.query.cap()).value.ok!;
             await abaxToken.withSigner(generator).tx.generate(other.address, amount);
             expect(await abaxToken.query.cap()).to.be.haveOkResult(capBefore.add(amount));
             //2
-            capBefore = (await abaxToken.query.cap()).value.ok!.rawNumber;
+            capBefore = (await abaxToken.query.cap()).value.ok!;
             await abaxToken.withSigner(generator).tx.generate(other.address, amount);
             expect(await abaxToken.query.cap()).to.be.haveOkResult(capBefore.add(amount));
             //3
-            capBefore = (await abaxToken.query.cap()).value.ok!.rawNumber;
+            capBefore = (await abaxToken.query.cap()).value.ok!;
             await abaxToken.withSigner(generator).tx.generate(other.address, amount);
             expect(await abaxToken.query.cap()).to.be.haveOkResult(capBefore.add(amount));
           });
           it('should increase inflation_rate_per_milisecond', async () => {
             //1
-            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!.rawNumber;
+            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!;
             await abaxToken.withSigner(generator).tx.generate(other.address, amount);
             expect(await abaxToken.query.inflationRatePerMilisecond()).to.be.haveOkResult(inflationRatePerMilisecondBefore.add(inflationChange));
             //2
-            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!.rawNumber;
+            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!;
             await abaxToken.withSigner(generator).tx.generate(other.address, amount);
             expect(await abaxToken.query.inflationRatePerMilisecond()).to.be.haveOkResult(inflationRatePerMilisecondBefore.add(inflationChange));
             //3
-            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!.rawNumber;
+            inflationRatePerMilisecondBefore = (await abaxToken.query.inflationRatePerMilisecond()).value.ok!;
             await abaxToken.withSigner(generator).tx.generate(other.address, amount);
             expect(await abaxToken.query.inflationRatePerMilisecond()).to.be.haveOkResult(inflationRatePerMilisecondBefore.add(inflationChange));
           });
@@ -172,7 +172,7 @@ describe('AbaxToken', () => {
           await time.increase(ONE_YEAR.toNumber());
         });
         it('minting 0 amount should inflate cap', async () => {
-          const capBefore = (await abaxToken.query.cap()).value.ok!.rawNumber;
+          const capBefore = (await abaxToken.query.cap()).value.ok!;
           const tx = abaxToken.withSigner(minter).tx.mint(other.address, 0);
           await expect(tx).to.changePSP22Balances(abaxToken, [other.address], [new BN(0)]);
           await expect(tx).to.emitEvent(abaxToken, 'Transfer', {
@@ -184,7 +184,7 @@ describe('AbaxToken', () => {
           expect(await abaxToken.query.cap()).to.haveOkResult(capBefore.add(INFLATION_PER_YEAR));
         });
         it('minting maximum amount should inflate cap and mint tokens', async () => {
-          const capBefore = (await abaxToken.query.cap()).value.ok!.rawNumber;
+          const capBefore = (await abaxToken.query.cap()).value.ok!;
           const tx = abaxToken.withSigner(minter).tx.mint(other.address, INFLATION_PER_YEAR);
           await expect(tx).to.changePSP22Balances(abaxToken, [other.address], [INFLATION_PER_YEAR]);
           await expect(tx).to.emitEvent(abaxToken, 'Transfer', {

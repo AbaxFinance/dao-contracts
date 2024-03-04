@@ -3,7 +3,6 @@
 
 pub mod modules;
 
-//TODO events
 #[pendzl::implementation(AccessControl)]
 #[ink::contract]
 pub mod abax_tge {

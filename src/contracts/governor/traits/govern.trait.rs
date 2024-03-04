@@ -2,7 +2,7 @@ pub type ProposalHash = Hash;
 
 #[ink::trait_definition]
 pub trait AbaxGovern {
-    /// Propose `proposal` with `describtion`.
+    /// Propose `proposal` with `description`.
     ///
     /// On success emits `ProposalCreated` event.
     ///

@@ -1,3 +1,4 @@
+use pendzl::traits::String;
 pub use pendzl::{
     contracts::{access::access_control::AccessControlError, token::psp22::PSP22Error},
     math::errors::MathError,
@@ -13,7 +14,7 @@ pub enum GovernError {
     ProposalDoesntExist,
     WrongStatus,
     FinalizeCondition,
-    UnderlyingTransactionReverted,
+    UnderlyingTransactionReverted(String),
     WrongDescriptionHash,
     CantForceUnstake,
     AccessControlError(AccessControlError),

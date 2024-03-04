@@ -23,7 +23,7 @@ impl LockedSharesData {
 
     pub fn unlock(&mut self, proposal_id: &ProposalId, amount: Balance) -> Result<(), MathError> {
         let mut locked = self.locked(proposal_id);
-        locked = locked.checked_sub(amount).ok_or(MathError::Overflow)?;
+        locked = locked.checked_sub(amount).ok_or(MathError::Underflow)?;
         if locked > 0 {
             self.locked.insert(proposal_id, &locked);
         } else {

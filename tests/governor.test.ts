@@ -1,41 +1,132 @@
+import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
-import { ABAX_DECIMALS, AZERO_DECIMALS, ContractRoles, ONE_YEAR } from 'tests/consts';
+import { isEqual } from 'lodash';
+import { ABAX_DECIMALS, ContractRoles } from 'tests/consts';
+import { testStaking } from 'tests/governor.stake.test';
 import { expect } from 'tests/setup/chai';
+import Governor from 'typechain/contracts/governor';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
-import Governor from 'typechain/contracts/governor';
+import GovernorDeployer from 'typechain/deployers/governor';
 import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
-import GovernorDeployer from 'typechain/deployers/governor';
-import { AccessControlError } from 'typechain/types-arguments/abax_tge';
-import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
-import { ONE_DAY } from 'wookashwackomytest-polkahat-chai-matchers';
-import { Proposal } from 'typechain/types-arguments/governor';
-import { VotingRules } from 'typechain/types-arguments/governor';
+import { ProposalCreated } from 'typechain/event-types/governor';
+import { Proposal, Transaction, VotingRules } from 'typechain/types-arguments/governor';
+import { GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
+import { ONE_DAY, replaceNumericPropsWithStrings } from 'wookashwackomytest-polkahat-chai-matchers';
+import { E12bn, duration, generateRandomSignerWithBalance, getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
 
-const [deployer, other, ...voters] = getSigners();
+const [deployer, other] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
 
 const smallStake = ONE_TOKEN;
 const midStake = smallStake.muln(10);
 const bigStake = midStake.muln(10);
 
-const UNSTAKE_PERIOD = ONE_DAY.muln(6 * 30); // 180 days
+export const UNSTAKE_PERIOD = ONE_DAY.muln(6 * 30); // 180 days
 
 const VOTING_RULES: VotingRules = {
   minimumStakePartE3: 10,
   proposerDepositPartE3: 100,
   initialPeriod: ONE_DAY.muln(3),
-  flatPeriod: ONE_DAY.muln(10),
+  flatPeriod: ONE_DAY.muln(7),
   finalPeriod: ONE_DAY.muln(4),
 };
 
-describe.only('Governor', () => {
+async function proposeAndCheck(
+  governor: Governor,
+  proposer: KeyringPair,
+  transactions: Transaction[],
+  description: string,
+  expectedError?: GovernError,
+) {
+  let proposalId = new BN(-1);
+  const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
+  const query = governor.withSigner(proposer).query.propose({ descriptionHash, transactions }, description);
+  if (expectedError) {
+    await expect(query).to.be.revertedWithError(expectedError);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(proposer).tx.propose({ descriptionHash, transactions }, description);
+    await expect(tx).to.emitEvent(governor, 'ProposalCreated', (event: ProposalCreated) => {
+      proposalId = new BN(event.proposalId.toString());
+      return (
+        event.proposal.descriptionHash === descriptionHash &&
+        isEqual(replaceNumericPropsWithStrings(event.proposal.transactions), replaceNumericPropsWithStrings(transactions))
+      );
+    });
+
+    //votes for should be initiated to proposer deposit
+    // TODO ideally checks that won't check state 1v1
+  }
+
+  return proposalId;
+}
+
+async function voteAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, vote: Vote, expectedError?: GovernError) {
+  const query = governor.withSigner(voter).query.vote(proposalId, vote, []);
+  if (expectedError) {
+    await expect(query).to.be.revertedWithError(expectedError);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(voter).tx.vote(proposalId, vote, []);
+    await expect(tx).to.emitEvent(governor, 'VoteCasted', {
+      account: voter.address,
+      proposalId,
+      vote,
+    });
+
+    //proposal's state updated ? ideally checks that won't check state 1v1
+  }
+}
+
+async function finalizeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, expectedOutcome: ProposalStatus | GovernError) {
+  const isErrorExpected = typeof expectedOutcome !== 'string';
+  const query = governor.withSigner(voter).query.finalize(proposalId);
+  if (isErrorExpected) {
+    await expect(query).to.be.revertedWithError(expectedOutcome);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(voter).tx.finalize(proposalId);
+    if (expectedOutcome) {
+      await expect(tx).to.emitEvent(governor, 'ProposalFinalized', {
+        proposalId,
+        status: expectedOutcome,
+      });
+    }
+    // TODO ideally checks that won't check state 1v1
+  }
+}
+
+async function executeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, proposal: Proposal, expectedError?: GovernError) {
+  const query = governor.withSigner(voter).query.execute(proposal);
+  if (expectedError) {
+    await expect(query).to.be.revertedWithError(expectedError);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(voter).tx.execute(proposal);
+    await expect(tx).to.emitEvent(governor, 'ProposalExecuted', {
+      proposalId: proposalId,
+    });
+  }
+}
+
+describe('Governor', () => {
   let governor: Governor;
   let token: PSP22Emitable;
   let vester: Vester;
-  Psp22EmitableDeployer;
+  const voters: KeyringPair[] = [];
+
+  before(async () => {
+    const api = await localApi.get();
+    for (let i = 0; i < 10; i++) {
+      const voter = await generateRandomSignerWithBalance(api);
+      voters.push(voter);
+    }
+    const now = Date.now();
+    await time.setTo(now);
+  });
+
   beforeEach(async () => {
     const api = await localApi.get();
     token = (await new Psp22EmitableDeployer(api, deployer).new('Token', 'TOK', ABAX_DECIMALS)).contract;
@@ -78,6 +169,7 @@ describe.only('Governor', () => {
   });
 
   describe(' There is 6 stakers (user0,...,user5), with stake proportions 100,100,10,10,1,1', () => {
+    let totalStake: BN;
     beforeEach(async () => {
       await token.tx.mint(voters[0].address, bigStake);
       await token.tx.mint(voters[1].address, bigStake);
@@ -99,6 +191,7 @@ describe.only('Governor', () => {
       await governor.withSigner(voters[3]).tx.deposit(midStake, voters[3].address);
       await governor.withSigner(voters[4]).tx.deposit(smallStake, voters[4].address);
       await governor.withSigner(voters[5]).tx.deposit(smallStake, voters[5].address);
+      totalStake = bigStake.muln(2).add(midStake.muln(2)).add(smallStake.muln(2));
     });
 
     it('state', async () => {
@@ -109,671 +202,711 @@ describe.only('Governor', () => {
       await expect(governor.query.balanceOf(voters[4].address)).to.haveOkResult(smallStake);
       await expect(governor.query.balanceOf(voters[5].address)).to.haveOkResult(smallStake);
     });
+
+    describe('Proposing:', () => {
+      it('user4 trying to propose with insufficient Votes', async () => {
+        const description = 'Abax will be the best ;-)';
+        await proposeAndCheck(governor, voters[4], [], description, GovernErrorBuilder.InnsuficientVotes());
+      });
+      it('user0 successfully creates proposal', async () => {
+        const description = 'Abax will be the best ;-)';
+        await proposeAndCheck(governor, voters[0], [], description, undefined);
+      });
+
+      it('user0 tries to submit the same proposal twice', async () => {
+        const description = 'Abax will be the best ;-)';
+        await proposeAndCheck(governor, voters[0], [], description);
+        await proposeAndCheck(governor, voters[0], [], description, GovernErrorBuilder.ProposalAlreadyExists());
+      });
+
+      it('user1 tries to submit proposal after user 0 already submitted it', async () => {
+        const description = 'Abax will be the best ;-)';
+        await proposeAndCheck(governor, voters[0], [], description, undefined);
+        await proposeAndCheck(governor, voters[1], [], description, GovernErrorBuilder.ProposalAlreadyExists());
+      });
+    });
+    describe('Voting', () => {
+      const description = 'Abax will be the best ;-)';
+      let proposalId: BN;
+      beforeEach(async () => {
+        proposalId = await proposeAndCheck(governor, voters[0], [], description, undefined);
+      });
+      it('user6 with no stake tries to vote', async () => {
+        await voteAndCheck(governor, voters[6], proposalId, Vote.agreed, GovernErrorBuilder.InnsuficientVotes());
+      });
+      it('user0 tries to vote for non existing proposal', async () => {
+        await voteAndCheck(governor, voters[0], new BN(1337), Vote.agreed, GovernErrorBuilder.ProposalDoesntExist());
+      });
+      it('user0 tries to vote after proposal is finalized ', async () => {
+        await time.increase(duration.days(22));
+        (await governor.query.finalize(proposalId)).value.unwrapRecursively();
+        await governor.tx.finalize(proposalId);
+        await voteAndCheck(governor, voters[0], proposalId, Vote.agreed, GovernErrorBuilder.WrongStatus());
+      });
+      it('many users can vote using different vote types', async () => {
+        await voteAndCheck(governor, voters[0], proposalId, Vote.agreed);
+        await voteAndCheck(governor, voters[1], proposalId, Vote.disagreedWithProposerSlashing);
+        await voteAndCheck(governor, voters[2], proposalId, Vote.disagreed);
+        await voteAndCheck(governor, voters[3], proposalId, Vote.disagreed);
+        await voteAndCheck(governor, voters[4], proposalId, Vote.disagreedWithProposerSlashing);
+      });
+    });
+    describe('Finalize', () => {
+      const description = 'Abax will be the best ;-)';
+      let proposalId: BN;
+      beforeEach(async () => {
+        proposalId = await proposeAndCheck(governor, voters[0], [], description, undefined);
+      });
+      it('user tries to finalize proposal that doesnt exist', async () => {
+        await finalizeAndCheck(governor, voters[6], new BN(1337), GovernErrorBuilder.ProposalDoesntExist());
+      });
+      it('user tries to finalize proposal that doesnt meet finalization condition', async () => {
+        await finalizeAndCheck(governor, voters[6], proposalId, GovernErrorBuilder.FinalizeCondition());
+      });
+      describe(`all stakers votes for 'agree`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.agreed);
+        });
+        it('user is able to finalize succesfully', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.succeeded);
+        });
+      });
+      describe(`all stakers votes for 'disagree`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.disagreed);
+        });
+        it('user finalizes succesfully', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeated);
+        });
+      });
+      describe(`all stakers vote for 'disagreedWithProposerSlashing'`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.disagreedWithProposerSlashing);
+        });
+        it('user finalizes succesfully', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeatedWithSlash);
+        });
+      });
+      describe(`all stakers votes for disagree or disagreedWithProposerSlashing, but most for disagreed`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.disagreed);
+        });
+        it('user finalizes succesfully', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeated);
+        });
+      });
+      describe(`all stakers votes for disagree or disagreedWithProposerSlashing, but most for disagreedWithProposerSlashing`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.disagreedWithProposerSlashing);
+        });
+        it('user finalizes succesfully', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeatedWithSlash);
+        });
+      });
+      describe(`more than 50% votes for agree, rest disagree`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.agreed);
+        });
+        it('user tries to finalize that doesnt meet finalization condition', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        testFinalizationOverTime(() => ({
+          proposalId,
+          governor,
+          finalizator: voters[0],
+          expectedProposalStatus: ProposalStatus.succeeded,
+        }));
+      });
+      describe(`more than 50% votes for disagree(most) or disagreedWithProposerSlashing, rest agree`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.disagreed);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.disagreed);
+        });
+        it('user tries to finalize that doesnt meet finalization condition', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        testFinalizationOverTime(() => ({
+          proposalId,
+          governor,
+          finalizator: voters[0],
+          expectedProposalStatus: ProposalStatus.defeated,
+        }));
+      });
+      describe(`more than 50% votes for disagreedWithProposerSlashing, rest disagree`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[0], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.disagreedWithProposerSlashing);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.disagreedWithProposerSlashing);
+        });
+        it('user tries to finalize that doesnt meet finalization condition', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        testFinalizationOverTime(() => ({
+          proposalId,
+          governor,
+          finalizator: voters[0],
+          expectedProposalStatus: ProposalStatus.defeatedWithSlash,
+        }));
+      });
+      describe(`only small % votes for agree, rest didnt vote`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[5], proposalId, Vote.agreed);
+        });
+        it('user tries to finalize that doesnt meet finalization condition', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        describe(`then 3 days passes`, () => {
+          beforeEach(async () => {
+            await time.increase(duration.days(3));
+          });
+          it('user tries to finalize that doesnt meet finalization condition', async () => {
+            await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+          });
+          describe(`then 7 days passes`, () => {
+            beforeEach(async () => {
+              await time.increase(duration.days(7));
+            });
+            it('user tries to finalize that doesnt meet finalization condition', async () => {
+              await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+            });
+            describe(`then 4 days minus 1 second passes`, () => {
+              beforeEach(async () => {
+                await time.increase(duration.days(4) - 1);
+              });
+              it('user is able to finalize succesfully as in final period treshold is almost 0', async () => {
+                await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.succeeded);
+              });
+              describe(`then 2 second pass`, () => {
+                beforeEach(async () => {
+                  await time.increase(2);
+                });
+                it('user is able to finalize succesfully as in final period treshold goes to 0 is reached', async () => {
+                  await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.succeeded);
+                });
+              });
+            });
+          });
+        });
+      });
+      describe(`only small % votes for disagreed, rest didnt vote`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[5], proposalId, Vote.disagreed);
+        });
+        it('user tries to finalize that doesnt meet finalization condition', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        describe(`then 3 days passes`, () => {
+          beforeEach(async () => {
+            await time.increase(duration.days(3));
+          });
+          it('user tries to finalize that doesnt meet finalization condition', async () => {
+            await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+          });
+          describe(`then 7 days passes`, () => {
+            beforeEach(async () => {
+              await time.increase(duration.days(7));
+            });
+            it('user tries to finalize that doesnt meet finalization condition', async () => {
+              await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+            });
+            describe(`then 4 days minus 1 second passes`, () => {
+              beforeEach(async () => {
+                await time.increase(duration.days(4) - 1);
+              });
+              it('user is able to finalize succesfully as in final period treshold is almost 0', async () => {
+                await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeated);
+              });
+              describe(`then 2 second pass`, () => {
+                beforeEach(async () => {
+                  await time.increase(2);
+                });
+                it('user is able to finalize succesfully as in final period treshold goes to 0 is reached', async () => {
+                  await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeated);
+                });
+              });
+            });
+          });
+        });
+      });
+      describe(`only small % votes for disagreedWithProposerSlashing, rest didnt vote`, () => {
+        beforeEach(async () => {
+          await voteAndCheck(governor, voters[1], proposalId, Vote.disagreedWithProposerSlashing);
+        });
+        it('user tries to finalize that doesnt meet finalization condition', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        describe(`then 3 days passes`, () => {
+          beforeEach(async () => {
+            await time.increase(duration.days(3));
+          });
+          it('user tries to finalize that doesnt meet finalization condition', async () => {
+            await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+          });
+          describe(`then 7 days passes`, () => {
+            beforeEach(async () => {
+              await time.increase(duration.days(7));
+            });
+            it('user tries to finalize that doesnt meet finalization condition', async () => {
+              await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+            });
+            describe(`then 4 days minus 1 second passes`, () => {
+              beforeEach(async () => {
+                await time.increase(duration.days(4) - 1);
+              });
+              it('user is able to finalize succesfully as in final period treshold is almost 0', async () => {
+                await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeatedWithSlash);
+              });
+              describe(`then 2 second pass`, () => {
+                beforeEach(async () => {
+                  await time.increase(2);
+                });
+                it('user is able to finalize succesfully as in final period treshold goes to 0 is reached', async () => {
+                  await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeatedWithSlash);
+                });
+              });
+            });
+          });
+        });
+      });
+      describe(`no one has voted`, () => {
+        it('user tries to finalize that doesnt meet finalization condition', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        describe(`then 3 days passes`, () => {
+          beforeEach(async () => {
+            await time.increase(duration.days(3));
+          });
+          it('user tries to finalize that doesnt meet finalization condition', async () => {
+            await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+          });
+          describe(`then 7 days passes`, () => {
+            beforeEach(async () => {
+              await time.increase(duration.days(7));
+            });
+            it('user tries to finalize that doesnt meet finalization condition', async () => {
+              await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+            });
+            describe(`then 4 days minus 1 second passes`, () => {
+              beforeEach(async () => {
+                await time.increase(duration.days(4) - 1);
+              });
+              it('user tries to finalize that doesnt meet finalization condition', async () => {
+                await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.FinalizeCondition());
+              });
+              describe(`then 2 second passes`, () => {
+                beforeEach(async () => {
+                  await time.increase(2);
+                });
+                it('user tries to finalize that doesnt meet finalization condition', async () => {
+                  await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.defeated);
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+    describe('Finalize - minimum to finalize', () => {
+      let proposalId: BN;
+      let maliciousActor: KeyringPair;
+      const maliciousActorStake = bigStake.muln(10);
+      beforeEach(async () => {
+        maliciousActor = voters[7];
+        await token.tx.mint(maliciousActor.address, maliciousActorStake);
+        await token.withSigner(maliciousActor).tx.approve(governor.address, maliciousActorStake);
+      });
+      describe(`proposal gets created & votes get casted before him`, () => {
+        beforeEach(async () => {
+          proposalId = await proposeAndCheck(governor, voters[0], [], 'does not matter', undefined);
+          await voteAndCheck(governor, voters[0], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[1], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[2], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[3], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[4], proposalId, Vote.agreed);
+          await voteAndCheck(governor, voters[5], proposalId, Vote.agreed);
+        });
+        describe(`then 3 days passes`, () => {
+          beforeEach(async () => {
+            await time.increase(duration.days(3));
+          });
+          it('unstaking has no effect on minimum to finalize', async () => {
+            const minmumToFinalizeBefore = (await governor.query.minimumToFinalize(proposalId)).value.unwrap()!;
+            const balanceOfVoter7Before = (await governor.query.balanceOf(voters[7].address)).value.unwrap()!;
+            await governor.withSigner(voters[7]).tx.withdraw(balanceOfVoter7Before, voters[7].address, voters[7].address);
+            const minmumToFinalizeAfter = (await governor.query.minimumToFinalize(proposalId)).value.unwrap()!;
+            expect(minmumToFinalizeBefore).to.equal(minmumToFinalizeAfter);
+          });
+
+          it('staking additional amount raises minimum to finalize', async () => {
+            const minmumToFinalizeBefore = (await governor.query.minimumToFinalize(proposalId)).value.unwrap()!;
+            await governor.withSigner(voters[7]).tx.deposit(midStake.divn(2), voters[7].address);
+            const minmumToFinalizeAfter = (await governor.query.minimumToFinalize(proposalId)).value.unwrap()!;
+            expect(minmumToFinalizeBefore).to.be.lt(minmumToFinalizeAfter);
+          });
+        });
+      });
+      describe(`malicious actor creates a proposal`, () => {
+        beforeEach(async () => {
+          await governor.withSigner(maliciousActor).tx.deposit(bigStake.add(smallStake), maliciousActor.address);
+          proposalId = await proposeAndCheck(governor, maliciousActor, [], 'malicious proposal');
+        });
+        it('malicious actor cannot finalize proposal himself', async () => {
+          await voteAndCheck(governor, maliciousActor, proposalId, Vote.agreed);
+          await finalizeAndCheck(governor, maliciousActor, proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+        describe(`then he immediately stakes the rest of tokens`, () => {
+          beforeEach(async () => {
+            await governor.withSigner(maliciousActor).tx.deposit(maliciousActorStake.sub(bigStake.add(smallStake)), maliciousActor.address);
+          });
+          it('malicious actor votes & tries to finalize proposal - fails to', async () => {
+            const maliciousActorBalance = (await governor.query.balanceOf(maliciousActor.address)).value.unwrap()!;
+            console.log(maliciousActorBalance.toString());
+            await voteAndCheck(governor, maliciousActor, proposalId, Vote.agreed);
+            await finalizeAndCheck(governor, maliciousActor, proposalId, GovernErrorBuilder.FinalizeCondition());
+          });
+        });
+      });
+      describe(`Malicious actor creates a proposal with big stake acc and waits a day`, () => {
+        let maliciousActorUnstakeAcc: KeyringPair;
+        let maliciousActorUnstakeAccStake: BN;
+        beforeEach(async () => {
+          maliciousActorUnstakeAcc = voters[8];
+          maliciousActorUnstakeAccStake = totalStake.clone();
+          await token.tx.mint(maliciousActorUnstakeAcc.address, maliciousActorUnstakeAccStake);
+          await token.withSigner(maliciousActorUnstakeAcc).tx.approve(governor.address, maliciousActorUnstakeAccStake);
+          await governor.withSigner(maliciousActorUnstakeAcc).tx.deposit(maliciousActorUnstakeAccStake, maliciousActorUnstakeAcc.address);
+          proposalId = await proposeAndCheck(governor, maliciousActorUnstakeAcc, [], 'malicious proposal');
+          await time.increase(duration.days(1));
+        });
+
+        it(`malicious actor votes, immediately unstakes to lower total supply & force finalize proposal => \n => fails to as unstaking does not lower threshold of proposals already submitted`, async () => {
+          const maliciousActorUnstakeAccBalance = (await governor.query.balanceOf(maliciousActorUnstakeAcc.address)).value.unwrap()!;
+          await voteAndCheck(governor, maliciousActorUnstakeAcc, proposalId, Vote.agreed);
+          await governor
+            .withSigner(maliciousActorUnstakeAcc)
+            .tx.withdraw(maliciousActorUnstakeAccBalance, maliciousActorUnstakeAcc.address, maliciousActorUnstakeAcc.address);
+          await finalizeAndCheck(governor, maliciousActor, proposalId, GovernErrorBuilder.FinalizeCondition());
+        });
+      });
+    });
+    describe('Execute', () => {
+      const description = 'Abax will be the best ;-)';
+      let proposalId: BN;
+      let descriptionHash: string;
+      let executor: KeyringPair;
+      beforeEach(async () => {
+        executor = voters[9];
+        await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, executor.address);
+      });
+      beforeEach(async () => {
+        descriptionHash = (await governor.query.hashDescription(description)).value.ok!.toString();
+        proposalId = await proposeAndCheck(governor, voters[0], [], description, undefined);
+      });
+      it('user0 tries to execute non-existing proposal', async () => {
+        await executeAndCheck(governor, executor, proposalId, { descriptionHash: '', transactions: [] }, GovernErrorBuilder.ProposalDoesntExist());
+      });
+      it('user0 tries to execute active proposal', async () => {
+        await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] }, GovernErrorBuilder.WrongStatus());
+      });
+      describe(`proposal is finalized with defeated`, () => {
+        beforeEach(async () => {
+          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.disagreed, []);
+          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.disagreed, []);
+          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.disagreed, []);
+
+          await time.increase(duration.days(9));
+          await governor.tx.finalize(proposalId);
+        });
+        it('user0 tries to execute defeated proposal', async () => {
+          await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] }, GovernErrorBuilder.WrongStatus());
+        });
+      });
+      describe(`proposal is finalized with defeatedWithSlash`, () => {
+        beforeEach(async () => {
+          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
+          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
+          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
+
+          await time.increase(duration.days(9));
+          await governor.tx.finalize(proposalId);
+        });
+        it('user0 tries to execute defeatedWithSlash proposal', async () => {
+          await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] }, GovernErrorBuilder.WrongStatus());
+        });
+      });
+      describe(`proposal is finalized with Succeeded`, () => {
+        beforeEach(async () => {
+          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
+          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
+          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
+
+          await time.increase(duration.days(9));
+          await governor.tx.finalize(proposalId);
+        });
+        it('user0 executes Succeded proposal with no Tx', async () => {
+          await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] });
+        });
+      });
+    });
+    describe.skip('Execute Proposal with transactions', () => {
+      const description = 'Abax will be the best ;-)';
+      let proposal: Proposal;
+
+      let proposalId: BN;
+      let descriptionHash: string;
+      beforeEach(async () => {
+        const api = await localApi.get();
+        const message0 = token.abi.findMessage('PSP22::total_supply');
+        const message = token.abi.findMessage('PSP22::increase_allowance');
+        const params0 = paramsToInputNumbers(message0.toU8a([]));
+        const params1 = paramsToInputNumbers(message.toU8a([voters[0].address, E12bn.toString()]));
+        const params2 = paramsToInputNumbers(message.toU8a([voters[1].address, E12bn.muln(2).toString()]));
+        const params3 = paramsToInputNumbers(message.toU8a([voters[2].address, E12bn.muln(3).toString()]));
+        descriptionHash = (await governor.query.hashDescription(description)).value.ok?.toString() ?? '';
+        proposal = {
+          descriptionHash,
+          transactions: [
+            {
+              callee: token.address,
+              selector: params0.selector,
+              input: params0.data,
+              transferredValue: 0,
+            },
+            // {
+            //   callee: token.address,
+            //   selector: params1.selector,
+            //   input: params1.data,
+            //   transferredValue: 0,
+            // },
+            // {
+            //   callee: token.address,
+            //   selector: params2.selector,
+            //   input: params2.data,
+            //   transferredValue: 0,
+            // },
+            // {
+            //   callee: token.address,
+            //   selector: params3.selector,
+            //   input: params3.data,
+            //   transferredValue: 0,
+            // },
+          ],
+        };
+        (await governor.withSigner(voters[0]).query.propose(proposal, description)).value.unwrapRecursively();
+        const tx = await governor.withSigner(voters[0]).tx.propose(proposal, description);
+        expect(tx).to.emitEvent(governor, 'ProposalCreated');
+        const proposalCreated = (await tx.events!.find((e) => e.name === 'ProposalCreated')).args as ProposalCreated;
+        proposalId = new BN(proposalCreated.proposalId.toString());
+      });
+
+      describe(`proposal is finalized with Succeeded`, () => {
+        beforeEach(async () => {
+          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
+          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
+          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
+          await time.increase(9 * duration.days(1));
+          await governor.withSigner(voters[0]).tx.finalize(proposalId);
+        });
+        it('user0 executes Succeded proposal with Tx', async () => {
+          await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+          const query = governor.withSigner(voters[0]).query.execute(proposal);
+          const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+          await expect(query).to.haveOkResult();
+          const res = await tx;
+
+          await expect(await token.query.allowance(governor.address, voters[0].address)).to.haveOkResult(E12bn);
+          await expect(await token.query.allowance(governor.address, voters[1].address)).to.haveOkResult(E12bn.muln(2));
+          await expect(token.query.allowance(governor.address, voters[2].address)).to.haveOkResult(E12bn.muln(3));
+        });
+      });
+    });
+    describe.skip('Execute Proposal with transactions without params', () => {
+      const description = 'Abax will be the best ;-)';
+      let proposal: Proposal;
+
+      let proposalId: BN;
+      let descriptionHash: string;
+      beforeEach(async () => {
+        const api = await localApi.get();
+        const message0 = token.abi.findMessage('PSP22::total_supply'); //TODO flipper
+        const params0 = paramsToInputNumbers(message0.toU8a([]));
+        descriptionHash = (await governor.query.hashDescription(description)).value.ok?.toString() ?? '';
+        proposal = {
+          descriptionHash,
+          transactions: [
+            {
+              callee: token.address,
+              selector: params0.selector,
+              input: params0.data,
+              transferredValue: 0,
+            },
+          ],
+        };
+        (await governor.withSigner(voters[0]).query.propose(proposal, description)).value.unwrapRecursively();
+        const tx = await governor.withSigner(voters[0]).tx.propose(proposal, description);
+        expect(tx).to.emitEvent(governor, 'ProposalCreated');
+        const proposalCreated = (await tx.events!.find((e) => e.name === 'ProposalCreated')).args as ProposalCreated;
+        proposalId = new BN(proposalCreated.proposalId.toString());
+      });
+
+      describe(`proposal is finalized with Succeeded`, () => {
+        beforeEach(async () => {
+          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
+          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
+          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
+          await time.increase(9 * duration.days(1));
+          await governor.withSigner(voters[0]).tx.finalize(proposalId);
+        });
+        it('user0 executes Succeded proposal with Tx', async () => {
+          await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+          const query = governor.withSigner(voters[0]).query.execute(proposal);
+          const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+          await expect(query).to.haveOkResult();
+          const res = await tx;
+
+          await expect(await token.query.allowance(governor.address, voters[0].address)).to.haveOkResult(E12bn);
+          await expect(await token.query.allowance(governor.address, voters[1].address)).to.haveOkResult(E12bn.muln(2));
+          await expect(token.query.allowance(governor.address, voters[2].address)).to.haveOkResult(E12bn.muln(3));
+        });
+      });
+    });
+  });
+
+  testStaking(() => ({
+    governor,
+    vester,
+    govToken: token,
+    users: voters,
+  }));
+
+  describe.skip('Performance tests', () => {
+    it('Proposal submissions count: Submitted 1200 proposals', async function (this) {
+      console.warn('Warning: slow test');
+      const descriptionTemplate = 'Proposal number:';
+      for (let i = 0; i < 1200; i++) {
+        const description = `${descriptionTemplate}_${i}`;
+        if (i % 100 === 0) console.log({ i });
+        await proposeAndCheck(governor, voters[0], [], description, undefined);
+      }
+    });
   });
 });
 
-//     describe('Proposing:', () => {
-//       it()
+function testFinalizationOverTime(
+  getCtx: () => {
+    governor: Governor;
+    finalizator: KeyringPair;
+    proposalId: BN;
+    expectedProposalStatus: ProposalStatus | GovernError;
+  },
+) {
+  const ctx: ReturnType<typeof getCtx> & { act: () => Promise<void> } = {} as any;
+  describe(`then 3 days passes`, () => {
+    beforeEach(async () => {
+      Object.assign(ctx, getCtx());
+      Object.assign(ctx, { act: () => finalizeAndCheck(ctx.governor, ctx.finalizator, ctx.proposalId, ctx.expectedProposalStatus) });
+    });
+    beforeEach(async () => {
+      await time.increase(duration.days(3));
+    });
+    it('user is able to finalize succesfully as linear 50% is reached', async () => {
+      await ctx.act();
+    });
+    describe(`then 7 days passes`, () => {
+      beforeEach(async () => {
+        await time.increase(duration.days(7));
+      });
+      it('user is still able to finalize', async () => {
+        await ctx.act();
+      });
+      describe(`then 4 days minus 1 second passes`, () => {
+        beforeEach(async () => {
+          await time.increase(duration.days(4) - 1);
+        });
+        it('user is still able to finalize', async () => {
+          await ctx.act();
+        });
+        describe(`then 2 second pass`, () => {
+          beforeEach(async () => {
+            await time.increase(2);
+          });
+          it('user is still able to finalize', async () => {
+            await ctx.act();
+          });
+        });
+      });
+    });
+  });
+}
 
-//       it('user4 trying to propose with insufficient Votes', async () => {
-//         const description = 'Abax will be the best ;-)';
-//         const proposal: Proposal = {
-//           rulesId: 0,
-//           voterRewardPartE12: toE12(0.051),
-//           transactions: [],
-//         };
-//         await proposeAndCheck(testEnv, users[4], proposal, description, GovernErrorBuilder.InnsuficientVotes());
-//       });
+function paramsToInputNumbers(params1: Uint8Array) {
+  let ecdStr = '';
+  for (let i = 1; i < params1.length; ++i) {
+    let stemp = params1[i].toString(16);
+    if (stemp.length < 2) {
+      stemp = '0' + stemp;
+    }
+    ecdStr += stemp;
+  }
+  const selector = hexToNumbers(ecdStr.substring(0, 8));
+  const data = hexToNumbers(ecdStr.substring(8));
+  return { selector, data };
+}
 
-//       it('user2 trying to set to high RewardMultiplier', async () => {
-//         const description = 'Abax will be the best ;-)';
-//         const proposal: Proposal = {
-//           rulesId: 0,
-//           voterRewardPartE12: toE12(0.051),
-//           transactions: [],
-//         };
-//         await proposeAndCheck(testEnv, users[2], proposal, description, GovernErrorBuilder.RewardMultiplier());
-//       });
-//       it('user2 trying to set to high RewardMultiplier for him', async () => {
-//         const description = 'Abax will be the best ;-)';
-//         const proposal: Proposal = {
-//           rulesId: 0,
-//           voterRewardPartE12: toE12(0.05),
-//           transactions: [],
-//         };
-//         await proposeAndCheck(testEnv, users[2], proposal, description, GovernErrorBuilder.RewardMultiplier());
-//       });
-//       it('user0 successfully creates proposal', async () => {
-//         const description = 'Abax will be the best ;-)';
-//         const proposal: Proposal = {
-//           rulesId: 0,
-//           voterRewardPartE12: toE12(0.05),
-//           transactions: [],
-//         };
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//       });
+export function hexToNumbers(hex: string): number[] {
+  const byteArray = new Uint8Array(hex.length / 2);
 
-//       it('user0 tires to submit the same proposal twice', async () => {
-//         const description = 'Abax will be the best ;-)';
-//         const proposal: Proposal = {
-//           rulesId: 0,
-//           voterRewardPartE12: toE12(0.05),
-//           transactions: [],
-//         };
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//         await proposeAndCheck(testEnv, users[0], proposal, description, GovernErrorBuilder.ProposalAlreadyExists());
-//       });
+  for (let i = 0; i < hex.length; i += 2) {
+    byteArray[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
 
-//       it('user1 tires to submit proposal after user 0 already submitted it', async () => {
-//         const description = 'Abax will be the best ;-)';
-//         const proposal: Proposal = {
-//           rulesId: 0,
-//           voterRewardPartE12: toE12(0.05),
-//           transactions: [],
-//         };
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//         await proposeAndCheck(testEnv, users[1], proposal, description, GovernErrorBuilder.ProposalAlreadyExists());
-//       });
-//     });
-//     describe('Voting', () => {
-//       const description = 'Abax will be the best ;-)';
-//       const proposal: Proposal = {
-//         rulesId: 0,
-//         voterRewardPartE12: 0,
-//         transactions: [],
-//       };
-//       const proposal2: Proposal = {
-//         rulesId: 1,
-//         voterRewardPartE12: 11,
-//         transactions: [],
-//       };
-//       let proposalId: number[];
-//       let proposalId2: number[];
-//       beforeEach(async () => {
-//         proposalId = hexToNumbers(((await testEnv.hasher.query.hashProposalWithDescription(proposal, description)).value.ok! as string).substring(2));
-//         proposalId2 = hexToNumbers(
-//           ((await testEnv.hasher.query.hashProposalWithDescription(proposal2, description)).value.ok! as string).substring(2),
-//         );
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//       });
-//       it('user6 with no stake tries to vote', async () => {
-//         await voteAndCheck(testEnv, users[6], proposalId, Vote.agreed, GovernErrorBuilder.ZeroVotes());
-//       });
-//       it('user0 tries to vote for not existing proposal', async () => {
-//         await voteAndCheck(testEnv, users[0], proposalId2, Vote.agreed, GovernErrorBuilder.ProposalDoesntExist());
-//       });
-//       it('user0 tries to vote after prposal is finalized ', async () => {
-//         await testEnv.timestampProvider.tx.increaseBlockTimestamp(22 * DAY);
-//         await governor.tx.finalize(proposalId);
-//         await voteAndCheck(testEnv, users[0], proposalId, Vote.agreed, GovernErrorBuilder.NotActive());
-//       });
-//       it('many users can vote for different', async () => {
-//         await voteAndCheck(testEnv, users[0], proposalId, Vote.agreed);
-//         await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreedWithProposerSlashing);
-//         await voteAndCheck(testEnv, users[2], proposalId, Vote.disagreed);
-//         await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreed);
-//         await voteAndCheck(testEnv, users[4], proposalId, Vote.disagreedWithProposerSlashing);
-//       });
-//     });
-//     describe('Finalize', () => {
-//       const description = 'Abax will be the best ;-)';
-//       const proposal: Proposal = {
-//         rulesId: 0,
-//         voterRewardPartE12: 0,
-//         transactions: [],
-//       };
-//       const proposal2: Proposal = {
-//         rulesId: 1,
-//         voterRewardPartE12: 11,
-//         transactions: [],
-//       };
-//       let proposalId: number[];
-//       let proposalId2: number[];
-//       beforeEach(async () => {
-//         proposalId = hexToNumbers(((await testEnv.hasher.query.hashProposalWithDescription(proposal, description)).value.ok! as string).substring(2));
-//         proposalId2 = hexToNumbers(
-//           ((await testEnv.hasher.query.hashProposalWithDescription(proposal2, description)).value.ok! as string).substring(2),
-//         );
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//       });
-//       it('user tries to finalize proposal that doesnt exist', async () => {
-//         await finalizeAndCheck(testEnv, users[6], proposalId2, undefined, GovernErrorBuilder.ProposalDoesntExist());
-//       });
-//       it('user tries to finalize proposal that doesnt meet finalization condition', async () => {
-//         await finalizeAndCheck(testEnv, users[6], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//       });
-//       describe(`all stakers votes for 'agree`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.agreed);
-//         });
-//         it('user finalize succesfully', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.succeeded);
-//         });
-//       });
-//       describe(`all stakers votes for 'disagree`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreed);
-//         });
-//         it('user finalize succesfully', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeated);
-//         });
-//       });
-//       describe(`all stakers vote for 'disagreedWithProposerSlashing'`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreedWithProposerSlashing);
-//         });
-//         it('user finalize succesfully', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeatedWithSlash);
-//         });
-//       });
-//       describe(`all stakers votes for disagree or disagreedWithProposerSlashing, but most for disagreed`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreed);
-//         });
-//         it('user finalize succesfully', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeated);
-//         });
-//       });
-//       describe(`all stakers votes for disagree or disagreedWithProposerSlashing, but most for disagreedWithProposerSlashing`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreedWithProposerSlashing);
-//         });
-//         it('user finalize succesfully', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeatedWithSlash);
-//         });
-//       });
-//       describe(`more than 50% votes for agree, rest disagree`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.agreed);
-//         });
-//         it('user tries to finalize that doesnt meet finalization condition', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//         });
-//         describe(`then 3 days passes`, () => {
-//           beforeEach(async () => {
-//             await timestmpProvider.tx.increaseBlockTimestamp(3 * DAY);
-//           });
-//           it('user finalize succesfully as linear 50% is reached', async () => {
-//             await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.succeeded);
-//           });
-//         });
-//       });
-//       describe(`more than 50% votes for disagree(most) or disagreedWithProposerSlashing, rest agree`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.disagreed);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreed);
-//         });
-//         it('user tries to finalize that doesnt meet finalization condition', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//         });
-//         describe(`then 3 days passes`, () => {
-//           beforeEach(async () => {
-//             await timestmpProvider.tx.increaseBlockTimestamp(3 * DAY);
-//           });
-//           it('user finalize succesfully as linear 50% is reached', async () => {
-//             await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeated);
-//           });
-//         });
-//       });
-//       describe(`more than 50% votes for disagreedWithProposerSlashing, rest disagree`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[0], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[1], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[2], proposalId, Vote.agreed);
-//           await voteAndCheck(testEnv, users[3], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[4], proposalId, Vote.disagreedWithProposerSlashing);
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreedWithProposerSlashing);
-//         });
-//         it('user tries to finalize that doesnt meet finalization condition', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//         });
-//         describe(`then 3 days passes`, () => {
-//           beforeEach(async () => {
-//             await timestmpProvider.tx.increaseBlockTimestamp(3 * DAY);
-//           });
-//           it('user finalize succesfully as linear 50% is reached', async () => {
-//             await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeatedWithSlash);
-//           });
-//         });
-//       });
-//       describe(`only small % votes for agree, rest didnt vote`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.agreed);
-//         });
-//         it('user tries to finalize that doesnt meet finalization condition', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//         });
-//         describe(`then 3 days passes`, () => {
-//           beforeEach(async () => {
-//             await timestmpProvider.tx.increaseBlockTimestamp(3 * DAY);
-//           });
-//           it('user tries to finalize that doesnt meet finalization condition', async () => {
-//             await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//           });
-//           describe(`then 7 days passes`, () => {
-//             beforeEach(async () => {
-//               await timestmpProvider.tx.increaseBlockTimestamp(7 * DAY);
-//             });
-//             it('user tries to finalize that doesnt meet finalization condition', async () => {
-//               await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//             });
-//             describe(`then 4 days minus 1 second passes`, () => {
-//               beforeEach(async () => {
-//                 await timestmpProvider.tx.increaseBlockTimestamp(4 * DAY - 1);
-//               });
-//               it('user finalize succesfully as in final period treshold goes to 0 is reached', async () => {
-//                 await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.succeeded);
-//               });
-//             });
-//           });
-//         });
-//       });
-//       describe(`only small % votes for disagreed, rest didnt vote`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreed);
-//         });
-//         it('user tries to finalize that doesnt meet finalization condition', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//         });
-//         describe(`then 3 days passes`, () => {
-//           beforeEach(async () => {
-//             await timestmpProvider.tx.increaseBlockTimestamp(3 * DAY);
-//           });
-//           it('user tries to finalize that doesnt meet finalization condition', async () => {
-//             await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//           });
-//           describe(`then 7 days passes`, () => {
-//             beforeEach(async () => {
-//               await timestmpProvider.tx.increaseBlockTimestamp(7 * DAY);
-//             });
-//             it('user tries to finalize that doesnt meet finalization condition', async () => {
-//               await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//             });
-//             describe(`then 4 days minus 1 second passes`, () => {
-//               beforeEach(async () => {
-//                 await timestmpProvider.tx.increaseBlockTimestamp(4 * DAY - 1);
-//               });
-//               it('user finalize succesfully as in final period treshold goes to 0 is reached', async () => {
-//                 await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeated);
-//               });
-//             });
-//           });
-//         });
-//       });
-//       describe(`only small % votes for disagreedWithProposerSlashing, rest didnt vote`, () => {
-//         beforeEach(async () => {
-//           await voteAndCheck(testEnv, users[5], proposalId, Vote.disagreedWithProposerSlashing);
-//         });
-//         it('user tries to finalize that doesnt meet finalization condition', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//         });
-//         describe(`then 3 days passes`, () => {
-//           beforeEach(async () => {
-//             await timestmpProvider.tx.increaseBlockTimestamp(3 * DAY);
-//           });
-//           it('user tries to finalize that doesnt meet finalization condition', async () => {
-//             await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//           });
-//           describe(`then 7 days passes`, () => {
-//             beforeEach(async () => {
-//               await timestmpProvider.tx.increaseBlockTimestamp(7 * DAY);
-//             });
-//             it('user tries to finalize that doesnt meet finalization condition', async () => {
-//               await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//             });
-//             describe(`then 4 days minus 1 second passes`, () => {
-//               beforeEach(async () => {
-//                 await timestmpProvider.tx.increaseBlockTimestamp(4 * DAY - 1);
-//               });
-//               it('user finalize succesfully as in final period treshold goes to 0 is reached', async () => {
-//                 await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeatedWithSlash);
-//               });
-//             });
-//           });
-//         });
-//       });
-//       describe(`no one has voted`, () => {
-//         it('user tries to finalize that doesnt meet finalization condition', async () => {
-//           await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//         });
-//         describe(`then 3 days passes`, () => {
-//           beforeEach(async () => {
-//             await timestmpProvider.tx.increaseBlockTimestamp(3 * DAY);
-//           });
-//           it('user tries to finalize that doesnt meet finalization condition', async () => {
-//             await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//           });
-//           describe(`then 7 days passes`, () => {
-//             beforeEach(async () => {
-//               await timestmpProvider.tx.increaseBlockTimestamp(7 * DAY);
-//             });
-//             it('user tries to finalize that doesnt meet finalization condition', async () => {
-//               await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//             });
-//             describe(`then 4 days minus 1 second passes`, () => {
-//               beforeEach(async () => {
-//                 await timestmpProvider.tx.increaseBlockTimestamp(4 * DAY - 1);
-//               });
-//               it('user tries to finalize that doesnt meet finalization condition', async () => {
-//                 await finalizeAndCheck(testEnv, users[0], proposalId, undefined, GovernErrorBuilder.FinalizeCondition());
-//               });
-//               describe(`then 2 second passes`, () => {
-//                 beforeEach(async () => {
-//                   await timestmpProvider.tx.increaseBlockTimestamp(2);
-//                 });
-//                 it('user tries to finalize that doesnt meet finalization condition', async () => {
-//                   await finalizeAndCheck(testEnv, users[0], proposalId, ProposalStatus.defeated);
-//                 });
-//               });
-//             });
-//           });
-//         });
-//       });
-//     });
-//     describe('SlashVoter', () => {
-//       const description = 'Abax will be the best ;-)';
-//       const proposal: Proposal = {
-//         rulesId: 0,
-//         voterRewardPartE12: toE12(0.001),
-//         transactions: [],
-//       };
-//       const proposal2: Proposal = {
-//         rulesId: 1,
-//         voterRewardPartE12: 11,
-//         transactions: [],
-//       };
-//       let proposalId: number[];
-//       let proposalId2: number[];
-//       beforeEach(async () => {
-//         proposalId = hexToNumbers(((await testEnv.hasher.query.hashProposalWithDescription(proposal, description)).value.ok! as string).substring(2));
-//         proposalId2 = hexToNumbers(
-//           ((await testEnv.hasher.query.hashProposalWithDescription(proposal2, description)).value.ok! as string).substring(2),
-//         );
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//       });
-//       it('user0 tries to slash user 1 for non-existing proposal', async () => {
-//         await slashVoterAndCheck(testEnv, users[0], users[1].address, proposalId2, GovernErrorBuilder.ProposalDoesntExist());
-//       });
-//       it('user0 tries to slash user 1 for active proposal', async () => {
-//         await slashVoterAndCheck(testEnv, users[0], users[1].address, proposalId, GovernErrorBuilder.StillActive());
-//       });
-//       describe(`proposal is finalized in flat period`, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[2]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[3]).tx.vote(proposalId, Vote.agreed, []);
+  return Array.from(byteArray);
+}
 
-//           await timestmpProvider.tx.increaseBlockTimestamp(9 * DAY);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it(` so there is nothing to slash`, async () => {
-//           await slashVoterAndCheck(testEnv, users[0], users[1].address, proposalId, GovernErrorBuilder.NothingToSlash());
-//         });
-//       });
-//       describe(`proposal is finalized in final period`, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.agreed, []);
+export function numbersToHex(bytes: number[]): string {
+  let hexString = '';
 
-//           await timestmpProvider.tx.increaseBlockTimestamp(12 * DAY);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it(`someone tries to shals user0 ho has voted`, async () => {
-//           await slashVoterAndCheck(testEnv, users[0], users[0].address, proposalId, GovernErrorBuilder.Voted());
-//         });
-//         it(`users who didnt vote are succesfully slashed`, async () => {
-//           await slashVoterAndCheck(testEnv, users[0], users[1].address, proposalId);
-//           await slashVoterAndCheck(testEnv, users[0], users[2].address, proposalId);
-//           await slashVoterAndCheck(testEnv, users[0], users[3].address, proposalId);
-//           await slashVoterAndCheck(testEnv, users[0], users[4].address, proposalId);
-//           await slashVoterAndCheck(testEnv, users[0], users[5].address, proposalId);
-//         });
-//         it(`user can not be slashed twice`, async () => {
-//           await slashVoterAndCheck(testEnv, users[0], users[1].address, proposalId);
-//           await slashVoterAndCheck(testEnv, users[0], users[1].address, proposalId, GovernErrorBuilder.AlreadyClaimedOrSlashed());
-//         });
-//       });
-//       describe(`proposal is finalized in final period and user6 has staken 0.5 DAY before finalization and hasnt voted `, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.agreed, []);
+  for (const byte of bytes) {
+    const hex = byte.toString(16).padStart(2, '0');
+    hexString += hex;
+  }
 
-//           await timestmpProvider.tx.increaseBlockTimestamp(12 * DAY);
-//           await governor.withSigner(users[6]).tx.stake(smallStake);
-//           await timestmpProvider.tx.increaseBlockTimestamp(DAY / 2);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it(`someone tries to slash user6 who can't be slashed`, async () => {
-//           await slashVoterAndCheck(testEnv, users[0], users[6].address, proposalId, GovernErrorBuilder.NothingToSlash());
-//         });
-//       });
-//       describe(`proposal is finalized in final period and user6 has staken 0.5 DAY after finalization and hasnt voted `, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.agreed, []);
-
-//           await timestmpProvider.tx.increaseBlockTimestamp(12 * DAY);
-//           await governor.tx.finalize(proposalId);
-//           await timestmpProvider.tx.increaseBlockTimestamp(DAY / 2);
-//           await governor.withSigner(users[6]).tx.stake(smallStake);
-//         });
-//         it(`someone tries to slash user6 who can't be slashed`, async () => {
-//           await slashVoterAndCheck(testEnv, users[0], users[6].address, proposalId, GovernErrorBuilder.NothingToSlash());
-//         });
-//       });
-//     });
-//     describe('ClaimReward', () => {
-//       const description = 'Abax will be the best ;-)';
-//       const proposal: Proposal = {
-//         rulesId: 0,
-//         voterRewardPartE12: toE12(0.001),
-//         transactions: [],
-//       };
-//       const proposal2: Proposal = {
-//         rulesId: 1,
-//         voterRewardPartE12: 11,
-//         transactions: [],
-//       };
-//       let proposalId: number[];
-//       let proposalId2: number[];
-//       beforeEach(async () => {
-//         proposalId = hexToNumbers(((await testEnv.hasher.query.hashProposalWithDescription(proposal, description)).value.ok! as string).substring(2));
-//         proposalId2 = hexToNumbers(
-//           ((await testEnv.hasher.query.hashProposalWithDescription(proposal2, description)).value.ok! as string).substring(2),
-//         );
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//       });
-//       it('user0 tries to claim non-existing proposal', async () => {
-//         await claimRewardAndCheck(testEnv, users[0], proposalId2, GovernErrorBuilder.ProposalDoesntExist());
-//       });
-//       it('user0 tries to claim active proposal', async () => {
-//         await claimRewardAndCheck(testEnv, users[0], proposalId, GovernErrorBuilder.StillActive());
-//       });
-//       describe(`proposal is finalized`, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[2]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[3]).tx.vote(proposalId, Vote.agreed, []);
-
-//           await timestmpProvider.tx.increaseBlockTimestamp(9 * DAY);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it(` user who didn't vote treis to claim`, async () => {
-//           await claimRewardAndCheck(testEnv, users[1], proposalId, GovernErrorBuilder.DidntVote());
-//         });
-//         it(`users who did vote claims succesfully`, async () => {
-//           await claimRewardAndCheck(testEnv, users[0], proposalId);
-//           await claimRewardAndCheck(testEnv, users[2], proposalId);
-//           await claimRewardAndCheck(testEnv, users[3], proposalId);
-//         });
-//       });
-//     });
-//     describe('Execute', () => {
-//       const description = 'Abax will be the best ;-)';
-//       const proposal: Proposal = {
-//         rulesId: 0,
-//         voterRewardPartE12: toE12(0.001),
-//         transactions: [],
-//       };
-//       const proposal2: Proposal = {
-//         rulesId: 1,
-//         voterRewardPartE12: 11,
-//         transactions: [],
-//       };
-//       let proposalId: number[];
-//       let proposalId2: number[];
-//       let descriptionHash: number[];
-//       beforeEach(async () => {
-//         proposalId = hexToNumbers(((await testEnv.hasher.query.hashProposalWithDescription(proposal, description)).value.ok! as string).substring(2));
-//         proposalId2 = hexToNumbers(
-//           ((await testEnv.hasher.query.hashProposalWithDescription(proposal2, description)).value.ok! as string).substring(2),
-//         );
-//         descriptionHash = (await testEnv.hasher.query.hashDescription(description)).value.ok!;
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//       });
-//       it('user0 tries to execute non-existing proposal', async () => {
-//         await executeAndCheck(testEnv, users[0], proposal2, descriptionHash, description, GovernErrorBuilder.ProposalDoesntExist());
-//       });
-//       it('user0 tries to execute active proposal', async () => {
-//         await executeAndCheck(testEnv, users[0], proposal, descriptionHash, description, GovernErrorBuilder.WrongStatus());
-//       });
-//       describe(`proposal is finalized with defeated`, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.disagreed, []);
-//           await governor.withSigner(users[2]).tx.vote(proposalId, Vote.disagreed, []);
-//           await governor.withSigner(users[3]).tx.vote(proposalId, Vote.disagreed, []);
-
-//           await timestmpProvider.tx.increaseBlockTimestamp(9 * DAY);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it('user0 tries to execute defeated proposal', async () => {
-//           await executeAndCheck(testEnv, users[0], proposal, descriptionHash, description, GovernErrorBuilder.WrongStatus());
-//         });
-//       });
-//       describe(`proposal is finalized with defeatedWithSlash`, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
-//           await governor.withSigner(users[2]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
-//           await governor.withSigner(users[3]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
-
-//           await timestmpProvider.tx.increaseBlockTimestamp(9 * DAY);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it('user0 tries to execute defeatedWithSlash proposal', async () => {
-//           await executeAndCheck(testEnv, users[0], proposal, descriptionHash, description, GovernErrorBuilder.WrongStatus());
-//         });
-//       });
-//       describe(`proposal is finalized with Succeeded`, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[2]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[3]).tx.vote(proposalId, Vote.agreed, []);
-
-//           await timestmpProvider.tx.increaseBlockTimestamp(9 * DAY);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it('user0 executes Succeded proposal with no Tx', async () => {
-//           await executeAndCheck(testEnv, users[0], proposal, descriptionHash, description);
-//         });
-//       });
-//     });
-//     describe('Execute Proposal with transactions', () => {
-//       const description = 'Abax will be the best ;-)';
-//       let proposal: Proposal;
-
-//       let proposalId: number[];
-//       let descriptionHash: number[];
-//       let xxx;
-//       beforeEach(async () => {
-//         const api = await apiProviderWrapper.getAndWaitForReady();
-//         const gasLimit = api?.registry.createType('WeightV2', {
-//           refTime: new BN(10000),
-//           proofSize: new BN(10000),
-//         }) as WeightV2;
-//         const params1 = paramsToInputNumbers(token'PSPmint::increase_allowance').toU8a([usersaddress, E12.toString()]));
-//         const params2 = paramsToInputNumbers(token'PSPmint::increase_allowance').toU8a([usersaddress, E12.muln(2).toString()]));
-//         const params3 = paramsToInputNumbers(token'PSPmint::increase_allowance').toU8a([usersaddress, E12.muln(3).toString()]));
-//         proposal = {
-//           rulesId: 0,
-//           voterRewardPartE12: toE12(0.001),
-//           transactions: [
-//             {
-//               callee: govToken.address,
-//               selector: params1.selector,
-//               input: params1.data,
-//               transferredValue: 0,
-//             },
-//             {
-//               callee: govToken.address,
-//               selector: params2.selector,
-//               input: params2.data,
-//               transferredValue: 0,
-//             },
-//             {
-//               callee: govToken.address,
-//               selector: params3.selector,
-//               input: params3.data,
-//               transferredValue: 0,
-//             },
-//           ],
-//         };
-//         proposalId = hexToNumbers(((await testEnv.hasher.query.hashProposalWithDescription(proposal, description)).value.ok! as string).substring(2));
-//         descriptionHash = (await testEnv.hasher.query.hashDescription(description)).value.ok!;
-//         await proposeAndCheck(testEnv, users[0], proposal, description, undefined);
-//       });
-
-//       describe(`proposal is finalized with Succeeded`, () => {
-//         beforeEach(async () => {
-//           await governor.withSigner(users[0]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[2]).tx.vote(proposalId, Vote.agreed, []);
-//           await governor.withSigner(users[3]).tx.vote(proposalId, Vote.agreed, []);
-
-//           await timestmpProvider.tx.increaseBlockTimestamp(9 * DAY);
-//           await governor.tx.finalize(proposalId);
-//         });
-//         it('user0 executes Succeded proposal with no Tx', async () => {
-//           await executeAndCheck(testEnv, users[0], proposal, descriptionHash, description);
-
-//           expect((await govToken.query.allowance(governor.address, users[0].address)).value.ok!.rawNumber.toString()).to.be.equal(E12.toString());
-//           expect((await govToken.query.allowance(governor.address, users[1].address)).value.ok!.rawNumber.toString()).to.be.equal(
-//             E12.muln(2).toString(),
-//           );
-//           expect((await govToken.query.allowance(governor.address, users[2].address)).value.ok!.rawNumber.toString()).to.be.equal(
-//             E12.muln(3).toString(),
-//           );
-//         });
-//       });
-//     });
-//   });
-// });
+  return hexString;
+}

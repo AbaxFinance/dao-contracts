@@ -33,7 +33,12 @@ declare global {
       changeContributedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       changeBaseCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       changeBonusCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
-      createVestingSchedule(contract: any, account: string, token: string, args?: [amount: BN, waitingTime: BN, vestingTime: BN]): AsyncAssertion;
+      createVestingSchedule(
+        vester: any,
+        account: string,
+        token: string,
+        args?: [amount: BN, [waitingTime: BN, vestingTime: BN] | { account: string; fallbackValues: [waitingTime: BN, vestingTime: BN] }],
+      ): AsyncAssertion;
       changeTgeStorage<TKey extends TgeStorageNumericKey>(contract: any, key: TKey, delta: BN): AsyncAssertion;
     }
   }

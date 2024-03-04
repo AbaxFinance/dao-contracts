@@ -2,8 +2,8 @@ use ink::{env::DefaultEnvironment, primitives::AccountId, storage::Mapping};
 use pendzl::traits::{Balance, Hash, Timestamp};
 
 use crate::{
-    finalization::minimum_to_finalize, hashes::hash_proposal, GovernError, Proposal, ProposalHash,
-    ProposalId, ProposalState, ProposalStatus, UserVote, Vote, VotingRules,
+    finalization::minimum_to_finalize, GovernError, ProposalId, ProposalState, ProposalStatus,
+    UserVote, Vote, VotingRules,
 };
 
 #[derive(Debug)]
@@ -58,8 +58,11 @@ impl GovernData {
     pub fn remove_last_stake_timestamp(&mut self, account: &AccountId) {
         self.last_stake_timestamp.remove(account);
     }
-    pub fn last_stake_timestamp(&self, account: &AccountId) -> Timestamp {
-        self.last_stake_timestamp.get(account).unwtap_or_default()
+    pub fn last_stake_timestamp(&self, account: &AccountId) -> Option<Timestamp> {
+        self.last_stake_timestamp.get(account)
+    }
+    pub fn last_force_unstake(&self, account: &AccountId) -> Option<ProposalId> {
+        self.last_force_unstake.get(account)
     }
 
     pub fn rules(&self) -> VotingRules {
@@ -145,33 +148,46 @@ impl GovernData {
         if state.status != ProposalStatus::Active {
             return Err(GovernError::WrongStatus);
         }
+        let now = ink::env::block_timestamp::<DefaultEnvironment>();
 
-        let minimum_to_finalize = minimum_to_finalize(
-            &state,
-            &self.rules(),
-            ink::env::block_timestamp::<DefaultEnvironment>(),
-            current_counter,
+        let minimum_to_finalize = minimum_to_finalize(&state, &self.rules(), now, current_counter);
+
+        ink::env::debug_println!("minimum_to_finalize: {:?}", minimum_to_finalize);
+        ink::env::debug_println!("votes_for: {:?}", state.votes_for);
+        ink::env::debug_println!("votes_against: {:?}", state.votes_against);
+        ink::env::debug_println!(
+            "votes_against_with_slash: {:?}",
+            state.votes_against_with_slash
         );
+        let voting_period_is_over =
+            now >= state.start + self.rules().initial_period + self.rules().flat_period;
 
-        if state.votes_against + state.votes_against_with_slash >= minimum_to_finalize {
-            if state.votes_against_with_slash <= state.votes_against + state.votes_for {
-                state.status = ProposalStatus::Defeated;
-            } else {
-                state.status = ProposalStatus::DefeatedWithSlash;
-            }
-        } else if state.votes_for >= minimum_to_finalize {
-            state.status = ProposalStatus::Succeeded;
-        } else {
+        if state.votes_against + state.votes_against_with_slash < minimum_to_finalize
+            && state.votes_for < minimum_to_finalize
+        {
             return Err(GovernError::FinalizeCondition);
         }
-
-        if ink::env::block_timestamp::<DefaultEnvironment>()
-            >= state.start + self.rules().initial_period + self.rules().flat_period
+        if voting_period_is_over
+            && state.votes_for == 0
+            && state.votes_against == 0
+            && state.votes_against_with_slash == 0
         {
+            state.status = ProposalStatus::Defeated;
+        } else if state.votes_against + state.votes_against_with_slash > state.votes_for {
+            if state.votes_against_with_slash >= state.votes_against + state.votes_for {
+                state.status = ProposalStatus::DefeatedWithSlash;
+            } else {
+                state.status = ProposalStatus::Defeated;
+            }
+        } else {
+            state.status = ProposalStatus::Succeeded;
+        }
+
+        if voting_period_is_over {
             state.force_unstake_possible = true;
         }
 
-        state.finalized = Some(ink::env::block_timestamp::<DefaultEnvironment>());
+        state.finalized = Some(now);
 
         self.state.insert(proposal_id, &state);
         self.active_proposals.set(&(self.active_proposals() - 1));
@@ -225,8 +241,8 @@ impl GovernData {
             return Err(GovernError::WrongStatus);
         }
 
-        let user_vote = self.vote_of_for(account, &proposal_id);
-        match user_vote {
+        let existing_user_vote = self.vote_of_for(account, &proposal_id);
+        match existing_user_vote {
             None => match vote {
                 Vote::Agreed => state.votes_for += *amount,
                 Vote::Disagreed => state.votes_against += *amount,
@@ -298,20 +314,22 @@ impl GovernData {
             .state_of(proposal_id)
             .ok_or(GovernError::ProposalDoesntExist)?;
 
-        if state.force_unstake_possible == false {
+        if !state.force_unstake_possible {
             return Err(GovernError::CantForceUnstake);
         }
 
-        if state.finalized.unwrap() <= self.last_stake_timestamp(account) {
+        if state.finalized.unwrap_or_default()
+            <= self.last_stake_timestamp(account).unwrap_or_default()
+        {
             return Err(GovernError::CantForceUnstake);
         }
         if self.vote_of_for(account, proposal_id).is_some() {
             return Err(GovernError::CantForceUnstake);
         }
 
-        match self.last_force_unstake(account) {
+        match self.last_force_unstake.get(account) {
             Some(last_proposal_id) => {
-                if last_proposal_id >= proposal_id {
+                if last_proposal_id >= *proposal_id {
                     return Err(GovernError::CantForceUnstake);
                 }
             }

@@ -1,24 +1,13 @@
 import { ReturnPromiseType } from '@abaxfinance/utils';
 import type { ApiDecoration } from '@polkadot/api/types';
+import { nobody } from '@polkadot/keyring/pair/nobody';
 import BN from 'bn.js';
 import { queryAt } from 'tests/setup/queryAt';
 import AbaxTgeMethods from 'typechain/query/abax_tge';
-import { AccountId } from 'typechain/types-returns/abax_tge';
-import { nobody } from '@polkadot/keyring/pair/nobody';
 type RetType = NonNullable<ReturnPromiseType<AbaxTgeMethods['getTgeStorage']>['value']['ok']>;
-type ExtractRawNumbers<T> = {
-  [P in keyof T]: T[P] extends { rawNumber: BN }
-    ? T[P]['rawNumber']
-    : T[P] extends { rawNumber: BN } | null
-    ? BN | null
-    : T[P] extends AccountId
-    ? AccountId
-    : never;
-};
-type RetTypeFin = ExtractRawNumbers<RetType>;
 
 export async function queryTGEGetStorage(apiAt: ApiDecoration<'promise'>, tge: any) {
-  const res = await queryAt<RetTypeFin>(apiAt, tge, nobody().address, 'get_tge_storage', []);
+  const res = await queryAt<RetType>(apiAt, tge, nobody().address, 'get_tge_storage', []);
   return {
     startTime: res[0],
     phaseTwoStartTime: res[1],
