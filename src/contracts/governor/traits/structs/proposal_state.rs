@@ -24,4 +24,6 @@ pub struct ProposalState {
     pub votes_against: Balance,
     /// amount of votes to reject proposal and slash the proposer
     pub votes_against_with_slash: Balance,
+    /// earliest time when proposal can be executed
+    pub earliest_execution: Option<Timestamp>,
 }

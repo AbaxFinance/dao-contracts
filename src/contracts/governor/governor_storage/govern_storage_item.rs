@@ -101,6 +101,7 @@ impl GovernData {
         &mut self,
         proposer: &AccountId,
         proposal_hash: &Hash,
+        earliest_execution: Option<Timestamp>,
         votes_at_start: Balance,
         counter_at_start: u128,
     ) -> Result<ProposalId, GovernError> {
@@ -128,6 +129,7 @@ impl GovernData {
                 votes_for: 0,
                 votes_against: 0,
                 votes_against_with_slash: 0,
+                earliest_execution,
             },
         );
 
@@ -166,12 +168,6 @@ impl GovernData {
             return Err(GovernError::FinalizeCondition);
         }
 
-        let voting_period_is_over = now
-            >= state.start
-                + self.rules().initial_period
-                + self.rules().flat_period
-                + self.rules().final_period;
-
         if state.votes_against + state.votes_against_with_slash >= state.votes_for {
             if state.votes_against_with_slash > state.votes_against + state.votes_for {
                 state.status = ProposalStatus::DefeatedWithSlash;
@@ -204,6 +200,11 @@ impl GovernData {
         let mut state = self
             .state_of(proposal_id)
             .ok_or(GovernError::ProposalDoesntExist)?;
+        if state.earliest_execution.unwrap_or_default()
+            > ink::env::block_timestamp::<DefaultEnvironment>()
+        {
+            return Err(GovernError::TooEarlyToExecuteProposal);
+        }
         if state.status != ProposalStatus::Succeeded {
             return Err(GovernError::WrongStatus);
         }
@@ -235,7 +236,7 @@ impl GovernData {
         amount: &Balance,
     ) -> Result<(), GovernError> {
         if *amount == 0 {
-            return Err(GovernError::InnsuficientVotes);
+            return Err(GovernError::InsuficientVotes);
         }
         let mut state = self
             .state_of(&proposal_id)

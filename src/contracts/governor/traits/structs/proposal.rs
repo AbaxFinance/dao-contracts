@@ -8,4 +8,5 @@ pub struct Proposal {
     /// Proposed transaction for execution.
     pub transactions: Vec<Transaction>,
     pub description_hash: Hash,
+    pub earliest_execution: Option<Timestamp>,
 }

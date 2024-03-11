@@ -1,6 +1,6 @@
 [package]
-name = "abax_token"
-version = "0.1.1"
+name = "flipper"
+version = "0.1.0"
 authors = [""]
 edition = "2021"
 
@@ -14,19 +14,9 @@ scale-info = { version = "2.10", default-features = false, features = [
     "derive",
 ], optional = true }
 
-
-pendzl = { version = "0.1.0-beta4", default-features = false, features = [
-    "psp22_impl",
-    "psp22_metadata_impl",
-    "psp22_mintable",
-    "access_control_impl",
-] }
-
-
 [lib]
-name = "abax_token"
+name = "flipper"
 path = "lib.rs"
-
 
 [features]
 default = ["std"]
@@ -35,12 +25,8 @@ std = [
     "scale/std",
     "scale-info",
     "scale-info/std",
-
-    # These dependencies
-    "pendzl/std",
 ]
 ink-as-dependency = []
-e2e-tests = []
 
 [profile.dev]
 codegen-units = 16
@@ -49,3 +35,4 @@ lto = false
 [profile.release]
 panic = "abort"
 lto = false
+

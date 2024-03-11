@@ -9,10 +9,11 @@ pub use pendzl::{
 pub enum GovernError {
     MathError(MathError),
     PSP22Error(PSP22Error),
-    InnsuficientVotes,
+    InsuficientVotes,
     ProposalAlreadyExists,
     ProposalDoesntExist,
     WrongStatus,
+    TooEarlyToExecuteProposal,
     FinalizeCondition,
     UnderlyingTransactionReverted(String),
     WrongDescriptionHash,

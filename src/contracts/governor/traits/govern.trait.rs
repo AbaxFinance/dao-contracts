@@ -8,7 +8,7 @@ pub trait AbaxGovern {
     ///
     /// # Errors
     /// Returns `ProposalAlreadyExists` if `propsal` with the same `proposal_description` exists,
-    /// Returns `InnsuficientVotes` if `caller` has insufficient amount of votes to create a proposal.
+    /// Returns `InsuficientVotes` if `caller` has insufficient amount of votes to create a proposal.
     #[ink(message)]
     fn propose(&mut self, proposal: Proposal, description: String) -> Result<(), GovernError>;
 
@@ -39,7 +39,7 @@ pub trait AbaxGovern {
     /// On Success emits `VoteCasted` event.
     ///
     /// # Errors
-    /// Returns `InnsuficientVotes` if `caller` has no votes.
+    /// Returns `InsuficientVotes` if `caller` has no votes.
     /// Returns `ProposalDoesntExist` if proposal doesn't exist.
     /// Returns `WrongStatus` if proposal status isn't `Active`.
     #[ink(message)]

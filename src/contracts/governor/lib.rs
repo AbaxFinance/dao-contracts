@@ -322,7 +322,7 @@ mod governor {
                 * u16::from(self.govern.rules().minimum_stake_part_e3) as u128;
             let proposer_votes = self._balance_of(proposer);
             if proposer_votes < minimum_votes_to_propose {
-                return Err(GovernError::InnsuficientVotes);
+                return Err(GovernError::InsuficientVotes);
             }
             let proposal_hash = hash_proposal(proposal);
 
@@ -333,6 +333,7 @@ mod governor {
             let proposal_id = self.govern.register_new_proposal(
                 proposer,
                 &proposal_hash,
+                proposal.earliest_execution,
                 total_votes,
                 self.counter.counter(),
             )?;

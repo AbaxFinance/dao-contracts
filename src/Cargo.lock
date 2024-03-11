@@ -340,6 +340,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "flipper"
+version = "0.1.0"
+dependencies = [
+ "ink",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

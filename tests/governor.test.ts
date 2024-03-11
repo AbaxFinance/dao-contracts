@@ -4,9 +4,11 @@ import { isEqual } from 'lodash';
 import { ABAX_DECIMALS, ContractRoles } from 'tests/consts';
 import { testStaking } from 'tests/governor.stake.test';
 import { expect } from 'tests/setup/chai';
+import FlipperContract from 'typechain/contracts/flipper';
 import Governor from 'typechain/contracts/governor';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
+import FlipperDeployer from 'typechain/deployers/flipper';
 import GovernorDeployer from 'typechain/deployers/governor';
 import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
@@ -15,6 +17,7 @@ import { Proposal, Transaction, VotingRules } from 'typechain/types-arguments/go
 import { GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
 import { ONE_DAY, replaceNumericPropsWithStrings } from 'wookashwackomytest-polkahat-chai-matchers';
 import { E12bn, duration, generateRandomSignerWithBalance, getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
+import { decodeEvents } from 'wookashwackomytest-typechain-types';
 
 const [deployer, other] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
@@ -38,21 +41,38 @@ async function proposeAndCheck(
   proposer: KeyringPair,
   transactions: Transaction[],
   description: string,
+  earliestExecution: number | null = null,
   expectedError?: GovernError,
 ) {
   let proposalId = new BN(-1);
   const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
-  const query = governor.withSigner(proposer).query.propose({ descriptionHash, transactions }, description);
+  const query = governor.withSigner(proposer).query.propose({ descriptionHash, transactions, earliestExecution }, description);
   if (expectedError) {
     await expect(query).to.be.revertedWithError(expectedError);
   } else {
     await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(proposer).tx.propose({ descriptionHash, transactions }, description);
+    const tx = governor.withSigner(proposer).tx.propose({ descriptionHash, transactions, earliestExecution }, description);
     await expect(tx).to.emitEvent(governor, 'ProposalCreated', (event: ProposalCreated) => {
       proposalId = new BN(event.proposalId.toString());
       return (
+        event.proposal.earliestExecution?.toString() === earliestExecution?.toString() &&
         event.proposal.descriptionHash === descriptionHash &&
-        isEqual(replaceNumericPropsWithStrings(event.proposal.transactions), replaceNumericPropsWithStrings(transactions))
+        isEqual(
+          event.proposal.transactions.map((t) => ({
+            ...t,
+            callee: t.callee.toString(),
+            transferredValue: t.transferredValue.toString(),
+            input: t.input.toString(),
+            selector: t.selector.toString(),
+          })),
+          transactions.map((t) => ({
+            ...t,
+            callee: t.callee.toString(),
+            transferredValue: t.transferredValue.toString(),
+            input: '0x' + t.input.toString(),
+            selector: '0x' + numbersToHex(t.selector),
+          })),
+        )
       );
     });
 
@@ -60,7 +80,7 @@ async function proposeAndCheck(
     // TODO ideally checks that won't check state 1v1
   }
 
-  return proposalId;
+  return [proposalId, descriptionHash.toString()] as const;
 }
 
 async function voteAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, vote: Vote, expectedError?: GovernError) {
@@ -206,7 +226,7 @@ describe.only('Governor', () => {
     describe('Proposing:', () => {
       it('user4 trying to propose with insufficient Votes', async () => {
         const description = 'Abax will be the best ;-)';
-        await proposeAndCheck(governor, voters[4], [], description, GovernErrorBuilder.InnsuficientVotes());
+        await proposeAndCheck(governor, voters[4], [], description, null, GovernErrorBuilder.InsuficientVotes());
       });
       it('user0 successfully creates proposal', async () => {
         const description = 'Abax will be the best ;-)';
@@ -216,23 +236,35 @@ describe.only('Governor', () => {
       it('user0 tries to submit the same proposal twice', async () => {
         const description = 'Abax will be the best ;-)';
         await proposeAndCheck(governor, voters[0], [], description);
-        await proposeAndCheck(governor, voters[0], [], description, GovernErrorBuilder.ProposalAlreadyExists());
+        await proposeAndCheck(governor, voters[0], [], description, null, GovernErrorBuilder.ProposalAlreadyExists());
+      });
+      it('user0 tries to submit the same proposal twice - with earliestExecution', async () => {
+        const description = 'Abax will be the best ;-)';
+        const earliestExecution = (await time.latest()) + duration.days(1);
+        await proposeAndCheck(governor, voters[0], [], description, earliestExecution);
+        await proposeAndCheck(governor, voters[0], [], description, earliestExecution, GovernErrorBuilder.ProposalAlreadyExists());
       });
 
       it('user1 tries to submit proposal after user 0 already submitted it', async () => {
         const description = 'Abax will be the best ;-)';
         await proposeAndCheck(governor, voters[0], [], description, undefined);
-        await proposeAndCheck(governor, voters[1], [], description, GovernErrorBuilder.ProposalAlreadyExists());
+        await proposeAndCheck(governor, voters[1], [], description, null, GovernErrorBuilder.ProposalAlreadyExists());
+      });
+      it('user1 tries to submit proposal after user 0 already submitted it - with earliestExecution', async () => {
+        const description = 'Abax will be the best ;-)';
+        const earliestExecution = (await time.latest()) + duration.days(1);
+        await proposeAndCheck(governor, voters[0], [], description, earliestExecution);
+        await proposeAndCheck(governor, voters[1], [], description, earliestExecution, GovernErrorBuilder.ProposalAlreadyExists());
       });
     });
     describe('Voting', () => {
       const description = 'Abax will be the best ;-)';
       let proposalId: BN;
       beforeEach(async () => {
-        proposalId = await proposeAndCheck(governor, voters[0], [], description, undefined);
+        [proposalId] = await proposeAndCheck(governor, voters[0], [], description, undefined);
       });
       it('user6 with no stake tries to vote', async () => {
-        await voteAndCheck(governor, voters[6], proposalId, Vote.agreed, GovernErrorBuilder.InnsuficientVotes());
+        await voteAndCheck(governor, voters[6], proposalId, Vote.agreed, GovernErrorBuilder.InsuficientVotes());
       });
       it('user0 tries to vote for non existing proposal', async () => {
         await voteAndCheck(governor, voters[0], new BN(1337), Vote.agreed, GovernErrorBuilder.ProposalDoesntExist());
@@ -255,7 +287,7 @@ describe.only('Governor', () => {
       const description = 'Abax will be the best ;-)';
       let proposalId: BN;
       beforeEach(async () => {
-        proposalId = await proposeAndCheck(governor, voters[0], [], description, undefined);
+        [proposalId] = await proposeAndCheck(governor, voters[0], [], description, undefined);
       });
       it('user tries to finalize proposal that doesnt exist', async () => {
         await finalizeAndCheck(governor, voters[6], new BN(1337), GovernErrorBuilder.ProposalDoesntExist());
@@ -554,7 +586,7 @@ describe.only('Governor', () => {
       });
       describe(`proposal gets created & votes get casted before him`, () => {
         beforeEach(async () => {
-          proposalId = await proposeAndCheck(governor, voters[0], [], 'does not matter', undefined);
+          [proposalId] = await proposeAndCheck(governor, voters[0], [], 'does not matter', undefined);
           await voteAndCheck(governor, voters[0], proposalId, Vote.agreed);
           await voteAndCheck(governor, voters[1], proposalId, Vote.agreed);
           await voteAndCheck(governor, voters[2], proposalId, Vote.agreed);
@@ -585,7 +617,7 @@ describe.only('Governor', () => {
       describe(`malicious actor creates a proposal`, () => {
         beforeEach(async () => {
           await governor.withSigner(maliciousActor).tx.deposit(bigStake.add(smallStake), maliciousActor.address);
-          proposalId = await proposeAndCheck(governor, maliciousActor, [], 'malicious proposal');
+          [proposalId] = await proposeAndCheck(governor, maliciousActor, [], 'malicious proposal');
         });
         it('malicious actor cannot finalize proposal himself', async () => {
           await voteAndCheck(governor, maliciousActor, proposalId, Vote.agreed);
@@ -612,7 +644,7 @@ describe.only('Governor', () => {
           await token.tx.mint(maliciousActorUnstakeAcc.address, maliciousActorUnstakeAccStake);
           await token.withSigner(maliciousActorUnstakeAcc).tx.approve(governor.address, maliciousActorUnstakeAccStake);
           await governor.withSigner(maliciousActorUnstakeAcc).tx.deposit(maliciousActorUnstakeAccStake, maliciousActorUnstakeAcc.address);
-          proposalId = await proposeAndCheck(governor, maliciousActorUnstakeAcc, [], 'malicious proposal');
+          [proposalId] = await proposeAndCheck(governor, maliciousActorUnstakeAcc, [], 'malicious proposal');
           await time.increase(duration.days(1));
         });
 
@@ -635,149 +667,297 @@ describe.only('Governor', () => {
         executor = voters[9];
         await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, executor.address);
       });
-      beforeEach(async () => {
-        descriptionHash = (await governor.query.hashDescription(description)).value.ok!.toString();
-        proposalId = await proposeAndCheck(governor, voters[0], [], description, undefined);
-      });
-      it('user0 tries to execute non-existing proposal', async () => {
-        await executeAndCheck(governor, executor, proposalId, { descriptionHash: '', transactions: [] }, GovernErrorBuilder.ProposalDoesntExist());
-      });
-      it('user0 tries to execute active proposal', async () => {
-        await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] }, GovernErrorBuilder.WrongStatus());
-      });
-      describe(`proposal is finalized with defeated`, () => {
+      describe(`earliestExecution is not set`, () => {
         beforeEach(async () => {
-          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.disagreed, []);
-          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.disagreed, []);
-          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.disagreed, []);
-
-          await time.increase(duration.days(9));
-          await governor.tx.finalize(proposalId);
+          [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], [], description, undefined);
         });
-        it('user0 tries to execute defeated proposal', async () => {
-          await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] }, GovernErrorBuilder.WrongStatus());
+        it('user0 tries to execute non-existing proposal', async () => {
+          await executeAndCheck(
+            governor,
+            executor,
+            proposalId,
+            { descriptionHash: '', transactions: [], earliestExecution: null },
+            GovernErrorBuilder.ProposalDoesntExist(),
+          );
+        });
+        it('user0 tries to execute active proposal', async () => {
+          await executeAndCheck(
+            governor,
+            executor,
+            proposalId,
+            { descriptionHash, transactions: [], earliestExecution: null },
+            GovernErrorBuilder.WrongStatus(),
+          );
+        });
+        describe(`proposal is finalized with defeated`, () => {
+          beforeEach(async () => {
+            await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.disagreed, []);
+            await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.disagreed, []);
+            await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.disagreed, []);
+
+            await time.increase(duration.days(9));
+            await governor.tx.finalize(proposalId);
+          });
+          it('user0 tries to execute defeated proposal', async () => {
+            await executeAndCheck(
+              governor,
+              executor,
+              proposalId,
+              { descriptionHash, transactions: [], earliestExecution: null },
+              GovernErrorBuilder.WrongStatus(),
+            );
+          });
+        });
+        describe(`proposal is finalized with defeatedWithSlash`, () => {
+          beforeEach(async () => {
+            await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
+            await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
+            await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
+
+            await time.increase(duration.days(9));
+            await governor.tx.finalize(proposalId);
+          });
+          it('user0 tries to execute defeatedWithSlash proposal', async () => {
+            await executeAndCheck(
+              governor,
+              executor,
+              proposalId,
+              { descriptionHash, transactions: [], earliestExecution: null },
+              GovernErrorBuilder.WrongStatus(),
+            );
+          });
+        });
+        describe(`proposal is finalized with Succeeded`, () => {
+          beforeEach(async () => {
+            await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
+            await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
+            await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
+
+            await time.increase(duration.days(9));
+            await governor.tx.finalize(proposalId);
+          });
+          it('user0 executes Succeded proposal with no Tx', async () => {
+            await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution: null });
+          });
         });
       });
-      describe(`proposal is finalized with defeatedWithSlash`, () => {
+
+      describe(`earliestExecution is set to 9 days into the future`, () => {
+        let earliestExecution: number;
         beforeEach(async () => {
-          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
-          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
-          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.disagreedWithProposerSlashing, []);
-
-          await time.increase(duration.days(9));
-          await governor.tx.finalize(proposalId);
+          earliestExecution = (await time.latest()) + duration.days(9);
+          [proposalId] = await proposeAndCheck(governor, voters[0], [], description, earliestExecution);
         });
-        it('user0 tries to execute defeatedWithSlash proposal', async () => {
-          await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] }, GovernErrorBuilder.WrongStatus());
+        describe(`2 day pass`, () => {
+          beforeEach(async () => {
+            await time.increase(duration.days(2));
+          });
+          describe(`proposal is finalized with Succeeded`, () => {
+            beforeEach(async () => {
+              await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
+              await governor.withSigner(voters[1]).tx.vote(proposalId, Vote.agreed, []);
+              await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
+              await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
+              (await governor.query.finalize(proposalId)).value.unwrapRecursively();
+              await governor.tx.finalize(proposalId);
+            });
+            it('user0 tries to execute proposal', async () => {
+              await executeAndCheck(
+                governor,
+                executor,
+                proposalId,
+                { descriptionHash, transactions: [], earliestExecution },
+                GovernErrorBuilder.TooEarlyToExecuteProposal(),
+              );
+            });
+            describe(`7 days pass - 1`, () => {
+              beforeEach(async () => {
+                await time.increase(duration.days(7) - 1);
+              });
+              it('user0 tries to execute proposal', async () => {
+                await executeAndCheck(
+                  governor,
+                  executor,
+                  proposalId,
+                  { descriptionHash, transactions: [], earliestExecution },
+                  GovernErrorBuilder.TooEarlyToExecuteProposal(),
+                );
+              });
+              describe(`1 second pass`, () => {
+                beforeEach(async () => {
+                  await time.increase(1);
+                });
+                it('user0 executes proposal', async () => {
+                  await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution });
+                });
+              });
+            });
+          });
         });
       });
-      describe(`proposal is finalized with Succeeded`, () => {
+      describe(`earliestExecution is set to 28 days into the future`, () => {
+        let earliestExecution: number;
         beforeEach(async () => {
-          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
-          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
-          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
-
-          await time.increase(duration.days(9));
-          await governor.tx.finalize(proposalId);
+          earliestExecution = (await time.latest()) + duration.days(28);
+          [proposalId] = await proposeAndCheck(governor, voters[0], [], description, earliestExecution);
         });
-        it('user0 executes Succeded proposal with no Tx', async () => {
-          await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [] });
+        describe(`2 day pass`, () => {
+          beforeEach(async () => {
+            await time.increase(duration.days(2));
+          });
+          describe(`proposal is finalized with Succeeded`, () => {
+            beforeEach(async () => {
+              await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
+              await governor.withSigner(voters[1]).tx.vote(proposalId, Vote.agreed, []);
+              await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
+              await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
+              (await governor.query.finalize(proposalId)).value.unwrapRecursively();
+              await governor.tx.finalize(proposalId);
+            });
+            it('user0 tries to execute proposal', async () => {
+              await executeAndCheck(
+                governor,
+                executor,
+                proposalId,
+                { descriptionHash, transactions: [], earliestExecution },
+                GovernErrorBuilder.TooEarlyToExecuteProposal(),
+              );
+            });
+            describe(`26 days pass - 1`, () => {
+              beforeEach(async () => {
+                await time.increase(duration.days(26) - 1);
+              });
+              it('user0 tries to execute proposal', async () => {
+                await executeAndCheck(
+                  governor,
+                  executor,
+                  proposalId,
+                  { descriptionHash, transactions: [], earliestExecution },
+                  GovernErrorBuilder.TooEarlyToExecuteProposal(),
+                );
+              });
+              describe(`1 second pass`, () => {
+                beforeEach(async () => {
+                  await time.increase(1);
+                });
+                it('user0 executes proposal', async () => {
+                  await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution });
+                });
+              });
+            });
+          });
         });
       });
-    });
-    describe.skip('Execute Proposal with transactions', () => {
-      const description = 'Abax will be the best ;-)';
-      let proposal: Proposal;
-
-      let proposalId: BN;
-      let transactions: Transaction[];
-      beforeEach(async () => {
-        const message = token.abi.findMessage('PSP22::increase_allowance');
-        const params1 = paramsToInputNumbers(message.toU8a([voters[0].address, E12bn.toString()]));
-        const params2 = paramsToInputNumbers(message.toU8a([voters[1].address, E12bn.muln(2).toString()]));
-        const params3 = paramsToInputNumbers(message.toU8a([voters[2].address, E12bn.muln(3).toString()]));
-        transactions = [
-          {
-            callee: token.address,
-            selector: params1.selector,
-            input: params1.data,
-            transferredValue: 0,
-          },
-          {
-            callee: token.address,
-            selector: params2.selector,
-            input: params2.data,
-            transferredValue: 0,
-          },
-          {
-            callee: token.address,
-            selector: params3.selector,
-            input: params3.data,
-            transferredValue: 0,
-          },
-        ];
-        proposalId = await proposeAndCheck(governor, voters[0], transactions, description);
-      });
-
-      describe(`proposal is finalized with Succeeded`, () => {
-        beforeEach(async () => {
+      describe(`with transactions`, () => {
+        let proposal: Proposal;
+        let transactions: Transaction[];
+        const finalize = async () => {
           await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
           await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
           await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
           await time.increase(9 * duration.days(1));
           await governor.withSigner(voters[0]).tx.finalize(proposalId);
+        };
+        describe('that have params', () => {
+          beforeEach(async () => {
+            const message = token.abi.findMessage('PSP22::increase_allowance');
+            const params1 = paramsToInputNumbers(message.toU8a([voters[0].address, E12bn.toString()]));
+            const params2 = paramsToInputNumbers(message.toU8a([voters[1].address, E12bn.muln(2).toString()]));
+            const params3 = paramsToInputNumbers(message.toU8a([voters[2].address, E12bn.muln(3).toString()]));
+            transactions = [
+              {
+                callee: token.address,
+                selector: params1.selector,
+                input: params1.data,
+                transferredValue: 0,
+              },
+              {
+                callee: token.address,
+                selector: params2.selector,
+                input: params2.data,
+                transferredValue: 0,
+              },
+              {
+                callee: token.address,
+                selector: params3.selector,
+                input: params3.data,
+                transferredValue: 0,
+              },
+            ];
+            [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
+            proposal = { descriptionHash, transactions, earliestExecution: null };
+          });
+
+          describe(`proposal is finalized with Succeeded`, () => {
+            beforeEach(async () => {
+              await finalize();
+            });
+            it('user0 executes Succeded proposal with Tx', async () => {
+              await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+              const query = governor.withSigner(voters[0]).query.execute(proposal);
+              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+              await expect(query).to.haveOkResult();
+              const res = await tx;
+
+              await expect(await token.query.allowance(governor.address, voters[0].address)).to.haveOkResult(E12bn);
+              await expect(await token.query.allowance(governor.address, voters[1].address)).to.haveOkResult(E12bn.muln(2));
+              await expect(token.query.allowance(governor.address, voters[2].address)).to.haveOkResult(E12bn.muln(3));
+            });
+          });
         });
-        it('user0 executes Succeded proposal with Tx', async () => {
-          await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
-          const query = governor.withSigner(voters[0]).query.execute(proposal);
-          const tx = governor.withSigner(voters[0]).tx.execute(proposal);
-          await expect(query).to.haveOkResult();
-          const res = await tx;
+        describe.only('that have no params', () => {
+          let flipper: FlipperContract;
+          beforeEach(async () => {
+            const api = await localApi.get();
+            const { contract: flipperC } = await new FlipperDeployer(api, deployer).new(false);
+            flipper = flipperC;
+            const message0 = flipper.abi.findMessage('flip');
+            const params0 = paramsToInputNumbers(message0.toU8a([]));
+            transactions = [
+              {
+                callee: flipper.address,
+                selector: params0.selector,
+                input: params0.data,
+                transferredValue: 0,
+              },
+              {
+                callee: flipper.address,
+                selector: params0.selector,
+                input: params0.data,
+                transferredValue: 0,
+              },
+              {
+                callee: flipper.address,
+                selector: params0.selector,
+                input: params0.data,
+                transferredValue: 0,
+              },
+            ];
 
-          await expect(await token.query.allowance(governor.address, voters[0].address)).to.haveOkResult(E12bn);
-          await expect(await token.query.allowance(governor.address, voters[1].address)).to.haveOkResult(E12bn.muln(2));
-          await expect(token.query.allowance(governor.address, voters[2].address)).to.haveOkResult(E12bn.muln(3));
-        });
-      });
-    });
-    describe.skip('Execute Proposal with transactions without params', () => {
-      const description = 'Abax will be the best ;-)';
-      let proposal: Proposal;
+            [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
+            proposal = { descriptionHash, transactions, earliestExecution: null };
+          });
 
-      let proposalId: BN;
-      let transactions: Transaction[];
-      beforeEach(async () => {
-        const message0 = token.abi.findMessage('PSP22::total_supply'); //TODO flipper
-        const params0 = paramsToInputNumbers(message0.toU8a([]));
-        transactions = [
-          {
-            callee: token.address,
-            selector: params0.selector,
-            input: params0.data,
-            transferredValue: 0,
-          },
-        ];
-        proposalId = await proposeAndCheck(governor, voters[0], transactions, description);
-      });
+          describe(`proposal is finalized with Succeeded`, () => {
+            beforeEach(async () => {
+              await finalize();
+            });
+            it('user0 executes Succeded proposal with Tx', async () => {
+              let eventsCounter = 0;
+              flipper.events.subscribeOnFlippedEvent(() => {
+                eventsCounter++;
+              });
 
-      describe(`proposal is finalized with Succeeded`, () => {
-        beforeEach(async () => {
-          await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
-          await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
-          await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
-          await time.increase(9 * duration.days(1));
-          await governor.withSigner(voters[0]).tx.finalize(proposalId);
-        });
-        it('user0 executes Succeded proposal with Tx', async () => {
-          await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
-          const query = governor.withSigner(voters[0]).query.execute(proposal);
-          const tx = governor.withSigner(voters[0]).tx.execute(proposal);
-          await expect(query).to.haveOkResult();
-          const res = await tx;
-
-          await expect(await token.query.allowance(governor.address, voters[0].address)).to.haveOkResult(E12bn);
-          await expect(await token.query.allowance(governor.address, voters[1].address)).to.haveOkResult(E12bn.muln(2));
-          await expect(token.query.allowance(governor.address, voters[2].address)).to.haveOkResult(E12bn.muln(3));
+              await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+              const query = governor.withSigner(voters[0]).query.execute(proposal);
+              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+              await expect(query).to.haveOkResult();
+              await expect(tx).to.eventually.be.fulfilled;
+              await tx;
+              expect(eventsCounter).to.equal(3);
+              expect((await flipper.query.get()).value.unwrap()).to.equal(false);
+            });
+          });
         });
       });
     });
@@ -874,7 +1054,7 @@ export function hexToNumbers(hex: string): number[] {
   return Array.from(byteArray);
 }
 
-export function numbersToHex(bytes: number[]): string {
+export function numbersToHex(bytes: (string | number | BN)[]): string {
   let hexString = '';
 
   for (const byte of bytes) {
