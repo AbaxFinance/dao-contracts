@@ -98,11 +98,6 @@ mod governor {
     }
 
     #[overrider(PSP22VaultInternal)]
-    fn _max_mint(&self, to: &AccountId) -> Balance {
-        0
-    }
-
-    #[overrider(PSP22VaultInternal)]
     fn _withdraw(
         &mut self,
         caller: &AccountId,

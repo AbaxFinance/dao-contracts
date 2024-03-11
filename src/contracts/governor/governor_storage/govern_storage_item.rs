@@ -159,14 +159,18 @@ impl GovernData {
             "votes_against_with_slash: {:?}",
             state.votes_against_with_slash
         );
-        let voting_period_is_over =
-            now >= state.start + self.rules().initial_period + self.rules().flat_period;
 
         if state.votes_against + state.votes_against_with_slash < minimum_to_finalize
             && state.votes_for < minimum_to_finalize
         {
             return Err(GovernError::FinalizeCondition);
         }
+
+        let voting_period_is_over = now
+            >= state.start
+                + self.rules().initial_period
+                + self.rules().flat_period
+                + self.rules().final_period;
         if voting_period_is_over
             && state.votes_for == 0
             && state.votes_against == 0
@@ -183,7 +187,9 @@ impl GovernData {
             state.status = ProposalStatus::Succeeded;
         }
 
-        if voting_period_is_over {
+        let is_post_flat_period =
+            now >= state.start + self.rules().initial_period + self.rules().flat_period;
+        if is_post_flat_period {
             state.force_unstake_possible = true;
         }
 
