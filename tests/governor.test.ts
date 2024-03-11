@@ -111,7 +111,7 @@ async function executeAndCheck(governor: Governor, voter: KeyringPair, proposalI
   }
 }
 
-describe('Governor', () => {
+describe.only('Governor', () => {
   let governor: Governor;
   let token: PSP22Emitable;
   let vester: Vester;
@@ -690,50 +690,33 @@ describe('Governor', () => {
       let proposal: Proposal;
 
       let proposalId: BN;
-      let descriptionHash: string;
+      let transactions: Transaction[];
       beforeEach(async () => {
-        const api = await localApi.get();
-        const message0 = token.abi.findMessage('PSP22::total_supply');
         const message = token.abi.findMessage('PSP22::increase_allowance');
-        const params0 = paramsToInputNumbers(message0.toU8a([]));
         const params1 = paramsToInputNumbers(message.toU8a([voters[0].address, E12bn.toString()]));
         const params2 = paramsToInputNumbers(message.toU8a([voters[1].address, E12bn.muln(2).toString()]));
         const params3 = paramsToInputNumbers(message.toU8a([voters[2].address, E12bn.muln(3).toString()]));
-        descriptionHash = (await governor.query.hashDescription(description)).value.ok?.toString() ?? '';
-        proposal = {
-          descriptionHash,
-          transactions: [
-            {
-              callee: token.address,
-              selector: params0.selector,
-              input: params0.data,
-              transferredValue: 0,
-            },
-            // {
-            //   callee: token.address,
-            //   selector: params1.selector,
-            //   input: params1.data,
-            //   transferredValue: 0,
-            // },
-            // {
-            //   callee: token.address,
-            //   selector: params2.selector,
-            //   input: params2.data,
-            //   transferredValue: 0,
-            // },
-            // {
-            //   callee: token.address,
-            //   selector: params3.selector,
-            //   input: params3.data,
-            //   transferredValue: 0,
-            // },
-          ],
-        };
-        (await governor.withSigner(voters[0]).query.propose(proposal, description)).value.unwrapRecursively();
-        const tx = await governor.withSigner(voters[0]).tx.propose(proposal, description);
-        expect(tx).to.emitEvent(governor, 'ProposalCreated');
-        const proposalCreated = (await tx.events!.find((e) => e.name === 'ProposalCreated')).args as ProposalCreated;
-        proposalId = new BN(proposalCreated.proposalId.toString());
+        transactions = [
+          {
+            callee: token.address,
+            selector: params1.selector,
+            input: params1.data,
+            transferredValue: 0,
+          },
+          {
+            callee: token.address,
+            selector: params2.selector,
+            input: params2.data,
+            transferredValue: 0,
+          },
+          {
+            callee: token.address,
+            selector: params3.selector,
+            input: params3.data,
+            transferredValue: 0,
+          },
+        ];
+        proposalId = await proposeAndCheck(governor, voters[0], transactions, description);
       });
 
       describe(`proposal is finalized with Succeeded`, () => {
@@ -762,28 +745,19 @@ describe('Governor', () => {
       let proposal: Proposal;
 
       let proposalId: BN;
-      let descriptionHash: string;
+      let transactions: Transaction[];
       beforeEach(async () => {
-        const api = await localApi.get();
         const message0 = token.abi.findMessage('PSP22::total_supply'); //TODO flipper
         const params0 = paramsToInputNumbers(message0.toU8a([]));
-        descriptionHash = (await governor.query.hashDescription(description)).value.ok?.toString() ?? '';
-        proposal = {
-          descriptionHash,
-          transactions: [
-            {
-              callee: token.address,
-              selector: params0.selector,
-              input: params0.data,
-              transferredValue: 0,
-            },
-          ],
-        };
-        (await governor.withSigner(voters[0]).query.propose(proposal, description)).value.unwrapRecursively();
-        const tx = await governor.withSigner(voters[0]).tx.propose(proposal, description);
-        expect(tx).to.emitEvent(governor, 'ProposalCreated');
-        const proposalCreated = (await tx.events!.find((e) => e.name === 'ProposalCreated')).args as ProposalCreated;
-        proposalId = new BN(proposalCreated.proposalId.toString());
+        transactions = [
+          {
+            callee: token.address,
+            selector: params0.selector,
+            input: params0.data,
+            transferredValue: 0,
+          },
+        ];
+        proposalId = await proposeAndCheck(governor, voters[0], transactions, description);
       });
 
       describe(`proposal is finalized with Succeeded`, () => {

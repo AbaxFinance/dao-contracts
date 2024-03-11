@@ -171,20 +171,17 @@ impl GovernData {
                 + self.rules().initial_period
                 + self.rules().flat_period
                 + self.rules().final_period;
-        if voting_period_is_over
-            && state.votes_for == 0
-            && state.votes_against == 0
-            && state.votes_against_with_slash == 0
-        {
-            state.status = ProposalStatus::Defeated;
-        } else if state.votes_against + state.votes_against_with_slash > state.votes_for {
-            if state.votes_against_with_slash >= state.votes_against + state.votes_for {
+
+        if state.votes_against + state.votes_against_with_slash >= state.votes_for {
+            if state.votes_against_with_slash > state.votes_against + state.votes_for {
                 state.status = ProposalStatus::DefeatedWithSlash;
             } else {
                 state.status = ProposalStatus::Defeated;
             }
-        } else {
+        } else if state.votes_for > state.votes_against + state.votes_against_with_slash {
             state.status = ProposalStatus::Succeeded;
+        } else {
+            state.status = ProposalStatus::Defeated;
         }
 
         let is_post_flat_period =
