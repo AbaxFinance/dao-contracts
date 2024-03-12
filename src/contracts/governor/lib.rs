@@ -22,7 +22,7 @@ pub use traits::*;
 ///
 /// Contract is using pendzl Access Control to manage access to the messages
 
-// #[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl)]
+#[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl)]
 #[ink::contract]
 mod governor {
     pub use super::*;
@@ -418,23 +418,14 @@ mod governor {
                 ink::env::debug_println!("{:?}", tx.selector);
                 ink::env::debug_println!("{:?}", tx.input);
                 let call = tx.clone().build_call();
-                let res = match call.try_invoke() {
-                    Ok(value) => match value {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e))
-                        }
-                    },
-                    Err(e) => match e {
-                        ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
-                            ink::env::format!("Decode Error {:?}", err),
-                        ),
-                        _ => {
-                            GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e))
-                        }
-                    },
-                }?;
+                let result = call.try_invoke().map_err(|e| match e {
+                    ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
+                        ink::env::format!("Deeecooode {:?}", err),
+                    ),
+                    _ => GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e)),
+                });
                 self.load();
+                result?.unwrap();
             }
 
             ink::env::emit_event::<DefaultEnvironment, ProposalExecuted>(ProposalExecuted {
