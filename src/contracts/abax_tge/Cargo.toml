@@ -9,6 +9,7 @@ ink = { version = "=5.0.0-rc", default-features = false }
 
 scale = { package = "parity-scale-codec", version = "3.6", default-features = false, features = [
     "derive",
+    "chain-error"
 ] }
 scale-info = { version = "2.10", default-features = false, features = [
     "derive",

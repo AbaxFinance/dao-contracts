@@ -35,14 +35,7 @@ mod governor {
         finalization::minimum_to_finalize,
         hashes::{hash_description, hash_proposal},
     };
-    use ink::{
-        codegen::Env,
-        env::{
-            call::{build_call, ExecutionInput},
-            CallFlags, DefaultEnvironment,
-        },
-        ToAccountId,
-    };
+    use ink::{codegen::Env, env::DefaultEnvironment, ToAccountId};
 
     use pendzl::contracts::finance::general_vest::{
         ExternalTimeConstraint, ProvideVestScheduleInfo,
@@ -424,24 +417,15 @@ mod governor {
                 ink::env::debug_println!("{:?}", tx.callee);
                 ink::env::debug_println!("{:?}", tx.selector);
                 ink::env::debug_println!("{:?}", tx.input);
-
-                let result = build_call::<DefaultEnvironment>()
-                    .call(tx.callee)
-                    .transferred_value(tx.transferred_value)
-                    .exec_input(ExecutionInput::new(tx.selector.into()).push_arg(&tx.input))
-                    .call_flags(CallFlags::default().set_allow_reentry(true))
-                    .returns::<()>()
-                    .try_invoke()
-                    .map_err(|e| match e {
-                        ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
-                            ink::env::format!("Deeecooode {:?}", err),
-                        ),
-                        _ => {
-                            GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e))
-                        }
-                    });
+                let call = tx.clone().build_call();
+                let result = call.try_invoke().map_err(|e| match e {
+                    ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
+                        ink::env::format!("Deeecooode {:?}", err),
+                    ),
+                    _ => GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e)),
+                });
                 self.load();
-                result?.unwrap()
+                result?.unwrap();
             }
 
             ink::env::emit_event::<DefaultEnvironment, ProposalExecuted>(ProposalExecuted {

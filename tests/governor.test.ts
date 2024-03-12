@@ -69,7 +69,7 @@ async function proposeAndCheck(
             ...t,
             callee: t.callee.toString(),
             transferredValue: t.transferredValue.toString(),
-            input: '0x' + t.input.toString(),
+            input: '0x' + numbersToHex(t.input),
             selector: '0x' + numbersToHex(t.selector),
           })),
         )
@@ -905,7 +905,7 @@ describe.only('Governor', () => {
             });
           });
         });
-        describe.only('that have no params', () => {
+        describe('that have no params', () => {
           let flipper: FlipperContract;
           beforeEach(async () => {
             const api = await localApi.get();
