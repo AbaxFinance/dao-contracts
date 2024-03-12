@@ -889,21 +889,17 @@ describe('Governor', () => {
             proposal = { descriptionHash, transactions, earliestExecution: null };
           });
 
-          describe(`proposal is finalized with state Succeeded`, () => {
-            beforeEach(async () => {
-              await finalize();
-            });
-            it('user0 executes Succeded proposal with Tx', async () => {
-              await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
-              const query = governor.withSigner(voters[0]).query.execute(proposal);
-              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
-              await expect(query).to.haveOkResult();
-              const res = await tx;
+          it('user0 executes proposal succesfully', async () => {
+            await finalize();
+            await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+            const query = governor.withSigner(voters[0]).query.execute(proposal);
+            const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+            await expect(query).to.haveOkResult();
+            await tx;
 
-              await expect(await token.query.allowance(governor.address, voters[0].address)).to.haveOkResult(E12bn);
-              await expect(await token.query.allowance(governor.address, voters[1].address)).to.haveOkResult(E12bn.muln(2));
-              await expect(token.query.allowance(governor.address, voters[2].address)).to.haveOkResult(E12bn.muln(3));
-            });
+            await expect(await token.query.allowance(governor.address, voters[0].address)).to.haveOkResult(E12bn);
+            await expect(await token.query.allowance(governor.address, voters[1].address)).to.haveOkResult(E12bn.muln(2));
+            await expect(token.query.allowance(governor.address, voters[2].address)).to.haveOkResult(E12bn.muln(3));
           });
         });
         describe('that have no params', () => {
@@ -937,25 +933,20 @@ describe('Governor', () => {
             [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
             proposal = { descriptionHash, transactions, earliestExecution: null };
           });
-
-          describe(`proposal is finalized with state Succeeded`, () => {
-            beforeEach(async () => {
-              await finalize();
+          it('user0 executes proposal succesfully', async () => {
+            await finalize();
+            let eventsCounter = 0;
+            flipper.events.subscribeOnFlippedEvent(() => {
+              eventsCounter++;
             });
-            it('user0 executes Succeded proposal with Tx', async () => {
-              let eventsCounter = 0;
-              flipper.events.subscribeOnFlippedEvent(() => {
-                eventsCounter++;
-              });
 
-              await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
-              const query = governor.withSigner(voters[0]).query.execute(proposal);
-              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
-              await expect(query).to.haveOkResult();
-              await expect(tx).to.eventually.be.fulfilled;
-              expect(eventsCounter).to.be.equal(3);
-              expect((await flipper.query.get()).value.unwrapRecursively()).to.equal(true);
-            });
+            await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+            const query = governor.withSigner(voters[0]).query.execute(proposal);
+            const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+            await expect(query).to.haveOkResult();
+            await expect(tx).to.eventually.be.fulfilled;
+            expect(eventsCounter).to.be.equal(3);
+            expect((await flipper.query.get()).value.unwrapRecursively()).to.equal(true);
           });
           describe('handles errors properly', () => {
             beforeEach(async () => {
@@ -986,25 +977,21 @@ describe('Governor', () => {
               proposal = { descriptionHash, transactions, earliestExecution: null };
             });
 
-            describe(`proposal is finalized with state Succeeded`, () => {
-              beforeEach(async () => {
-                await finalize();
+            it('user0 executes Succeded proposal with Tx but it fails due to error returned from the contract called via proposal tx', async () => {
+              await finalize();
+              let eventsCounter = 0;
+              flipper.events.subscribeOnFlippedEvent(() => {
+                eventsCounter++;
               });
-              it('user0 executes Succeded proposal with Tx but it fails due to error returned from the contract called via proposal tx', async () => {
-                let eventsCounter = 0;
-                flipper.events.subscribeOnFlippedEvent(() => {
-                  eventsCounter++;
-                });
 
-                await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
-                const query = governor.withSigner(voters[0]).query.execute(proposal);
-                const tx = governor.withSigner(voters[0]).tx.execute(proposal);
-                await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('TODO'));
-                await expect(tx).to.eventually.be.rejected;
-                await tx;
-                expect(eventsCounter).to.equal(0);
-                expect((await flipper.query.get()).value.unwrap()).to.equal(false);
-              });
+              await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+              const query = governor.withSigner(voters[0]).query.execute(proposal);
+              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+              await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('TODO'));
+              await expect(tx).to.eventually.be.rejected;
+              await tx;
+              expect(eventsCounter).to.equal(0);
+              expect((await flipper.query.get()).value.unwrap()).to.equal(false);
             });
           });
           describe('handles panics properly', () => {
@@ -1036,24 +1023,20 @@ describe('Governor', () => {
               proposal = { descriptionHash, transactions, earliestExecution: null };
             });
 
-            describe(`proposal is finalized with state Succeeded`, () => {
-              beforeEach(async () => {
-                await finalize();
+            it('user0 executes Succeded proposal with Tx but it fails due to the contract called via proposal tx panicking', async () => {
+              await finalize();
+              let eventsCounter = 0;
+              flipper.events.subscribeOnFlippedEvent(() => {
+                eventsCounter++;
               });
-              it('user0 executes Succeded proposal with Tx but it fails due to the contract called via proposal tx panicking', async () => {
-                let eventsCounter = 0;
-                flipper.events.subscribeOnFlippedEvent(() => {
-                  eventsCounter++;
-                });
 
-                await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
-                const query = governor.withSigner(voters[0]).query.execute(proposal);
-                const tx = governor.withSigner(voters[0]).tx.execute(proposal);
-                await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('CalleeTrapped'));
-                await expect(tx).to.eventually.be.rejected;
-                expect(eventsCounter).to.equal(0);
-                expect((await flipper.query.get()).value.ok).to.equal(false);
-              });
+              await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+              const query = governor.withSigner(voters[0]).query.execute(proposal);
+              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+              await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('CalleeTrapped'));
+              await expect(tx).to.eventually.be.rejected;
+              expect(eventsCounter).to.equal(0);
+              expect((await flipper.query.get()).value.ok).to.equal(false);
             });
           });
         });
