@@ -727,7 +727,7 @@ describe('Governor', () => {
             );
           });
         });
-        describe(`proposal is finalized with Succeeded`, () => {
+        describe(`proposal is finalized with state Succeeded`, () => {
           beforeEach(async () => {
             await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
             await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
@@ -752,7 +752,7 @@ describe('Governor', () => {
           beforeEach(async () => {
             await time.increase(duration.days(2));
           });
-          describe(`proposal is finalized with Succeeded`, () => {
+          describe(`proposal is finalized with state Succeeded`, () => {
             beforeEach(async () => {
               await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
               await governor.withSigner(voters[1]).tx.vote(proposalId, Vote.agreed, []);
@@ -805,7 +805,7 @@ describe('Governor', () => {
           beforeEach(async () => {
             await time.increase(duration.days(2));
           });
-          describe(`proposal is finalized with Succeeded`, () => {
+          describe(`proposal is finalized with state Succeeded`, () => {
             beforeEach(async () => {
               await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
               await governor.withSigner(voters[1]).tx.vote(proposalId, Vote.agreed, []);
@@ -853,6 +853,7 @@ describe('Governor', () => {
         let transactions: Transaction[];
         const finalize = async () => {
           await governor.withSigner(voters[0]).tx.vote(proposalId, Vote.agreed, []);
+          await governor.withSigner(voters[1]).tx.vote(proposalId, Vote.agreed, []);
           await governor.withSigner(voters[2]).tx.vote(proposalId, Vote.agreed, []);
           await governor.withSigner(voters[3]).tx.vote(proposalId, Vote.agreed, []);
           await time.increase(9 * duration.days(1));
@@ -888,7 +889,7 @@ describe('Governor', () => {
             proposal = { descriptionHash, transactions, earliestExecution: null };
           });
 
-          describe(`proposal is finalized with Succeeded`, () => {
+          describe(`proposal is finalized with state Succeeded`, () => {
             beforeEach(async () => {
               await finalize();
             });
@@ -911,25 +912,24 @@ describe('Governor', () => {
             const api = await localApi.get();
             const { contract: flipperC } = await new FlipperDeployer(api, deployer).new(false);
             flipper = flipperC;
-            const message0 = flipper.abi.findMessage('flip');
-            const params0 = paramsToInputNumbers(message0.toU8a([]));
+            const flipMessageParams = paramsToInputNumbers(flipper.abi.findMessage('flip').toU8a([]));
             transactions = [
               {
                 callee: flipper.address,
-                selector: params0.selector,
-                input: params0.data,
+                selector: flipMessageParams.selector,
+                input: flipMessageParams.data,
                 transferredValue: 0,
               },
               {
                 callee: flipper.address,
-                selector: params0.selector,
-                input: params0.data,
+                selector: flipMessageParams.selector,
+                input: flipMessageParams.data,
                 transferredValue: 0,
               },
               {
                 callee: flipper.address,
-                selector: params0.selector,
-                input: params0.data,
+                selector: flipMessageParams.selector,
+                input: flipMessageParams.data,
                 transferredValue: 0,
               },
             ];
@@ -938,7 +938,7 @@ describe('Governor', () => {
             proposal = { descriptionHash, transactions, earliestExecution: null };
           });
 
-          describe(`proposal is finalized with Succeeded`, () => {
+          describe(`proposal is finalized with state Succeeded`, () => {
             beforeEach(async () => {
               await finalize();
             });
@@ -953,9 +953,107 @@ describe('Governor', () => {
               const tx = governor.withSigner(voters[0]).tx.execute(proposal);
               await expect(query).to.haveOkResult();
               await expect(tx).to.eventually.be.fulfilled;
-              await tx;
-              expect(eventsCounter).to.equal(3);
-              expect((await flipper.query.get()).value.unwrap()).to.equal(false);
+              expect(eventsCounter).to.be.equal(3);
+              expect((await flipper.query.get()).value.unwrapRecursively()).to.equal(true);
+            });
+          });
+          describe('handles errors properly', () => {
+            beforeEach(async () => {
+              const flipMessageParams = paramsToInputNumbers(flipper.abi.findMessage('flip').toU8a([]));
+              const erroringMessageParams = paramsToInputNumbers(flipper.abi.findMessage('return_error').toU8a([]));
+              transactions = [
+                {
+                  callee: flipper.address,
+                  selector: flipMessageParams.selector,
+                  input: flipMessageParams.data,
+                  transferredValue: 0,
+                },
+                {
+                  callee: flipper.address,
+                  selector: erroringMessageParams.selector,
+                  input: erroringMessageParams.data,
+                  transferredValue: 0,
+                },
+                {
+                  callee: flipper.address,
+                  selector: flipMessageParams.selector,
+                  input: flipMessageParams.data,
+                  transferredValue: 0,
+                },
+              ];
+
+              [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
+              proposal = { descriptionHash, transactions, earliestExecution: null };
+            });
+
+            describe(`proposal is finalized with state Succeeded`, () => {
+              beforeEach(async () => {
+                await finalize();
+              });
+              it('user0 executes Succeded proposal with Tx but it fails due to error returned from the contract called via proposal tx', async () => {
+                let eventsCounter = 0;
+                flipper.events.subscribeOnFlippedEvent(() => {
+                  eventsCounter++;
+                });
+
+                await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+                const query = governor.withSigner(voters[0]).query.execute(proposal);
+                const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+                await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('TODO'));
+                await expect(tx).to.eventually.be.rejected;
+                await tx;
+                expect(eventsCounter).to.equal(0);
+                expect((await flipper.query.get()).value.unwrap()).to.equal(false);
+              });
+            });
+          });
+          describe('handles panics properly', () => {
+            beforeEach(async () => {
+              const flipMessageParams = paramsToInputNumbers(flipper.abi.findMessage('flip').toU8a([]));
+              const panickingMessageParams = paramsToInputNumbers(flipper.abi.findMessage('do_panic').toU8a([]));
+              transactions = [
+                {
+                  callee: flipper.address,
+                  selector: flipMessageParams.selector,
+                  input: flipMessageParams.data,
+                  transferredValue: 0,
+                },
+                {
+                  callee: flipper.address,
+                  selector: panickingMessageParams.selector,
+                  input: panickingMessageParams.data,
+                  transferredValue: 0,
+                },
+                {
+                  callee: flipper.address,
+                  selector: flipMessageParams.selector,
+                  input: flipMessageParams.data,
+                  transferredValue: 0,
+                },
+              ];
+
+              [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
+              proposal = { descriptionHash, transactions, earliestExecution: null };
+            });
+
+            describe(`proposal is finalized with state Succeeded`, () => {
+              beforeEach(async () => {
+                await finalize();
+              });
+              it('user0 executes Succeded proposal with Tx but it fails due to the contract called via proposal tx panicking', async () => {
+                let eventsCounter = 0;
+                flipper.events.subscribeOnFlippedEvent(() => {
+                  eventsCounter++;
+                });
+
+                await governor.withSigner(deployer).tx.grantRole(ContractRoles.EXECUTOR, voters[0].address);
+                const query = governor.withSigner(voters[0]).query.execute(proposal);
+                const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+                await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('CalleeTrapped'));
+                await expect(tx).to.eventually.be.rejected;
+                expect(eventsCounter).to.equal(0);
+                expect((await flipper.query.get()).value.ok).to.equal(false);
+              });
             });
           });
         });

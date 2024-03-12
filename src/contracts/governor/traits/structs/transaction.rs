@@ -1,41 +1,19 @@
 use crate::Vec;
-use ink::env::{
-    call::{
-        build_call,
-        utils::{Argument, ArgumentList, EmptyArgumentList},
-        Call, CallParams, ExecutionInput,
-    },
-    CallFlags, DefaultEnvironment, Environment,
-};
 
 #[derive(Debug, Clone, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(
     feature = "std",
     derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
 )]
-pub struct Transaction<E: Environment = DefaultEnvironment> {
+pub struct Transaction {
     /// The `AccountId` of the contract that is called in this transaction.
-    pub callee: E::AccountId,
+    pub callee: AccountId,
     /// The selector bytes that identifies the function of the callee that should be called.
     pub selector: [u8; 4],
     /// The SCALE encoded parameters that are passed to the called function.
     pub input: Vec<u8>,
     /// The amount of chain balance that is transferred to the callee.
-    pub transferred_value: E::Balance,
-}
-
-type Args = ArgumentList<Argument<OpaqueTypes>, EmptyArgumentList>;
-
-impl<E: Environment> Transaction<E> {
-    pub fn build_call(self) -> CallParams<E, Call<E>, Args, OpaqueTypes> {
-        build_call::<E>()
-            .call(self.callee)
-            .transferred_value(self.transferred_value)
-            .call_flags(CallFlags::default().set_allow_reentry(true))
-            .exec_input(ExecutionInput::new(self.selector.into()).push_arg(OpaqueTypes(self.input)))
-            .returns::<OpaqueTypes>()
-            .params()
-    }
+    pub transferred_value: Balance,
 }
 
 #[cfg_attr(
@@ -81,6 +59,8 @@ impl scale::Decode for OpaqueTypes {
                 }
             }
         };
+
+        ink::env::debug_println!("Decoded OpaqueTypes: {:?}", bytes);
 
         Ok(OpaqueTypes(bytes))
     }

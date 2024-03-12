@@ -127,10 +127,10 @@ dependencies:
     version: 5.4.2
   wookashwackomytest-pendzl-tests:
     specifier: ^0.0.7
-    version: 0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.60)
+    version: 0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.61)
   wookashwackomytest-polkahat-chai-matchers:
-    specifier: ^0.0.60
-    version: 0.0.60(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
+    specifier: ^0.0.61
+    version: 0.0.61(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
   wookashwackomytest-polkahat-network-helpers:
     specifier: ^0.0.6
     version: 0.0.6(@polkadot/util@12.6.2)
@@ -5741,7 +5741,7 @@ packages:
       isexe: 2.0.0
     dev: false
 
-  /wookashwackomytest-pendzl-tests@0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.60):
+  /wookashwackomytest-pendzl-tests@0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.61):
     resolution: {integrity: sha512-i8dQ1KlfKtAYhBvqyNWyoHQZhDTLI5F8HerIMHiOR9pUP75U3EuUFTKBpqwMJ42ECImfxwsNUbktzLJW6zzXYQ==}
     peerDependencies:
       chai: ^4.2.0
@@ -5760,7 +5760,7 @@ packages:
       deep-eql: 4.1.3
       ordinal: 1.0.3
       rxjs: 7.8.1
-      wookashwackomytest-polkahat-chai-matchers: 0.0.60(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
+      wookashwackomytest-polkahat-chai-matchers: 0.0.61(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
       wookashwackomytest-polkahat-network-helpers: 0.0.1(@polkadot/util@12.6.2)
       wookashwackomytest-typechain-types: 0.0.37
     transitivePeerDependencies:
@@ -5769,13 +5769,13 @@ packages:
       - utf-8-validate
     dev: false
 
-  /wookashwackomytest-polkahat-chai-matchers@0.0.60(@polkadot/util-crypto@12.6.2)(chai@4.4.1):
-    resolution: {integrity: sha512-HZ2LUSDO/a+rWVpG1VVimReA+sQwUDwHm74zCGDg1jIAvCyfCy3e82dfhY4Z/25gQ3PU9o1ATOU/2Fy6IunKMg==}
+  /wookashwackomytest-polkahat-chai-matchers@0.0.61(@polkadot/util-crypto@12.6.2)(chai@4.4.1):
+    resolution: {integrity: sha512-lARss+EsdM644fuxc+/K+J63W9Q7LsVcCKfxCQN1+M2nwHWGu19m5tduI9hsuuiB7Dqpe2ojWQa3F4WN2h9MuA==}
     peerDependencies:
       chai: ^4.2.0
     dependencies:
       '@polkadot/api': 10.12.2
-      '@polkadot/api-augment': 10.11.2
+      '@polkadot/api-augment': 10.12.2
       '@polkadot/api-contract': 10.12.2
       '@polkadot/keyring': 12.6.2(@polkadot/util-crypto@12.6.2)(@polkadot/util@12.6.2)
       '@polkadot/types': 10.12.2

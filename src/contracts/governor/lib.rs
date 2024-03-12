@@ -417,15 +417,44 @@ mod governor {
                 ink::env::debug_println!("{:?}", tx.callee);
                 ink::env::debug_println!("{:?}", tx.selector);
                 ink::env::debug_println!("{:?}", tx.input);
-                let call = tx.clone().build_call();
-                let result = call.try_invoke().map_err(|e| match e {
-                    ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
-                        ink::env::format!("Deeecooode {:?}", err),
-                    ),
-                    _ => GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e)),
-                });
+                // let call = tx.clone().build_call();
+                let call = ink::env::call::build_call::<DefaultEnvironment>()
+                    .call(tx.callee)
+                    .transferred_value(tx.transferred_value)
+                    .call_flags(ink::env::CallFlags::default().set_allow_reentry(true))
+                    .exec_input(
+                        ink::env::call::ExecutionInput::new(tx.selector.into())
+                            .push_arg(OpaqueTypes(tx.input.clone())),
+                    )
+                    .returns::<OpaqueTypes>()
+                    .try_invoke();
+                // .map_err(|e| match e {
+                //     ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
+                //         ink::env::format!("Deeecooode {:?}", err),
+                //     ),
+                //     _ => {
+                //         GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e))
+                //     }
+                // });
+                match call {
+                    Ok(contract_res) => match contract_res {
+                        Ok(_) => Ok(()),
+                        Err(e) => Err(GovernError::UnderlyingTransactionReverted(
+                            ink::env::format!("{:?}", e),
+                        )),
+                    },
+                    Err(e) => match e {
+                        ink::env::Error::Decode(err) => {
+                            Err(GovernError::UnderlyingTransactionReverted(
+                                ink::env::format!("Decode Error: {:?}", err),
+                            ))
+                        }
+                        _ => Err(GovernError::UnderlyingTransactionReverted(
+                            ink::env::format!("{:?}", e),
+                        )),
+                    },
+                }?;
                 self.load();
-                result?.unwrap();
             }
 
             ink::env::emit_event::<DefaultEnvironment, ProposalExecuted>(ProposalExecuted {
