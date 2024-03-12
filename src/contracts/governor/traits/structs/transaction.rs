@@ -38,15 +38,7 @@ impl<E: Environment> Transaction<E> {
     }
 }
 
-#[cfg_attr(
-    feature = "std",
-    derive(
-        PartialEq,
-        Eq,
-        scale_info::TypeInfo,
-        ink::storage::traits::StorageLayout
-    )
-)]
+#[cfg_attr(feature = "std", derive(PartialEq, Eq, TypeInfo, StorageLayout))]
 #[derive(Clone, Debug)]
 pub struct OpaqueTypes(pub Vec<u8>);
 
