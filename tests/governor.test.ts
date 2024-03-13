@@ -307,6 +307,10 @@ describe('Governor', () => {
         it('user is able to finalize succesfully', async () => {
           await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.succeeded);
         });
+        it('same proposal cannot be finalized multiple times', async () => {
+          await finalizeAndCheck(governor, voters[0], proposalId, ProposalStatus.succeeded);
+          await finalizeAndCheck(governor, voters[0], proposalId, GovernErrorBuilder.WrongStatus());
+        });
       });
       describe(`all stakers votes for 'disagree`, () => {
         beforeEach(async () => {
