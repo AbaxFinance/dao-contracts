@@ -4,5 +4,6 @@ members = [
     "contracts/governor",
     "contracts/abax_token",
     "contracts/test_purpose/*",
+    "contracts/abax_treasury",
 ]
 resolver = "2"

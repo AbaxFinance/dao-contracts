@@ -132,8 +132,8 @@ dependencies:
     specifier: ^0.0.61
     version: 0.0.61(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
   wookashwackomytest-polkahat-network-helpers:
-    specifier: ^0.0.6
-    version: 0.0.6(@polkadot/util@12.6.2)
+    specifier: ^0.0.8
+    version: 0.0.8(@polkadot/util@12.6.2)
   wookashwackomytest-typechain-compiler:
     specifier: 0.0.38
     version: 0.0.38(@types/node@20.11.25)(typescript@5.4.2)
@@ -5807,8 +5807,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /wookashwackomytest-polkahat-network-helpers@0.0.6(@polkadot/util@12.6.2):
-    resolution: {integrity: sha512-jp7TgKN3849BHVEOrogV8sAbcDVbYfTY4DTyHkBDdvW61CWW9tU1afxeQrM8iG9/T5d695OuMuxBthY1Y7n8kA==}
+  /wookashwackomytest-polkahat-network-helpers@0.0.8(@polkadot/util@12.6.2):
+    resolution: {integrity: sha512-3TcHE1gfuAMXNeUpoVU9hsnwBBAehfdXRFw+AvKKf/xSqsxGWmzbvYYTev5Ecf2GzK/0nsN+WShOIM4qluFaog==}
     dependencies:
       '@polkadot/util-crypto': 12.6.2(@polkadot/util@12.6.2)
       '@types/bn.js': 5.1.5

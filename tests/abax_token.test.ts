@@ -206,7 +206,7 @@ describe('AbaxToken', () => {
     });
   });
 
-  describe.only(`upgradeability`, () => {
+  describe(`upgradeability`, () => {
     let codeHash: string;
     beforeEach(async () => {
       const abaxTokenV2 = (await new AbaxTokenV2Deployer(await localApi.get(), deployer).new('NAME', 'SYMBOL', ABAX_DECIMALS)).contract;

@@ -7,6 +7,7 @@ export const ONE_YEAR = ONE_DAY.mul(new BN(365));
 export const MAX_U128 = '340282366920938463463374607431768211455';
 
 export enum ContractRole {
+  DEFAULT_ADMIN = 0,
   GLOBAL_ADMIN = 2_459_877_095,
   TREASURY = 2_434_241_257,
   MINTER = 4_254_773_782,
@@ -17,6 +18,8 @@ export enum ContractRole {
   FINALIZER = 3_361_999_854,
   GENERATOR = 3_883_411_479,
   CODE_UPDATER = 737462621,
+  SPENDER = 3_684_413_446,
+  CANCELLER = 4_141_332_106,
 }
 
 export const ContractRoleNames = [
@@ -37,4 +40,6 @@ export const AllAbaxDAORoleNames = [...ContractRoleNames, ...AbaxDAOSpecificRole
 
 export enum AbaxDAOSpecificRoles {
   STAKEDROP_ADMIN = 4_193_574_647,
+  CANCELLER = 4_141_332_106,
+  SPENDER = 3_684_413_446,
 }

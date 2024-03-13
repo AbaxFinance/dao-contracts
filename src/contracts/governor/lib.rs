@@ -51,6 +51,7 @@ mod governor {
 
     const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR");
     const CODE_UPDATER: RoleType = ink::selector_id!("CODE_UPDATER");
+    pub const PARAMETERS_ADMIN: RoleType = ink::selector_id!("PARAMETERS_ADMIN"); // 368_001_360_u32
 
     #[derive(StorageFieldGetter)]
     #[ink(storage)]
@@ -236,7 +237,7 @@ mod governor {
     impl AbaxGovernManage for Governor {
         #[ink(message)]
         fn change_voting_rules(&mut self, rules: VotingRules) -> Result<(), GovernError> {
-            self._ensure_has_role(Self::_default_admin(), Some(self.env().caller()))?;
+            self._ensure_has_role(PARAMETERS_ADMIN, Some(self.env().caller()))?;
             self.govern.change_rule(&rules);
             Ok(())
         }

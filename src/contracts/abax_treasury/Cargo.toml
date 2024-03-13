@@ -1,0 +1,50 @@
+[package]
+name = "abax_treasury"
+version = "0.1.1"
+authors = [""]
+edition = "2021"
+
+[dependencies]
+ink = { version = "=5.0.0-rc", default-features = false }
+
+scale = { package = "parity-scale-codec", version = "3.6", default-features = false, features = [
+    "derive",
+] }
+scale-info = { version = "2.10", default-features = false, features = [
+    "derive",
+], optional = true }
+
+
+pendzl = { version = "0.1.0-beta4", default-features = false, features = [
+    "psp22",
+    "general_vest",
+    "access_control_impl",
+] }
+
+
+[lib]
+name = "abax_treasury"
+path = "lib.rs"
+
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info",
+    "scale-info/std",
+
+    # These dependencies
+    "pendzl/std",
+]
+ink-as-dependency = []
+e2e-tests = []
+
+[profile.dev]
+codegen-units = 16
+panic = "abort"
+lto = false
+[profile.release]
+panic = "abort"
+lto = false
