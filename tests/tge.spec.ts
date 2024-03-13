@@ -1,7 +1,7 @@
 import { ReturnPromiseType } from '@abaxfinance/utils';
 import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
-import { ABAX_DECIMALS, AZERO_DECIMALS, ContractRoles } from 'tests/consts';
+import { ABAX_DECIMALS, AZERO_DECIMALS, AbaxDAOSpecificRoles, ContractRole } from 'tests/consts';
 import { getTgeParams } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
 import { getApiPreAndPostTx } from 'tests/setup/queryAt';
@@ -147,7 +147,7 @@ async function deployTGE(
     stakedropAdmin.address,
   );
 
-  await abaxToken.withSigner(admin).tx.grantRole(ContractRoles.GENERATOR, res.contract.address);
+  await abaxToken.withSigner(admin).tx.grantRole(ContractRole.GENERATOR, res.contract.address);
   const initTx = await res.contract.withSigner(admin).tx.init();
 
   return { contract: res.contract, initTx: initTx };
@@ -224,7 +224,7 @@ describe.skip('TGE', () => {
       await expect(tge.query.hasRole(0, admin.address)).to.haveOkResult(true);
     });
     it('should assign STAKEDROP_ADMIN role to stakedropAdmin', async function () {
-      await expect(tge.query.hasRole(ContractRoles.STAKEDROP_ADMIN, stakedropAdmin.address)).to.haveOkResult(true);
+      await expect(tge.query.hasRole(AbaxDAOSpecificRoles.STAKEDROP_ADMIN, stakedropAdmin.address)).to.haveOkResult(true);
     });
   });
   describe('messages', () => {

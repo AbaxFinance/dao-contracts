@@ -1,12 +1,16 @@
+import { blake2AsU8a } from '@polkadot/util-crypto';
 import BN from 'bn.js';
-import { ABAX_DECIMALS, ContractRoles, ONE_YEAR } from 'tests/consts';
+import { ABAX_DECIMALS, AbaxDAOSpecificRoleNames, AllAbaxDAORoleNames, ContractRole, ContractRoleNames, ONE_YEAR } from 'tests/consts';
 import { expect } from 'tests/setup/chai';
 import AbaxToken from 'typechain/contracts/abax_token';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
 import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import type { KeyringPair } from '@polkadot/keyring/types';
+import AbaxTokenV2Deployer from 'typechain/deployers/abax_token_v2';
+import { testAccessControlForMessage } from 'tests/misc';
 
-const [deployer, updater, minter, generator, other] = getSigners();
+const [deployer, codeAdmin, minter, generator, other] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
 
 describe('AbaxToken', () => {
@@ -14,13 +18,13 @@ describe('AbaxToken', () => {
   beforeEach(async () => {
     const api = await localApi.get();
     abaxToken = (await new AbaxTokenDeployer(api, deployer).new('NAME', 'SYMBOL', ABAX_DECIMALS)).contract;
-    await abaxToken.withSigner(deployer).tx.grantRole(ContractRoles.MINTER, minter.address);
-    await abaxToken.withSigner(deployer).tx.grantRole(ContractRoles.UPDATER, updater.address);
-    await abaxToken.withSigner(deployer).tx.grantRole(ContractRoles.GENERATOR, generator.address);
+    await abaxToken.withSigner(deployer).tx.grantRole(ContractRole.MINTER, minter.address);
+    await abaxToken.withSigner(deployer).tx.grantRole(ContractRole.CODE_UPDATER, codeAdmin.address);
+    await abaxToken.withSigner(deployer).tx.grantRole(ContractRole.GENERATOR, generator.address);
 
-    await expect(abaxToken.query.hasRole(ContractRoles.MINTER, minter.address)).to.haveOkResult(true);
-    await expect(abaxToken.query.hasRole(ContractRoles.UPDATER, updater.address)).to.haveOkResult(true);
-    await expect(abaxToken.query.hasRole(ContractRoles.GENERATOR, generator.address)).to.haveOkResult(true);
+    await expect(abaxToken.query.hasRole(ContractRole.MINTER, minter.address)).to.haveOkResult(true);
+    await expect(abaxToken.query.hasRole(ContractRole.CODE_UPDATER, codeAdmin.address)).to.haveOkResult(true);
+    await expect(abaxToken.query.hasRole(ContractRole.GENERATOR, generator.address)).to.haveOkResult(true);
   });
 
   describe('after deployment', () => {
@@ -45,15 +49,14 @@ describe('AbaxToken', () => {
   });
 
   describe('generate', () => {
+    testAccessControlForMessage(['GENERATOR'], AllAbaxDAORoleNames, () => ({
+      contract: abaxToken,
+      method: 'generate',
+      args: [other.address, 100],
+      admin: deployer,
+      signer: codeAdmin,
+    }));
     describe('when called by generator', () => {
-      describe('when called by non-generator', () => {
-        it('should fail', async () => {
-          const amount = new BN(100);
-          for (const caller of [deployer, updater, minter, other]) {
-            await expect(abaxToken.query.generate(other.address, amount)).to.be.revertedWithError({ custom: 'AC::MissingRole' });
-          }
-        });
-      });
       describe('when called by generator', () => {
         let tx: Promise<SignAndSendSuccessResponse>;
         const amount = ONE_TOKEN.muln(100);
@@ -154,7 +157,7 @@ describe('AbaxToken', () => {
     describe('when called by non-minter', () => {
       it('should fail', async () => {
         const amount = new BN(100);
-        for (const signer of [deployer, updater, generator, other]) {
+        for (const signer of [deployer, codeAdmin, generator, other]) {
           await expect(abaxToken.withSigner(signer).query.mint(other.address, amount)).to.be.revertedWithError({ custom: 'AC::MissingRole' });
         }
       });
@@ -201,6 +204,30 @@ describe('AbaxToken', () => {
           });
         });
       });
+    });
+  });
+
+  describe.only(`upgradeability`, () => {
+    let codeHash: string;
+    beforeEach(async () => {
+      const abaxTokenV2 = (await new AbaxTokenV2Deployer(await localApi.get(), deployer).new('NAME', 'SYMBOL', ABAX_DECIMALS)).contract;
+      const api = await localApi.get();
+      const res = (await api.query.contracts.contractInfoOf(abaxTokenV2.address)).toHuman() as { codeHash: string };
+      codeHash = res.codeHash;
+    });
+
+    testAccessControlForMessage(['CODE_UPDATER'], AllAbaxDAORoleNames, () => ({
+      contract: abaxToken,
+      method: 'setCodeHash',
+      args: [codeHash],
+      admin: deployer,
+      signer: codeAdmin,
+    }));
+    it('should revert when hash is invalid', async () => {
+      await expect(abaxToken.withSigner(codeAdmin).query.setCodeHash(codeHash.slice(0, -5) + '00000')).to.eventually.be.rejected;
+    });
+    it('should persist state after upgrade', async () => {
+      await abaxToken.withSigner(codeAdmin).tx.setCodeHash(codeHash);
     });
   });
 });

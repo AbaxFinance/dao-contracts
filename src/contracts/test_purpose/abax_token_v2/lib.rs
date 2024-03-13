@@ -4,8 +4,10 @@ pub mod modules;
 
 #[pendzl::implementation(PSP22, PSP22Metadata, AccessControl)]
 #[ink::contract]
-pub mod abax_token {
-    use crate::modules::capped_infaltion_storage_field::CappedInflation;
+pub mod abax_token_v2 {
+    use crate::modules::{
+        capped_infaltion_storage_field::CappedInflation, new_storage_field::NewStorageField,
+    };
     use ink::prelude::string::String;
     use pendzl::contracts::token::psp22::{
         extensions::mintable::PSP22Mintable, implementation::PSP22InternalDefaultImpl, PSP22Error,
@@ -34,6 +36,10 @@ pub mod abax_token {
         metadata: PSP22MetadataData,
         #[storage_field]
         capped_inflation: CappedInflation,
+        #[storage_field]
+        new_field: NewStorageField,
+        #[storage_field]
+        counter: u32,
     }
 
     #[overrider(PSP22Internal)]
@@ -83,8 +89,6 @@ pub mod abax_token {
         // increases the inflation rate  by the 10% of the `amount` per year
         #[ink(message)]
         fn generate(&mut self, to: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            ink::env::debug_println!("GENERATOR {:?}", GENERATOR);
-            ink::env::debug_println!("CODE_UPDATER {:?}", CODE_UPDATER);
             self._ensure_has_role(GENERATOR, Some(self.env().caller()))?;
             self._inflate_cap();
             let delta_inflation = amount / YEAR / 10;

@@ -1,0 +1,52 @@
+[package]
+name = "abax_token_v2"
+version = "0.1.1"
+authors = [""]
+edition = "2021"
+
+[dependencies]
+ink = { version = "=5.0.0-rc", default-features = false }
+
+scale = { package = "parity-scale-codec", version = "3.6", default-features = false, features = [
+    "derive",
+    "chain-error"
+] }
+scale-info = { version = "2.10", default-features = false, features = [
+    "derive",
+], optional = true }
+
+
+pendzl = { version = "0.1.0-beta4", default-features = false, features = [
+    "psp22_impl",
+    "psp22_metadata_impl",
+    "psp22_mintable",
+    "access_control_impl",
+] }
+
+
+[lib]
+name = "abax_token_v2"
+path = "lib.rs"
+
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info",
+    "scale-info/std",
+
+    # These dependencies
+    "pendzl/std",
+]
+ink-as-dependency = []
+e2e-tests = []
+
+[profile.dev]
+codegen-units = 16
+panic = "abort"
+lto = false
+[profile.release]
+panic = "abort"
+lto = false

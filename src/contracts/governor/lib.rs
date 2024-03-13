@@ -50,6 +50,7 @@ mod governor {
     };
 
     const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR");
+    const CODE_UPDATER: RoleType = ink::selector_id!("CODE_UPDATER");
 
     #[derive(StorageFieldGetter)]
     #[ink(storage)]
@@ -178,6 +179,15 @@ mod governor {
                 unstake: UnstakeData::new(vester, unstake_period),
             };
             instance
+        }
+
+        #[ink(message)]
+        pub fn set_code_hash(&mut self, code_hash: Hash) -> Result<(), PSP22Error> {
+            self._ensure_has_role(CODE_UPDATER, Some(Self::env().caller()))?;
+            self.env()
+                .set_code_hash(&code_hash)
+                .expect("Failed to set code hash");
+            Ok(())
         }
     }
 
