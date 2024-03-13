@@ -85,7 +85,7 @@ pub mod abax_treasury {
                 id: order_id,
                 earliest_execution,
                 latest_execution,
-                operations: operations.clone(),
+                operations,
             });
 
             Ok(order_id)
@@ -111,8 +111,7 @@ pub mod abax_treasury {
                 match operation {
                     Operation::PSP22Transfer(transfer) => {
                         let mut psp22: PSP22Ref = transfer.asset.into();
-
-                        psp22.transfer(transfer.to, transfer.amount, transfer.data)?;
+                        psp22.transfer(transfer.to, transfer.amount, Vec::<u8>::new())?;
                     }
                     Operation::NativeTransfer(transfer) => {
                         match self.env().transfer(transfer.to, transfer.amount) {
@@ -130,19 +129,19 @@ pub mod abax_treasury {
 
                             vester.create_vest(
                                 vest.receiver,
-                                vest.asset,
+                                Some(asset),
                                 vest.amount,
                                 vest.schedule,
-                                vest.data,
+                                Vec::<u8>::new(),
                             )?;
                         } else {
                             //TODO create a tx with value transfer
                             vester.create_vest(
                                 vest.receiver,
-                                vest.asset,
+                                None,
                                 vest.amount,
                                 vest.schedule,
-                                vest.data,
+                                Vec::<u8>::new(),
                             )?;
                         }
                     }

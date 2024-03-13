@@ -15,7 +15,7 @@ scale-info = { version = "2.10", default-features = false, features = [
 ], optional = true }
 
 
-pendzl = { path = "../../../../simple_pendzl", default-features = false, features = [
+pendzl = { vesrions = "0.2.0-alpha", default-features = false, features = [
     "psp22",
     "general_vest",
     "access_control_impl",

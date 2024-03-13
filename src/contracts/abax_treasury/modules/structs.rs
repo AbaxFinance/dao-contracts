@@ -38,7 +38,6 @@ pub struct Vest {
     pub asset: Option<AccountId>,
     pub amount: Balance,
     pub schedule: VestingSchedule,
-    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, scale::Encode, scale::Decode)]
@@ -50,7 +49,6 @@ pub struct PSP22Transfer {
     pub asset: AccountId,
     pub to: AccountId,
     pub amount: Balance,
-    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, scale::Encode, scale::Decode)]

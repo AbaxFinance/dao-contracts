@@ -9,19 +9,19 @@ ink = { version = "5.0.0", default-features = false }
 
 scale = { package = "parity-scale-codec", version = "3.6", default-features = false, features = [
     "derive",
-    "chain-error"
+    "chain-error",
 ] }
 scale-info = { version = "2.10", default-features = false, features = [
     "derive",
 ], optional = true }
 
 
-pendzl = { path = "../../../../../simple_pendzl", default-features = false, features = [
+pendzl = { vesrions = "0.2.0-alpha", default-features = false, features = [
     "psp22_impl",
     "psp22_metadata_impl",
     "psp22_mintable",
     "access_control_impl",
-    "upgradeable_impl"
+    "upgradeable_impl",
 ] }
 
 

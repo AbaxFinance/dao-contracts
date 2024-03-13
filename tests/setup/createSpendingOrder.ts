@@ -1,38 +1,24 @@
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
 import { getApiPreAndPostTx } from 'tests/setup/queryAt';
-import { queryNextIdVestOfAt, queryVestingScheduleOfAt } from 'tests/setup/queryVester';
-import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
 import { queryNextOrderIdAt, queryOrder } from './queryTreasury';
-import { hexToNumbers } from 'tests/paramsHexConversionUtils';
 import { isNil } from 'lodash';
 
-export function psp22TransferDataHexToArray(data: any) {
-  const dataRes = hexToNumbers(data);
-  dataRes.shift();
-  return dataRes;
-}
+export type psp22Transfer = {
+  asset: string;
+  to: string;
+  amount: BN;
+};
 
-export type Operation =
-  | {
-      psp22Transfer: {
-        asset: string;
-        to: string;
-        amount: BN;
-        data: number[];
-      };
-    }
-  | { nativeTransfer: { to: string; amount: BN } }
-  | {
-      vest: {
-        receiver: string;
-        asset: string | null;
-        amount: BN;
-        schedule: { constant: [BN, BN] } | { external: { account: string; fallbackValues: [BN, BN] } };
-        data: number[];
-      };
-    };
+export type Vest = {
+  receiver: string;
+  asset: string | null;
+  amount: BN;
+  schedule: { constant: [BN, BN] } | { external: { account: string; fallbackValues: [BN, BN] } };
+};
+
+export type Operation = { psp22Transfer: psp22Transfer } | { nativeTransfer: { to: string; amount: BN } } | { vest: Vest };
 
 export type Order = {
   earliestExecution: number;
@@ -137,22 +123,6 @@ async function createSpendingOrder(this: Chai.AssertionPrototype, negated: boole
           resultOperation.psp22Transfer?.amount?.toString(),
           true,
         );
-        const dataRes = hexToNumbers(resultOperation?.psp22Transfer?.data as any);
-        dataRes.shift();
-        for (let k = 0; k < expectedOperation.psp22Transfer.data.length; k++) {
-          this.assert(
-            dataRes![k].toString() === expectedOperation.psp22Transfer.data[k].toString(),
-            `expected psp22Transfer.data[${k}] of order with id ${id} to be ${expectedOperation.psp22Transfer.data[
-              k
-            ].toString()} but got ${resultOperation.psp22Transfer?.data?.[k]?.toString()}`,
-            `expected psp22Transfer.data[${k}] of order with id ${id} not to be ${expectedOperation.psp22Transfer.data[
-              k
-            ].toString()} but got ${resultOperation.psp22Transfer?.data?.[k]?.toString()}`,
-            expectedOperation.psp22Transfer.data[k].toString(),
-            resultOperation.psp22Transfer?.data?.[k]?.toString(),
-            true,
-          );
-        }
       }
       if ('nativeTransfer' in expectedOperation) {
         this.assert(
@@ -218,7 +188,7 @@ async function createSpendingOrder(this: Chai.AssertionPrototype, negated: boole
         }
         if ('external' in schedule) {
           this.assert(
-            resultOperation.vest?.schedule?.external?.toString() === schedule.external.account,
+            resultOperation.vest?.schedule?.external?.account.toString() === schedule.external.account,
             `expected vest.schedule.external of order with id ${id} to be ${
               schedule.external.account
             } but got ${resultOperation.vest?.schedule?.external?.toString()}`,
@@ -246,25 +216,11 @@ async function createSpendingOrder(this: Chai.AssertionPrototype, negated: boole
             true,
           );
         }
-        const dataRes = psp22TransferDataHexToArray(resultOperation.psp22Transfer?.data);
-        for (let k = 0; k < expectedOperation.vest.data.length; k++) {
-          this.assert(
-            dataRes![k].toString() === expectedOperation.vest.data[k].toString(),
-            `expected vest.data[${k}] of order with id ${id} to be ${expectedOperation.vest.data[
-              k
-            ].toString()} but got ${resultOperation.vest?.data?.[k]?.toString()}`,
-            `expected vest.data[${k}] of order with id ${id} not to be ${expectedOperation.vest.data[
-              k
-            ].toString()} but got ${resultOperation.vest?.data?.[k]?.toString()}`,
-            expectedOperation.vest.data[k].toString(),
-            resultOperation.vest?.data?.[k]?.toString(),
-            true,
-          );
-        }
       }
     }
   }
 }
+
 const CREATE_SPENDING_ORDER = 'createSpendingOrder';
 
 export function supportCreateSpendingOrder(Assertion: Chai.AssertionStatic, chaiUtils: Chai.ChaiUtils) {
