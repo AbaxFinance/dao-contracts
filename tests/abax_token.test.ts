@@ -53,8 +53,7 @@ describe('AbaxToken', () => {
       contract: abaxToken,
       method: 'generate',
       args: [other.address, 100],
-      admin: deployer,
-      signer: codeAdmin,
+      roleAdmin: deployer,
     }));
     describe('when called by generator', () => {
       describe('when called by generator', () => {
@@ -220,8 +219,7 @@ describe('AbaxToken', () => {
       contract: abaxToken,
       method: 'setCodeHash',
       args: [codeHash],
-      admin: deployer,
-      signer: codeAdmin,
+      roleAdmin: deployer,
     }));
     it('should revert when hash is invalid', async () => {
       await expect(abaxToken.withSigner(codeAdmin).query.setCodeHash(codeHash.slice(0, -5) + '00000')).to.eventually.be.rejected;

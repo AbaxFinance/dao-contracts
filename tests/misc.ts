@@ -6,6 +6,7 @@ import { AnyAbaxContractEvent } from 'typechain/events/enum';
 import { AccountId, replaceNumericPropsWithStrings } from 'wookashwackomytest-polkahat-chai-matchers';
 import type { KeyringPair } from '@polkadot/keyring/types';
 import { expect } from 'chai';
+import { generateRandomSignerWithBalance, localApi } from 'wookashwackomytest-polkahat-network-helpers';
 
 //based on the above
 export async function getTgeParams(tge: AbaxTge) {
@@ -45,30 +46,31 @@ export function stringToSelectorId(str: string) {
 export function testAccessControlForMessage(
   rolesWithAccess: readonly string[],
   allRoles: readonly string[],
-  getCtx: () => { contract: any; method: string; args: any[]; admin: KeyringPair; signer: KeyringPair },
+  getCtx: () => { contract: any; method: string; args: any[]; roleAdmin: KeyringPair },
 ) {
+  let signer: KeyringPair;
   const ctx: ReturnType<typeof getCtx> = getCtx();
   const rolesWithoutAccess = allRoles.filter((role) => !rolesWithAccess.includes(role));
 
   describe(`Testing AccessControl for message "${ctx.method}" for ${rolesWithAccess.length === 0 ? `role` : `roles`} ${rolesWithAccess.join(
     ',',
   )}`, () => {
+    before(async () => {
+      const api = await localApi.get();
+      signer = await generateRandomSignerWithBalance(api);
+    });
     beforeEach(() => {
       Object.assign(ctx, getCtx());
     });
     it(`should fail when no role is present`, async () => {
-      await expect(ctx.contract.withSigner(ctx.signer).query[ctx.method](...ctx.args)).to.be.revertedWithError({ custom: 'AC::MissingRole' });
+      await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.be.revertedWithError({ custom: 'AC::MissingRole' });
     });
     it(`should fail for roles ${rolesWithoutAccess.join(',')}`, async () => {
       for (const role of rolesWithoutAccess) {
         const requiredRoleAsSelector = stringToSelectorId(role);
-        if ((await ctx.contract.query.hasRole(requiredRoleAsSelector, ctx.signer.address)).value.unwrapRecursively() === true) {
-          console.warn(`warning: role ${role} already granted for ${ctx.signer.address}`);
-        } else {
-          await expect(ctx.contract.withSigner(ctx.admin).query.grantRole(requiredRoleAsSelector, ctx.signer.address)).to.haveOkResult();
-          await ctx.contract.withSigner(ctx.admin).tx.grantRole(requiredRoleAsSelector, ctx.signer.address);
-        }
-        await expect(ctx.contract.withSigner(ctx.signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError({
+        await expect(ctx.contract.withSigner(ctx.roleAdmin).query.grantRole(requiredRoleAsSelector, signer.address)).to.haveOkResult();
+        await ctx.contract.withSigner(ctx.roleAdmin).tx.grantRole(requiredRoleAsSelector, signer.address);
+        await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError({
           custom: 'AC::MissingRole',
         });
       }
@@ -76,8 +78,8 @@ export function testAccessControlForMessage(
     for (const role of rolesWithAccess) {
       it(`should succeed when ${role} role is present`, async () => {
         const requiredRoleAsSelector = stringToSelectorId(role);
-        await ctx.contract.withSigner(ctx.admin).tx.grantRole(requiredRoleAsSelector, ctx.signer.address);
-        await expect(ctx.contract.withSigner(ctx.signer).query[ctx.method](...ctx.args)).to.haveOkResult();
+        await ctx.contract.withSigner(ctx.roleAdmin).tx.grantRole(requiredRoleAsSelector, signer.address);
+        await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.haveOkResult();
       });
     }
   });
