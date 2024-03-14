@@ -38,25 +38,33 @@ export const compileContract = async (contractPath: string) => {
   });
 };
 
-function copyArtifactsInternal(compileOutputPath: string, contractName: string, artifactsOutputPath: string) {
+function copyArtifactsInternal(
+  compileOutputPath: string,
+  contractName: string,
+  artifactsOutputPath: string,
+  outputContractName: string = contractName,
+) {
+  console.log(`Copying from ${compileOutputPath} to ${artifactsOutputPath}...`);
   fs.ensureDirSync(artifactsOutputPath);
-  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.contract`), path.join(artifactsOutputPath, `${contractName}.contract`));
-  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.wasm`), path.join(artifactsOutputPath, `${contractName}.wasm`));
-  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.json`), path.join(artifactsOutputPath, `${contractName}.json`));
+  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.contract`), path.join(artifactsOutputPath, `${outputContractName}.contract`));
+  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.wasm`), path.join(artifactsOutputPath, `${outputContractName}.wasm`));
+  fs.copyFileSync(path.join(compileOutputPath, `${contractName}.json`), path.join(artifactsOutputPath, `${outputContractName}.json`));
 }
 
-export const copyArtifacts = (contractName: string, contractFolderPath: string) => {
+export const copyArtifacts = (fullPath: string, contractName: string) => {
+  const contractFolderName = path.dirname(fullPath).split(path.sep).pop();
+  const contractFolderPath = path.parse(fullPath).dir;
   const contractNameSanitized = contractName.replace(/-/g, '_');
   const workspaceArtifactsCompileOutputPath = path.join('src', 'target', 'ink', contractNameSanitized);
   const localArtifactsCompileOutputPath = path.join(contractFolderPath, 'target', 'ink');
   const artifactsOutputPath = path.join('artifacts');
-  console.log('Copying artifacts...');
+  console.log(`Copying artifacts of ${contractName} using name ${contractFolderName} as an output name...`);
   try {
-    copyArtifactsInternal(localArtifactsCompileOutputPath, contractNameSanitized, artifactsOutputPath);
+    copyArtifactsInternal(localArtifactsCompileOutputPath, contractNameSanitized, artifactsOutputPath, contractFolderName);
   } catch (_) {
     console.log('copying from local failed, trying from workspace');
     try {
-      copyArtifactsInternal(workspaceArtifactsCompileOutputPath, contractNameSanitized, artifactsOutputPath);
+      copyArtifactsInternal(workspaceArtifactsCompileOutputPath, contractNameSanitized, artifactsOutputPath, contractFolderName);
     } catch (e) {
       console.error('Failed to copy artifacts');
       throw e;
@@ -64,20 +72,8 @@ export const copyArtifacts = (contractName: string, contractFolderPath: string) 
   }
 };
 
-const getContractsFolderPath = (contractsRootPath: string, contractName: string) => {
-  const paths = glob.sync(`${contractsRootPath}/**/Cargo.toml`);
-  for (const p of paths) {
-    const data = fs.readFileSync(p);
-    if (data.includes(`[package]\nname = "${contractName}"`)) {
-      console.log(`Found contract ${contractName}!`);
-      return path.dirname(p);
-    }
-  }
-  throw new Error(`Contract ${contractName} not found`);
-};
-
-export const compileContractByNameAndCopyArtifacts = async (contractsRootPath: string, contractName: string) => {
-  const contractFolderPath = getContractsFolderPath(contractsRootPath, contractName);
+export const compileContractByNameAndCopyArtifacts = async (fullPath: string, contractName: string) => {
+  const contractFolderPath = path.parse(fullPath).dir;
   console.log(getLineSeparator());
   console.log(chalk.bgGreen(`compiling contract ${contractName} from ${contractFolderPath}...`));
   console.log(getLineSeparator());
@@ -87,5 +83,5 @@ export const compileContractByNameAndCopyArtifacts = async (contractsRootPath: s
     console.error(`Contract ${contractName} failed to compile`);
     throw e;
   }
-  copyArtifacts(contractName, contractFolderPath);
+  copyArtifacts(fullPath, contractName);
 };

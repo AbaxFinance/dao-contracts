@@ -661,7 +661,9 @@ describe.skip('TGE', () => {
                   expect(txRes.events?.[0].name).to.equal('Contribution');
                   expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
                     contributor: contributors[0].address,
+                    receiver: contributors[0].address,
                     toCreate: desiredAmountOfAbaxToGet.toString(),
+                    referrer: null,
                   });
                   const expectedAbaxAmountReceived = desiredAmountOfAbaxToGet.muln(4).divn(10);
                   const expectedAbaxAmountVested = desiredAmountOfAbaxToGet.muln(6).divn(10);

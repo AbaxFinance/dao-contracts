@@ -2,10 +2,10 @@
 
 pub mod modules;
 
-#[pendzl::implementation(PSP22, PSP22Metadata, AccessControl)]
+#[pendzl::implementation(PSP22, PSP22Metadata, AccessControl, Upgradeable)]
 #[ink::contract]
 pub mod abax_token {
-    use crate::modules::capped_infaltion_storage_field::CappedInflation;
+    use crate::modules::{capped_infaltion_storage_field::CappedInflation, reserved::Reserved};
     use ink::prelude::string::String;
     use pendzl::contracts::token::psp22::{
         extensions::mintable::PSP22Mintable, implementation::PSP22InternalDefaultImpl, PSP22Error,
@@ -20,7 +20,6 @@ pub mod abax_token {
 
     const YEAR: u128 = 365 * 24 * 60 * 60 * 1000;
     const MINTER: RoleType = ink::selector_id!("MINTER");
-    const CODE_UPDATER: RoleType = ink::selector_id!("CODE_UPDATER");
     const GENERATOR: RoleType = ink::selector_id!("GENERATOR");
 
     #[ink(storage)]
@@ -34,6 +33,8 @@ pub mod abax_token {
         metadata: PSP22MetadataData,
         #[storage_field]
         capped_inflation: CappedInflation,
+        #[storage_field]
+        upgradeable: Reserved,
     }
 
     #[overrider(PSP22Internal)]
@@ -63,17 +64,6 @@ pub mod abax_token {
                 cap: self.capped_inflation.cap(),
             });
         }
-
-        #[ink(message)]
-        pub fn set_code_hash(&mut self, code_hash: Hash) -> Result<(), PSP22Error> {
-            ink::env::debug_println!("Setting code hash");
-            ink::env::debug_println!("CODE_UPDATER {:?}", CODE_UPDATER);
-            self._ensure_has_role(CODE_UPDATER, Some(Self::env().caller()))?;
-            self.env()
-                .set_code_hash(&code_hash)
-                .expect("Failed to set code hash");
-            Ok(())
-        }
     }
 
     impl crate::modules::traits::AbaxToken for AbaxToken {
@@ -84,7 +74,6 @@ pub mod abax_token {
         #[ink(message)]
         fn generate(&mut self, to: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             ink::env::debug_println!("GENERATOR {:?}", GENERATOR);
-            ink::env::debug_println!("CODE_UPDATER {:?}", CODE_UPDATER);
             self._ensure_has_role(GENERATOR, Some(self.env().caller()))?;
             self._inflate_cap();
             let delta_inflation = amount / YEAR / 10;

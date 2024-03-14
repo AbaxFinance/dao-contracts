@@ -22,7 +22,7 @@ pub use traits::*;
 ///
 /// Contract is using pendzl Access Control to manage access to the messages
 
-#[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl)]
+#[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl, Upgradeable)]
 #[ink::contract]
 mod governor {
     pub use super::*;
@@ -50,7 +50,6 @@ mod governor {
     };
 
     const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR");
-    const CODE_UPDATER: RoleType = ink::selector_id!("CODE_UPDATER");
 
     #[derive(StorageFieldGetter)]
     #[ink(storage)]
@@ -179,15 +178,6 @@ mod governor {
                 unstake: UnstakeData::new(vester, unstake_period),
             };
             instance
-        }
-
-        #[ink(message)]
-        pub fn set_code_hash(&mut self, code_hash: Hash) -> Result<(), PSP22Error> {
-            self._ensure_has_role(CODE_UPDATER, Some(Self::env().caller()))?;
-            self.env()
-                .set_code_hash(&code_hash)
-                .expect("Failed to set code hash");
-            Ok(())
         }
     }
 
@@ -431,21 +421,13 @@ mod governor {
                 let call = ink::env::call::build_call::<DefaultEnvironment>()
                     .call(tx.callee)
                     .transferred_value(tx.transferred_value)
-                    .call_flags(ink::env::CallFlags::default().set_allow_reentry(true))
+                    .call_flags(ink::env::CallFlags::ALLOW_REENTRY)
                     .exec_input(
                         ink::env::call::ExecutionInput::new(tx.selector.into())
                             .push_arg(OpaqueTypes(tx.input.clone())),
                     )
                     .returns::<OpaqueTypes>()
                     .try_invoke();
-                // .map_err(|e| match e {
-                //     ink::env::Error::Decode(err) => GovernError::UnderlyingTransactionReverted(
-                //         ink::env::format!("Deeecooode {:?}", err),
-                //     ),
-                //     _ => {
-                //         GovernError::UnderlyingTransactionReverted(ink::env::format!("{:?}", e))
-                //     }
-                // });
                 match call {
                     Ok(contract_res) => match contract_res {
                         Ok(_) => Ok(()),

@@ -7,6 +7,7 @@ import { AccountId, replaceNumericPropsWithStrings } from 'wookashwackomytest-po
 import type { KeyringPair } from '@polkadot/keyring/types';
 import { expect } from 'chai';
 import { generateRandomSignerWithBalance, localApi } from 'wookashwackomytest-polkahat-network-helpers';
+import { isEqual } from 'lodash';
 
 //based on the above
 export async function getTgeParams(tge: AbaxTge) {
@@ -47,6 +48,7 @@ export function testAccessControlForMessage(
   rolesWithAccess: readonly string[],
   allRoles: readonly string[],
   getCtx: () => { contract: any; method: string; args: any[]; roleAdmin: KeyringPair },
+  exactError?: any,
 ) {
   let signer: KeyringPair;
   const ctx: ReturnType<typeof getCtx> = getCtx();
@@ -63,16 +65,28 @@ export function testAccessControlForMessage(
       Object.assign(ctx, getCtx());
     });
     it(`should fail when no role is present`, async () => {
-      await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.be.revertedWithError({ custom: 'AC::MissingRole' });
+      if (exactError) {
+        await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.be.revertedWithError((e) => isEqual(e, exactError));
+      } else {
+        await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.be.revertedWithError((e) => {
+          return Object.values(e).some((v) => v === 'AC::MissingRole');
+        });
+      }
     });
     it(`should fail for roles ${rolesWithoutAccess.join(',')}`, async () => {
       for (const role of rolesWithoutAccess) {
         const requiredRoleAsSelector = stringToSelectorId(role);
         await expect(ctx.contract.withSigner(ctx.roleAdmin).query.grantRole(requiredRoleAsSelector, signer.address)).to.haveOkResult();
         await ctx.contract.withSigner(ctx.roleAdmin).tx.grantRole(requiredRoleAsSelector, signer.address);
-        await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError({
-          custom: 'AC::MissingRole',
-        });
+        if (exactError) {
+          await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError((e) =>
+            isEqual(e, exactError),
+          );
+        } else {
+          await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError((e) => {
+            return Object.values(e).some((v) => v === 'AC::MissingRole');
+          });
+        }
       }
     });
     for (const role of rolesWithAccess) {

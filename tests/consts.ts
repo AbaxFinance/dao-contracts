@@ -16,7 +16,6 @@ export enum ContractRole {
   EXECUTOR = 3_551_554_066,
   FINALIZER = 3_361_999_854,
   GENERATOR = 3_883_411_479,
-  CODE_UPDATER = 737462621,
 }
 
 export const ContractRoleNames = [
@@ -29,7 +28,7 @@ export const ContractRoleNames = [
   'EXECUTOR',
   'FINALIZER',
   'GENERATOR',
-  'CODE_UPDATER',
+  'UPGRADER',
 ] as const;
 
 export const AbaxDAOSpecificRoleNames = ['STAKEDROP_ADMIN'] as const;

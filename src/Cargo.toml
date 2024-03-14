@@ -5,4 +5,8 @@ members = [
     "contracts/abax_token",
     "contracts/test_purpose/*",
 ]
+exclude = [
+    "contracts/test_purpose/abax_token_v2",
+    # "contracts/abax_token",
+]
 resolver = "2"

@@ -9,8 +9,9 @@ pub struct CappedInflation {
     inflation_rate_per_milisecond: Balance,
     #[lazy]
     last_cap_update: Timestamp,
+    // new field added
     #[lazy]
-    new_field: Balance,
+    added_new_field: Balance,
 }
 
 impl CappedInflation {

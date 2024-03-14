@@ -118,7 +118,7 @@ dependencies:
     version: 3.3.1(prettier@2.8.8)
   ts-node:
     specifier: ^10.9.2
-    version: 10.9.2(@types/node@20.11.25)(typescript@5.4.2)
+    version: 10.9.2(@types/node@20.11.27)(typescript@5.4.2)
   tsx:
     specifier: ^4.7.1
     version: 4.7.1
@@ -127,16 +127,16 @@ dependencies:
     version: 5.4.2
   wookashwackomytest-pendzl-tests:
     specifier: ^0.0.7
-    version: 0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.61)
+    version: 0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.64)
   wookashwackomytest-polkahat-chai-matchers:
-    specifier: ^0.0.61
-    version: 0.0.61(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
+    specifier: ^0.0.64
+    version: 0.0.64(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
   wookashwackomytest-polkahat-network-helpers:
-    specifier: ^0.0.6
-    version: 0.0.6(@polkadot/util@12.6.2)
+    specifier: ^0.0.8
+    version: 0.0.8(@polkadot/util@12.6.2)
   wookashwackomytest-typechain-compiler:
     specifier: 0.0.38
-    version: 0.0.38(@types/node@20.11.25)(typescript@5.4.2)
+    version: 0.0.38(@types/node@20.11.27)(typescript@5.4.2)
   wookashwackomytest-typechain-polkadot:
     specifier: 0.0.38
     version: 0.0.38(@polkadot/util-crypto@12.6.2)(@polkadot/util@12.6.2)(typescript@5.4.2)
@@ -161,8 +161,8 @@ devDependencies:
     specifier: ^8.1.0
     version: 8.1.0
   '@types/lodash':
-    specifier: ^4.14.202
-    version: 4.14.202
+    specifier: ^4.17.0
+    version: 4.17.0
   '@types/mocha':
     specifier: ^10.0.6
     version: 10.0.6
@@ -2571,8 +2571,8 @@ packages:
       '@types/node': 20.11.20
     dev: true
 
-  /@types/lodash@4.14.202:
-    resolution: {integrity: sha512-OvlIYQK9tNneDlS0VN54LLd5uiPCBOp7gS5Z0f1mjoJYBrtStzgmJBxONW3U6OZqdtNzZPmn9BS/7WI7BFFcFQ==}
+  /@types/lodash@4.17.0:
+    resolution: {integrity: sha512-t7dhREVv6dbNj0q17X12j7yDG4bD/DHYX7o5/DbDxobP0HnGPgpRz2Ej77aL7TZT3DSw13fqUTj8J4mMnqa7WA==}
     dev: true
 
   /@types/minimatch@5.1.2:
@@ -2594,8 +2594,8 @@ packages:
     dependencies:
       undici-types: 5.26.5
 
-  /@types/node@20.11.25:
-    resolution: {integrity: sha512-TBHyJxk2b7HceLVGFcpAUjsa5zIdsPWlR6XHfyGzd0SFu+/NFgQgMAl96MSDZgQDvJAvV6BKsFOrt6zIL09JDw==}
+  /@types/node@20.11.27:
+    resolution: {integrity: sha512-qyUZfMnCg1KEz57r7pzFtSGt49f6RPkPBis3Vo4PbS7roQEDn22hiHzl/Lo1q4i4hDEgBJmBF/NTNg2XR0HbFg==}
     dependencies:
       undici-types: 5.26.5
     dev: false
@@ -5488,7 +5488,7 @@ packages:
       yn: 3.1.1
     dev: false
 
-  /ts-node@10.9.2(@types/node@20.11.25)(typescript@5.4.2):
+  /ts-node@10.9.2(@types/node@20.11.27)(typescript@5.4.2):
     resolution: {integrity: sha512-f0FFpIdcHgn8zcPSbf1dRevwt047YMnaiJM3u2w2RewrB+fob/zePZcrOyQoLMMO7aBIddLcQIEK5dYjkLnGrQ==}
     hasBin: true
     peerDependencies:
@@ -5507,7 +5507,7 @@ packages:
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
-      '@types/node': 20.11.25
+      '@types/node': 20.11.27
       acorn: 8.11.3
       acorn-walk: 8.3.2
       arg: 4.1.3
@@ -5741,7 +5741,7 @@ packages:
       isexe: 2.0.0
     dev: false
 
-  /wookashwackomytest-pendzl-tests@0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.61):
+  /wookashwackomytest-pendzl-tests@0.0.7(chai@4.4.1)(wookashwackomytest-polkahat-chai-matchers@0.0.64):
     resolution: {integrity: sha512-i8dQ1KlfKtAYhBvqyNWyoHQZhDTLI5F8HerIMHiOR9pUP75U3EuUFTKBpqwMJ42ECImfxwsNUbktzLJW6zzXYQ==}
     peerDependencies:
       chai: ^4.2.0
@@ -5760,7 +5760,7 @@ packages:
       deep-eql: 4.1.3
       ordinal: 1.0.3
       rxjs: 7.8.1
-      wookashwackomytest-polkahat-chai-matchers: 0.0.61(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
+      wookashwackomytest-polkahat-chai-matchers: 0.0.64(@polkadot/util-crypto@12.6.2)(chai@4.4.1)
       wookashwackomytest-polkahat-network-helpers: 0.0.1(@polkadot/util@12.6.2)
       wookashwackomytest-typechain-types: 0.0.37
     transitivePeerDependencies:
@@ -5769,8 +5769,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /wookashwackomytest-polkahat-chai-matchers@0.0.61(@polkadot/util-crypto@12.6.2)(chai@4.4.1):
-    resolution: {integrity: sha512-lARss+EsdM644fuxc+/K+J63W9Q7LsVcCKfxCQN1+M2nwHWGu19m5tduI9hsuuiB7Dqpe2ojWQa3F4WN2h9MuA==}
+  /wookashwackomytest-polkahat-chai-matchers@0.0.64(@polkadot/util-crypto@12.6.2)(chai@4.4.1):
+    resolution: {integrity: sha512-L6i6IWe+jgSvz4GIBG49ot0BKxqy964CA5jl/ruDd86z89VaAdeA7DDcWbXbGST1YPNv5zw/v2EdV83WCibTbw==}
     peerDependencies:
       chai: ^4.2.0
     dependencies:
@@ -5807,8 +5807,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /wookashwackomytest-polkahat-network-helpers@0.0.6(@polkadot/util@12.6.2):
-    resolution: {integrity: sha512-jp7TgKN3849BHVEOrogV8sAbcDVbYfTY4DTyHkBDdvW61CWW9tU1afxeQrM8iG9/T5d695OuMuxBthY1Y7n8kA==}
+  /wookashwackomytest-polkahat-network-helpers@0.0.8(@polkadot/util@12.6.2):
+    resolution: {integrity: sha512-3TcHE1gfuAMXNeUpoVU9hsnwBBAehfdXRFw+AvKKf/xSqsxGWmzbvYYTev5Ecf2GzK/0nsN+WShOIM4qluFaog==}
     dependencies:
       '@polkadot/util-crypto': 12.6.2(@polkadot/util@12.6.2)
       '@types/bn.js': 5.1.5
@@ -5821,7 +5821,7 @@ packages:
       - utf-8-validate
     dev: false
 
-  /wookashwackomytest-typechain-compiler@0.0.38(@types/node@20.11.25)(typescript@5.4.2):
+  /wookashwackomytest-typechain-compiler@0.0.38(@types/node@20.11.27)(typescript@5.4.2):
     resolution: {integrity: sha512-Ku6kvZYrXuS+Ukh4ez4iHhCNcBq7NnLAHdWlJkruyH+/wl7nyVSEsGZSlbdxDZLzyeelXn5fwAmggXbrCQWQAg==}
     engines: {node: '>=18.0.0', npm: '>=9.0.0'}
     hasBin: true
@@ -5833,7 +5833,7 @@ packages:
       globby: 11.0.2
       minimatch: 5.1.6
       toml: 3.0.0
-      ts-node: 10.9.2(@types/node@20.11.25)(typescript@5.4.2)
+      ts-node: 10.9.2(@types/node@20.11.27)(typescript@5.4.2)
       tslib: 2.6.2
       tsx: 4.7.1
       yargs: 17.7.2

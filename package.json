@@ -12,7 +12,7 @@
     "localnode": "./substrate-contracts-node --dev --tmp -lerror,runtime::contracts=debug --rpc-max-connections 5000 --pruning=archive",
     "test:debug": "npx tsx runWithoutWarnings.ts env DEBUG=1 npx tsx scripts/runScenarioWithDebug.ts",
     "test": "./runTests.sh",
-    "generateTypes": "rm -rf typechain && npx tsx ./runWithoutWarnings.ts npx wookashwackomytest-typechain-polkadot --in artifacts --out typechain && npx tsx ./scripts/typechain/generateEventsEnum.ts",
+    "generateTypes": "./forceArtifactLegacyVersion.sh && rm -rf typechain && npx tsx ./runWithoutWarnings.ts npx wookashwackomytest-typechain-polkadot --in artifacts --out typechain && npx tsx ./scripts/typechain/generateEventsEnum.ts",
     "clippy": " cd src && script -efq ./clippy.log -c 'env CARGO_TERM_COLOR=always cargo clippy -- -W clippy::pedantic'",
     "lint": "pnpm lint:format && pnpm lint:fix",
     "lint:fix": "eslint . --ext .js,.ts --fix --ignore-path ./.gitignore",
@@ -61,8 +61,8 @@
     "tsx": "^4.7.1",
     "typescript": "^5.4.2",
     "wookashwackomytest-pendzl-tests": "^0.0.7",
-    "wookashwackomytest-polkahat-chai-matchers": "^0.0.61",
-    "wookashwackomytest-polkahat-network-helpers": "^0.0.6",
+    "wookashwackomytest-polkahat-chai-matchers": "^0.0.64",
+    "wookashwackomytest-polkahat-network-helpers": "^0.0.8",
     "wookashwackomytest-typechain-compiler": "0.0.38",
     "wookashwackomytest-typechain-polkadot": "0.0.38",
     "wookashwackomytest-typechain-types": "0.0.38"
@@ -73,7 +73,7 @@
     "@types/chai-as-promised": "^7.1.8",
     "@types/fs-extra": "^11.0.4",
     "@types/glob": "^8.1.0",
-    "@types/lodash": "^4.14.202",
+    "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "husky": "^9.0.11",
     "tsconfig-paths": "^4.2.0"

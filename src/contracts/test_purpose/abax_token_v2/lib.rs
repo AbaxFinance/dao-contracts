@@ -2,11 +2,13 @@
 
 pub mod modules;
 
-#[pendzl::implementation(PSP22, PSP22Metadata, AccessControl)]
+#[pendzl::implementation(PSP22, PSP22Metadata, AccessControl, Upgradeable)]
 #[ink::contract]
-pub mod abax_token_v2 {
+pub mod abax_token {
     use crate::modules::{
-        capped_infaltion_storage_field::CappedInflation, new_storage_field::NewStorageField,
+        capped_infaltion_storage_field::CappedInflation,
+        new_storage_field::{NewStorageField, NewStorageFieldView},
+        reserved::Reserved,
     };
     use ink::prelude::string::String;
     use pendzl::contracts::token::psp22::{
@@ -22,7 +24,6 @@ pub mod abax_token_v2 {
 
     const YEAR: u128 = 365 * 24 * 60 * 60 * 1000;
     const MINTER: RoleType = ink::selector_id!("MINTER");
-    const CODE_UPDATER: RoleType = ink::selector_id!("CODE_UPDATER");
     const GENERATOR: RoleType = ink::selector_id!("GENERATOR");
 
     #[ink(storage)]
@@ -37,9 +38,7 @@ pub mod abax_token_v2 {
         #[storage_field]
         capped_inflation: CappedInflation,
         #[storage_field]
-        new_field: NewStorageField,
-        #[storage_field]
-        counter: u32,
+        upgradeable: Reserved,
     }
 
     #[overrider(PSP22Internal)]
@@ -71,14 +70,33 @@ pub mod abax_token_v2 {
         }
 
         #[ink(message)]
-        pub fn set_code_hash(&mut self, code_hash: Hash) -> Result<(), PSP22Error> {
-            ink::env::debug_println!("Setting code hash");
-            ink::env::debug_println!("CODE_UPDATER {:?}", CODE_UPDATER);
-            self._ensure_has_role(CODE_UPDATER, Some(Self::env().caller()))?;
-            self.env()
-                .set_code_hash(&code_hash)
-                .expect("Failed to set code hash");
-            Ok(())
+        pub fn increment_counter(&mut self) {
+            self.upgradeable
+                .counter
+                .set(&(self.upgradeable.counter.get().unwrap_or_default() + 1));
+        }
+
+        #[ink(message)]
+        pub fn get_counter(&self) -> u32 {
+            self.upgradeable.counter.get().unwrap_or_default()
+        }
+
+        #[ink(message)]
+        pub fn set_new_field_a(&mut self, value: u128) {
+            let mut prev_new_field = self.upgradeable.new_field.get().unwrap_or_default();
+            prev_new_field
+                .a
+                .set(&(prev_new_field.a.get().unwrap_or_default() + value));
+            self.upgradeable.new_field.set(&(prev_new_field));
+        }
+
+        #[ink(message)]
+        pub fn get_new_field(&mut self) -> NewStorageFieldView {
+            let field = self.upgradeable.new_field.get().unwrap_or_default();
+            NewStorageFieldView {
+                a: field.a.get().unwrap_or_default(),
+                b: field.b.get().unwrap_or_default(),
+            }
         }
     }
 
