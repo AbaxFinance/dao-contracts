@@ -35,7 +35,7 @@ pub struct PublicContributionStorage {
     // total amount of distributed tokens.
     total_amount_minted: Balance,
     // bonus multiplier based on the Zealy EXP.
-    pub bonus_multiplier_e3_by_address: Mapping<AccountId, u16>,
+    exp_bonus_multiplier_e3_by_address: Mapping<AccountId, u16>,
     // amount of tokens contributed by each account.
     contributed_amount_by_account: Mapping<AccountId, Balance>,
     /// amount of tokens received by each account - doesnt include bonus.
@@ -45,7 +45,7 @@ pub struct PublicContributionStorage {
     // reserved tokens for beneficiaries of referals / foundation / strategic reserves / founders.
     reserved_tokens: Mapping<AccountId, Balance>,
     // contains referrers.
-    pub referrers: Mapping<AccountId, ()>,
+    referrers: Mapping<AccountId, ()>,
 }
 
 impl PublicContributionStorage {
@@ -74,7 +74,7 @@ impl PublicContributionStorage {
             strategic_reserves_address,
             cost_to_mint_milion_tokens,
             total_amount_minted: 0,
-            bonus_multiplier_e3_by_address: Default::default(),
+            exp_bonus_multiplier_e3_by_address: Default::default(),
             contributed_amount_by_account: Default::default(),
             base_created_by_account: Default::default(),
             bonus_created_by_account: Default::default(),
@@ -122,7 +122,7 @@ impl PublicContributionStorage {
             .unwrap_or_default()
     }
 
-    pub fn contributed_amount(&self, account: &AccountId) -> Balance {
+    pub fn contributed_amount_by(&self, account: &AccountId) -> Balance {
         self.contributed_amount_by_account
             .get(account)
             .unwrap_or_default()
@@ -151,5 +151,32 @@ impl PublicContributionStorage {
         self.reserved_tokens
             .take(&account)
             .ok_or(TGEError::NoReservedTokens)
+    }
+
+    pub fn set_exp_bonus_multiplier_of_e3(
+        &mut self,
+        account: &AccountId,
+        bonus_multiplier_e3: &u16,
+    ) {
+        self.exp_bonus_multiplier_e3_by_address
+            .insert(account, bonus_multiplier_e3);
+    }
+
+    pub fn exp_bonus_multiplier_of_e3(&self, account: &AccountId) -> u16 {
+        self.exp_bonus_multiplier_e3_by_address
+            .get(account)
+            .unwrap_or_default()
+    }
+
+    pub fn add_referrer(&mut self, account: &AccountId) {
+        self.referrers.insert(account, &());
+    }
+
+    pub fn remove_referrer(&mut self, account: &AccountId) {
+        self.referrers.take(account);
+    }
+
+    pub fn is_referrer(&self, account: &AccountId) -> bool {
+        self.referrers.contains(account)
     }
 }

@@ -23,8 +23,7 @@ pub const ALL_TO_PUBLIC_RATIO: u128 = 5; // 5:1
 pub const FOUNDERS_INSTANT_RELEASE_E3: u16 = 200; // 20%
 pub const PUBLIC_INSTANT_RELEASE_E3: u16 = 400; // 40%
 pub const BONUSE_FOR_CODE_USE_E3: u16 = 10; // 1%
-
-pub const REFERER_REWARD_E3: u16 = 10; // 1%
+pub const REFERER_REWARD_E3: u16 = 20; // 2%
 
 pub const MAX_BONUS_MULTIPLIER_E3: u16 = 100; // 10%
 

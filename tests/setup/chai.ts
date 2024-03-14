@@ -3,16 +3,16 @@ import type { AccountId } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
 import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { supportChangeBaseCreatedAmounts } from 'tests/setup/changeBaseCreatedAmounts';
-import { supportChangeBonusCreatedAmounts } from 'tests/setup/changeBonusCreatedAmounts';
 import { supportChangeContributedAmounts } from 'tests/setup/changeContributedAmounts';
-import { supportChangeReservedTokenAmounts } from 'tests/setup/changeReservedTokenAmounts';
-import { supportChangeTgeStorage } from 'tests/setup/changeTgeStorage';
 import { supportCreateVestingSchedule } from 'tests/setup/createVestingSchedule';
 import { TgeStorage, TgeStorageNumericKey } from 'tests/setup/queryTGEGetStorage';
 import { flush, proxy } from 'tests/soft-assert';
 import 'wookashwackomytest-polkahat-chai-matchers';
 import { Operation, Order, supportCreateSpendingOrder } from './createSpendingOrder';
+import { supportchangeGeneratedBaseAmounts } from './changeBaseCreatedAmounts';
+import { supportchangeGeneratedBonusAmounts } from './changeBonusCreatedAmounts';
+import { supportchangeReservedForAmounts } from './changeReservedTokenAmounts';
+import { supportChangeBNResults } from './changeBNResult';
 const softExpect = proxy(chai.expect);
 
 export interface ExpectStaticWithSoft extends Chai.ExpectStatic {
@@ -30,10 +30,10 @@ declare global {
       equalUpTo1Digit<TData extends BN | number | string>(expected: TData): void;
       almostDeepEqual<TData>(expected: TData): void;
       // tge specific
-      changeReservedTokenAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeReservedForAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       changeContributedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
-      changeBaseCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
-      changeBonusCreatedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeGeneratedBaseAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeGeneratedBonusAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
       createVestingSchedule(
         vester: any,
         account: string,
@@ -41,7 +41,7 @@ declare global {
         args?: [amount: BN, [waitingTime: BN, vestingTime: BN] | { account: string; fallbackValues: [waitingTime: BN, vestingTime: BN] }],
       ): AsyncAssertion;
       createSpendingOrder(treasury: any, args: Order[]): AsyncAssertion;
-      changeTgeStorage<TKey extends TgeStorageNumericKey>(contract: any, key: TKey, delta: BN): AsyncAssertion;
+      changeBNResults(contract: any, methodName: string, args: any[][], deltas: BN[]): AsyncAssertion;
     }
   }
 }
@@ -181,13 +181,13 @@ chai.use(
 );
 
 chai.use((c, utils) => {
-  supportChangeBaseCreatedAmounts(c.Assertion, utils);
-  supportChangeBonusCreatedAmounts(c.Assertion, utils);
+  supportchangeGeneratedBaseAmounts(c.Assertion, utils);
+  supportchangeGeneratedBonusAmounts(c.Assertion, utils);
   supportChangeContributedAmounts(c.Assertion, utils);
-  supportChangeReservedTokenAmounts(c.Assertion, utils);
+  supportchangeReservedForAmounts(c.Assertion, utils);
   supportCreateVestingSchedule(c.Assertion, utils);
-  supportChangeTgeStorage(c.Assertion, utils);
   supportCreateSpendingOrder(c.Assertion, utils);
+  supportChangeBNResults(c.Assertion, utils);
 });
 
 const expectWithSoft = chai.expect as ExpectStaticWithSoft;

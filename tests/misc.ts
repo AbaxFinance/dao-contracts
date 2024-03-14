@@ -12,7 +12,7 @@ import { AbaxAccessControlRole } from 'tests/consts';
 
 //based on the above
 export async function getTgeParams(tge: AbaxTge) {
-  const res = (await tge.query.getTgeStorage()).value.ok!;
+  const res = (await tge.query.tgeParameters()).value.ok!;
   return {
     startTime: res[0],
     phaseTwoStartTime: res[1],
@@ -25,7 +25,6 @@ export async function getTgeParams(tge: AbaxTge) {
     strategicReservesAddress: res[8],
     phaseOneTokenCap: res[9],
     costToMintMillionTokens: res[10],
-    totalAmountMinted: res[11],
   };
 }
 export const createEnumChecker = <T extends string, TEnumValue extends string>(enumVariable: { [key in T]: TEnumValue }) => {
@@ -74,7 +73,7 @@ export function testAccessControlForMessage(
         await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.be.revertedWithError((e) => isEqual(e, exactError));
       } else {
         await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.be.revertedWithError((e) => {
-          return Object.values(e).some((v) => v === 'AC::MissingRole');
+          return Object.values(e).some((v) => v === 'AC::MissingRole' || v === 'MissingRole');
         });
       }
     });
@@ -89,7 +88,7 @@ export function testAccessControlForMessage(
           );
         } else {
           await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError((e) => {
-            return Object.values(e).some((v) => v === 'AC::MissingRole');
+            return Object.values(e).some((v) => v === 'AC::MissingRole' || v === 'MissingRole');
           });
         }
       }

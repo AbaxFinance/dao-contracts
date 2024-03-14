@@ -4,10 +4,10 @@ import { nobody } from '@polkadot/keyring/pair/nobody';
 import BN from 'bn.js';
 import { queryAt } from 'tests/setup/queryAt';
 import AbaxTgeMethods from 'typechain/query/abax_tge';
-type RetType = NonNullable<ReturnPromiseType<AbaxTgeMethods['getTgeStorage']>['value']['ok']>;
+type RetType = NonNullable<ReturnPromiseType<AbaxTgeMethods['tgeParameters']>['value']['ok']>;
 
 export async function queryTGEGetStorage(apiAt: ApiDecoration<'promise'>, tge: any) {
-  const res = (await queryAt<any>(apiAt, tge, nobody().address, 'get_tge_storage', [])) as RetType;
+  const res = (await queryAt<any>(apiAt, tge, nobody().address, 'AbaxTGEView::tge_parameters', [])) as RetType;
   return {
     startTime: res[0],
     phaseTwoStartTime: res[1],
@@ -20,7 +20,6 @@ export async function queryTGEGetStorage(apiAt: ApiDecoration<'promise'>, tge: a
     strategicReservesAddress: res[8],
     phaseOneTokenCap: res[9],
     costToMintMillionTokens: res[10],
-    totalAmountMinted: res[11],
   };
 }
 

@@ -1,10 +1,10 @@
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
-import { queryTGEGetAccountStorage } from 'tests/setup/queryTGEGetAccountStorage';
 import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { queryTGEReservedFor } from './queryTGE';
 
-async function changeReservedTokenAmounts(this: Chai.AssertionPrototype, contract: any, addresses: string[], deltas: BN[]): Promise<void> {
+async function changeReservedForAmounts(this: Chai.AssertionPrototype, contract: any, addresses: string[], deltas: BN[]): Promise<void> {
   //
 
   let tx: SignAndSendSuccessResponse;
@@ -24,14 +24,10 @@ async function changeReservedTokenAmounts(this: Chai.AssertionPrototype, contrac
 
   //get balances pre
   const apiPre = await getApiAt(contract.nativeAPI, preTxBlockNumber);
-  const preBalances = await Promise.all(
-    addresses.map((address) => queryTGEGetAccountStorage(apiPre, contract, address).then((res) => res.reservedTokens)),
-  );
+  const preBalances = await Promise.all(addresses.map((address) => queryTGEReservedFor(apiPre, contract, address)));
   //get balances post
   const apiPost = await getApiAt(contract.nativeAPI, postTxBlockNumber);
-  const postBalances = await Promise.all(
-    addresses.map((address) => queryTGEGetAccountStorage(apiPost, contract, address).then((res) => res.reservedTokens)),
-  );
+  const postBalances = await Promise.all(addresses.map((address) => queryTGEReservedFor(apiPost, contract, address)));
   //check
   for (let i = 0; i < addresses.length; i++) {
     const pre = preBalances[i];
@@ -49,9 +45,9 @@ async function changeReservedTokenAmounts(this: Chai.AssertionPrototype, contrac
   }
 }
 
-const CHANGE_RESERVED_TOKEN_AMOUNTS_MATCHER = 'changeReservedTokenAmounts';
+const CHANGE_RESERVED_TOKEN_AMOUNTS_MATCHER = 'changeReservedForAmounts';
 
-export function supportChangeReservedTokenAmounts(Assertion: Chai.AssertionStatic, chaiUtils: Chai.ChaiUtils) {
+export function supportchangeReservedForAmounts(Assertion: Chai.AssertionStatic, chaiUtils: Chai.ChaiUtils) {
   Assertion.addMethod(
     CHANGE_RESERVED_TOKEN_AMOUNTS_MATCHER,
     function (this: Chai.AssertionPrototype, contract: any, addresses: string[], deltas: BN[]) {
@@ -61,7 +57,7 @@ export function supportChangeReservedTokenAmounts(Assertion: Chai.AssertionStati
       //   chaiUtils
       // );
 
-      const derivedPromise = changeReservedTokenAmounts.apply(this, [contract, addresses, deltas]);
+      const derivedPromise = changeReservedForAmounts.apply(this, [contract, addresses, deltas]);
       (this as any).then = derivedPromise.then.bind(derivedPromise);
       (this as any).catch = derivedPromise.catch.bind(derivedPromise);
 

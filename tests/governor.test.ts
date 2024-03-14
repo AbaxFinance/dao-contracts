@@ -979,24 +979,6 @@ describe('Governor', () => {
               [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
               proposal = { descriptionHash, transactions, earliestExecution: null };
             });
-
-            //TODO
-            it.skip('user0 executes Succeded proposal with Tx but it fails due to error returned from the contract called via proposal tx', async () => {
-              await finalize();
-              let eventsCounter = 0;
-              flipper.events.subscribeOnFlippedEvent(() => {
-                eventsCounter++;
-              });
-
-              await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
-              const query = governor.withSigner(voters[0]).query.execute(proposal);
-              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
-              await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('TODO'));
-              await expect(tx).to.eventually.be.rejected;
-              await tx;
-              expect(eventsCounter).to.equal(0);
-              expect((await flipper.query.get()).value.unwrap()).to.equal(false);
-            });
           });
           describe('handles panics properly', () => {
             beforeEach(async () => {
@@ -1054,18 +1036,6 @@ describe('Governor', () => {
     govToken: token,
     users: voters,
   }));
-
-  describe.skip('Performance tests', () => {
-    it('Proposal submissions count: Submitted 1200 proposals', async function (this) {
-      console.warn('Warning: slow test');
-      const descriptionTemplate = 'Proposal number:';
-      for (let i = 0; i < 1200; i++) {
-        const description = `${descriptionTemplate}_${i}`;
-        if (i % 100 === 0) console.log({ i });
-        await proposeAndCheck(governor, voters[0], [], description, undefined);
-      }
-    });
-  });
 });
 
 function testFinalizationOverTime(

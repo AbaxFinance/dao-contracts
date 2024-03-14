@@ -1,8 +1,8 @@
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
-import { queryTGEGetAccountStorage } from 'tests/setup/queryTGEGetAccountStorage';
 import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { queryTGEContributedAmountBy } from './queryTGE';
 
 async function changeContributedAmounts(this: Chai.AssertionPrototype, contract: any, addresses: string[], deltas: BN[]): Promise<void> {
   //
@@ -24,14 +24,10 @@ async function changeContributedAmounts(this: Chai.AssertionPrototype, contract:
 
   //get balances pre
   const apiPre = await getApiAt(contract.nativeAPI, preTxBlockNumber);
-  const preBalances = await Promise.all(
-    addresses.map((address) => queryTGEGetAccountStorage(apiPre, contract, address).then((res) => res.contributedAmount)),
-  );
+  const preBalances = await Promise.all(addresses.map((address) => queryTGEContributedAmountBy(apiPre, contract, address)));
   //get balances post
   const apiPost = await getApiAt(contract.nativeAPI, postTxBlockNumber);
-  const postBalances = await Promise.all(
-    addresses.map((address) => queryTGEGetAccountStorage(apiPost, contract, address).then((res) => res.contributedAmount)),
-  );
+  const postBalances = await Promise.all(addresses.map((address) => queryTGEContributedAmountBy(apiPost, contract, address)));
   //check
   for (let i = 0; i < addresses.length; i++) {
     const pre = preBalances[i];

@@ -1,10 +1,10 @@
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
-import { queryTGEGetAccountStorage } from 'tests/setup/queryTGEGetAccountStorage';
 import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { queryTGEGeneratedBonusAmountBy } from './queryTGE';
 
-async function changeBonusCreatedAmounts(this: Chai.AssertionPrototype, token: any, addresses: string[], deltas: BN[]): Promise<void> {
+async function changeGeneratedBonusAmounts(this: Chai.AssertionPrototype, token: any, addresses: string[], deltas: BN[]): Promise<void> {
   //
 
   let tx: SignAndSendSuccessResponse;
@@ -24,14 +24,10 @@ async function changeBonusCreatedAmounts(this: Chai.AssertionPrototype, token: a
 
   //get balances pre
   const apiPre = await getApiAt(token.nativeAPI, preTxBlockNumber);
-  const preBalances = await Promise.all(
-    addresses.map((address) => queryTGEGetAccountStorage(apiPre, token, address).then((res) => res.bonusAmountCreated)),
-  );
+  const preBalances = await Promise.all(addresses.map((address) => queryTGEGeneratedBonusAmountBy(apiPre, token, address)));
   //get balances post
   const apiPost = await getApiAt(token.nativeAPI, postTxBlockNumber);
-  const postBalances = await Promise.all(
-    addresses.map((address) => queryTGEGetAccountStorage(apiPost, token, address).then((res) => res.bonusAmountCreated)),
-  );
+  const postBalances = await Promise.all(addresses.map((address) => queryTGEGeneratedBonusAmountBy(apiPost, token, address)));
   //check
   for (let i = 0; i < addresses.length; i++) {
     const pre = preBalances[i];
@@ -49,17 +45,17 @@ async function changeBonusCreatedAmounts(this: Chai.AssertionPrototype, token: a
   }
 }
 
-const CHANGE_BONUS_CREATED_AMOUNTS = 'changeBonusCreatedAmounts';
+const CHANGE_GENERATED_BONUS_AMOUNTS = 'changeGeneratedBonusAmounts';
 
-export function supportChangeBonusCreatedAmounts(Assertion: Chai.AssertionStatic, chaiUtils: Chai.ChaiUtils) {
-  Assertion.addMethod(CHANGE_BONUS_CREATED_AMOUNTS, function (this: Chai.AssertionPrototype, token: any, addresses: string[], deltas: BN[]) {
+export function supportchangeGeneratedBonusAmounts(Assertion: Chai.AssertionStatic, chaiUtils: Chai.ChaiUtils) {
+  Assertion.addMethod(CHANGE_GENERATED_BONUS_AMOUNTS, function (this: Chai.AssertionPrototype, token: any, addresses: string[], deltas: BN[]) {
     // preventAsyncMatcherChaining(
     //   this,
     //   CHANGE_TOKEN_BALANCES_MATCHER,
     //   chaiUtils
     // );
 
-    const derivedPromise = changeBonusCreatedAmounts.apply(this, [token, addresses, deltas]);
+    const derivedPromise = changeGeneratedBonusAmounts.apply(this, [token, addresses, deltas]);
     (this as any).then = derivedPromise.then.bind(derivedPromise);
     (this as any).catch = derivedPromise.catch.bind(derivedPromise);
 

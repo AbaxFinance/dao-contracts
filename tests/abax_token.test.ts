@@ -15,7 +15,7 @@ const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
 function deploymentChecks(getCtx: () => { abaxToken: AbaxToken }) {
   it(`has set roles correctly`, async () => {
     await expect(getCtx().abaxToken.query.hasRole(stringToSelectorId('MINTER'), minter.address)).to.haveOkResult(true);
-    await expect(getCtx().abaxToken.query.hasRole(stringToSelectorId('UPGRADER'), upgrader.address)).to.haveOkResult(true);
+    await expect(getCtx().abaxToken.query.hasRole(stringToSelectorId('CODE_UPGRADER'), upgrader.address)).to.haveOkResult(true);
     await expect(getCtx().abaxToken.query.hasRole(stringToSelectorId('GENERATOR'), generator.address)).to.haveOkResult(true);
   });
   it('should have correct name', async () => {
@@ -44,7 +44,7 @@ describe('AbaxToken', () => {
     const api = await localApi.get();
     abaxToken = (await new AbaxTokenDeployer(api, deployer).new('NAME', 'SYMBOL', ABAX_DECIMALS)).contract;
     await abaxToken.withSigner(deployer).tx.grantRole(stringToSelectorId('MINTER'), minter.address);
-    await abaxToken.withSigner(deployer).tx.grantRole(stringToSelectorId('UPGRADER'), upgrader.address);
+    await abaxToken.withSigner(deployer).tx.grantRole(stringToSelectorId('CODE_UPGRADER'), upgrader.address);
     await abaxToken.withSigner(deployer).tx.grantRole(stringToSelectorId('GENERATOR'), generator.address);
   });
 
@@ -222,7 +222,7 @@ describe('AbaxToken', () => {
       newCodeHash = res.codeHash;
     });
 
-    testAccessControlForMessage(['UPGRADER'], AllAbaxDAORoleNames, () => ({
+    testAccessControlForMessage(['CODE_UPGRADER'], AllAbaxDAORoleNames, () => ({
       contract: abaxToken,
       method: 'setCodeHash',
       args: [newCodeHash],
