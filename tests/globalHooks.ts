@@ -18,6 +18,10 @@ export const mochaHooks: Mocha.RootHookObject = {
     // the contents of the After All hook
   },
   afterEach(this: Mocha.TestContext) {
+    if (this.currentTest?.isFailed()) {
+      // console.log('here');
+    }
+
     if (this.currentTest?.isFailed() || !this.currentTest?.isPassed()) {
       this.currentFailureCount++;
     }

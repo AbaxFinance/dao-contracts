@@ -1,6 +1,5 @@
 .cache
 .cache/**/*.*
-.vscode
 .idea
 ev
 test-chain-data

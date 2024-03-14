@@ -1,7 +1,7 @@
 import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
 import { isEqual } from 'lodash';
-import { ABAX_DECIMALS, ContractRole } from 'tests/consts';
+import { ABAX_DECIMALS } from 'tests/consts';
 import { testStaking } from 'tests/governor.stake.test';
 import { expect } from 'tests/setup/chai';
 import FlipperContract from 'typechain/contracts/flipper';
@@ -18,6 +18,7 @@ import { GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain
 import { ONE_DAY } from 'wookashwackomytest-polkahat-chai-matchers';
 import { E12bn, duration, generateRandomSignerWithBalance, getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
 import { numbersToHex, paramsToInputNumbers } from './paramsHexConversionUtils';
+import { roleToSelectorId } from 'tests/misc';
 
 const [deployer, other] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
@@ -667,7 +668,7 @@ describe('Governor', () => {
       let executor: KeyringPair;
       beforeEach(async () => {
         executor = voters[9];
-        await governor.withSigner(deployer).tx.grantRole(ContractRole.EXECUTOR, executor.address);
+        await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), executor.address);
       });
       describe(`earliestExecution is not set`, () => {
         beforeEach(async () => {
@@ -893,7 +894,7 @@ describe('Governor', () => {
 
           it('user0 executes proposal succesfully', async () => {
             await finalize();
-            await governor.withSigner(deployer).tx.grantRole(ContractRole.EXECUTOR, voters[0].address);
+            await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
             const query = governor.withSigner(voters[0]).query.execute(proposal);
             const tx = governor.withSigner(voters[0]).tx.execute(proposal);
             await expect(query).to.haveOkResult();
@@ -942,7 +943,7 @@ describe('Governor', () => {
               eventsCounter++;
             });
 
-            await governor.withSigner(deployer).tx.grantRole(ContractRole.EXECUTOR, voters[0].address);
+            await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
             const query = governor.withSigner(voters[0]).query.execute(proposal);
             const tx = governor.withSigner(voters[0]).tx.execute(proposal);
             await expect(query).to.haveOkResult();
@@ -987,7 +988,7 @@ describe('Governor', () => {
                 eventsCounter++;
               });
 
-              await governor.withSigner(deployer).tx.grantRole(ContractRole.EXECUTOR, voters[0].address);
+              await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
               const query = governor.withSigner(voters[0]).query.execute(proposal);
               const tx = governor.withSigner(voters[0]).tx.execute(proposal);
               await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('TODO'));
@@ -1033,7 +1034,7 @@ describe('Governor', () => {
                 eventsCounter++;
               });
 
-              await governor.withSigner(deployer).tx.grantRole(ContractRole.EXECUTOR, voters[0].address);
+              await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
               const query = governor.withSigner(voters[0]).query.execute(proposal);
               const tx = governor.withSigner(voters[0]).tx.execute(proposal);
               await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('ReturnError(CalleeTrapped)'));

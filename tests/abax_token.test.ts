@@ -1,24 +1,22 @@
-import { blake2AsU8a } from '@polkadot/util-crypto';
 import BN from 'bn.js';
-import { ABAX_DECIMALS, AbaxDAOSpecificRoleNames, AllAbaxDAORoleNames, ContractRole, ContractRoleNames, ONE_YEAR } from 'tests/consts';
+import { ABAX_DECIMALS, AllAbaxDAORoleNames, ONE_YEAR } from 'tests/consts';
+import { stringToSelectorId, testAccessControlForMessage } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
 import AbaxToken from 'typechain/contracts/abax_token';
+import AbaxTokenV2Contract from 'typechain/contracts/abax_token_v2';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
+import AbaxTokenV2Deployer from 'typechain/deployers/abax_token_v2';
 import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
-import type { KeyringPair } from '@polkadot/keyring/types';
-import { stringToSelectorId, testAccessControlForMessage } from 'tests/misc';
-import AbaxTokenV2Contract from 'typechain/contracts/abax_token_v2';
-import AbaxTokenV2Deployer from 'typechain/deployers/abax_token_v2';
 
 const [deployer, upgrader, minter, generator, other, ...rest] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
 
 function deploymentChecks(getCtx: () => { abaxToken: AbaxToken }) {
   it(`has set roles correctly`, async () => {
-    await expect(getCtx().abaxToken.query.hasRole(ContractRole.MINTER, minter.address)).to.haveOkResult(true);
+    await expect(getCtx().abaxToken.query.hasRole(stringToSelectorId('MINTER'), minter.address)).to.haveOkResult(true);
     await expect(getCtx().abaxToken.query.hasRole(stringToSelectorId('UPGRADER'), upgrader.address)).to.haveOkResult(true);
-    await expect(getCtx().abaxToken.query.hasRole(ContractRole.GENERATOR, generator.address)).to.haveOkResult(true);
+    await expect(getCtx().abaxToken.query.hasRole(stringToSelectorId('GENERATOR'), generator.address)).to.haveOkResult(true);
   });
   it('should have correct name', async () => {
     expect(await getCtx().abaxToken.query.tokenName()).to.haveOkResult('NAME');
@@ -45,9 +43,9 @@ describe('AbaxToken', () => {
   beforeEach(async () => {
     const api = await localApi.get();
     abaxToken = (await new AbaxTokenDeployer(api, deployer).new('NAME', 'SYMBOL', ABAX_DECIMALS)).contract;
-    await abaxToken.withSigner(deployer).tx.grantRole(ContractRole.MINTER, minter.address);
+    await abaxToken.withSigner(deployer).tx.grantRole(stringToSelectorId('MINTER'), minter.address);
     await abaxToken.withSigner(deployer).tx.grantRole(stringToSelectorId('UPGRADER'), upgrader.address);
-    await abaxToken.withSigner(deployer).tx.grantRole(ContractRole.GENERATOR, generator.address);
+    await abaxToken.withSigner(deployer).tx.grantRole(stringToSelectorId('GENERATOR'), generator.address);
   });
 
   describe('after deployment', () => {

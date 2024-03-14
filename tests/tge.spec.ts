@@ -1,8 +1,8 @@
 import { ReturnPromiseType } from '@abaxfinance/utils';
 import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
-import { ABAX_DECIMALS, AZERO_DECIMALS, AbaxDAOSpecificRoles, ContractRole } from 'tests/consts';
-import { getTgeParams } from 'tests/misc';
+import { ABAX_DECIMALS, AZERO_DECIMALS, AbaxDAOSpecificRoles } from 'tests/consts';
+import { getTgeParams, roleToSelectorId } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
 import { getApiPreAndPostTx } from 'tests/setup/queryAt';
 import { queryTGEGetAccountStorage } from 'tests/setup/queryTGEGetAccountStorage';
@@ -82,7 +82,7 @@ function createContributeTest() {
     const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer?.address ?? null);
     await expect(tx).to.eventually.be.fulfilled;
     const expectedTokensReceivedTotal = desiredAmountOfAbaxToGet
-      .mul(E6bn.add(REFERRAL_BONUS_E3.CONTRIBUTOR).add(bonusMultiplierE3 ?? new BN(0)))
+      .mul(E3bn.add(referrer ? REFERRAL_BONUS_E3.CONTRIBUTOR : new BN(0)).add(bonusMultiplierE3 ?? new BN(0)))
       .div(E3bn);
     const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(4).divn(10).toString();
     const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(6).divn(10).toString();
@@ -147,7 +147,7 @@ async function deployTGE(
     stakedropAdmin.address,
   );
 
-  await abaxToken.withSigner(admin).tx.grantRole(ContractRole.GENERATOR, res.contract.address);
+  await abaxToken.withSigner(admin).tx.grantRole(roleToSelectorId('GENERATOR'), res.contract.address);
   const initTx = await res.contract.withSigner(admin).tx.init();
 
   return { contract: res.contract, initTx: initTx };
@@ -340,7 +340,7 @@ describe.skip('TGE', () => {
                 await expect(tx).to.changePSP22Balances(abaxToken, [foundation.address], [expectedTokensReceivedInstant]);
               });
               it('should set reserved to 0', async function () {
-                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, founders.address);
+                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, foundation.address);
                 expect(accStorageAfter.reservedTokens.toString()).to.equal('0');
                 expect(accStorageAfter.contributedAmount.toString()).to.equal(accStorageBefore.contributedAmount.toString());
                 expect(accStorageAfter.baseAmountCreated.toString()).to.equal(accStorageBefore.baseAmountCreated.toString());
@@ -364,7 +364,7 @@ describe.skip('TGE', () => {
                 await expect(tx).to.changePSP22Balances(abaxToken, [strategicReserves.address], [expectedTokensReceivedInstant]);
               });
               it('should set reserved to 0', async function () {
-                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, founders.address);
+                const accStorageAfter = await queryTGEGetAccountStorage(await localApi.get(), tge, strategicReserves.address);
                 expect(accStorageAfter.reservedTokens.toString()).to.equal('0');
                 expect(accStorageAfter.contributedAmount.toString()).to.equal(accStorageBefore.contributedAmount.toString());
                 expect(accStorageAfter.baseAmountCreated.toString()).to.equal(accStorageBefore.baseAmountCreated.toString());
@@ -809,7 +809,7 @@ describe.skip('TGE', () => {
                 await tge.withSigner(admin).tx.contribute(MINIMUM_AMOUNT_TO_GENERATE, admin.address, null);
                 await time.increase(100);
                 const currentParams = await queryTGEGetStorage(await localApi.get(), tge);
-                expect(currentParams.phaseTwoStartTime).to.equal((TGE_START_TIME + 100).toString());
+                expect(currentParams.phaseTwoStartTime?.toString()).to.equal((TGE_START_TIME + 100).toString());
               });
               describe('user has no bonus', () => {
                 describe('Generates 40 ABAX tokens', async () => {
@@ -837,7 +837,9 @@ describe.skip('TGE', () => {
                     expect(txRes.events?.[0].name).to.equal('Contribution');
                     expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
                       contributor: contributors[0].address,
+                      receiver: contributors[0].address,
                       toCreate: desiredAmountOfAbaxToGet.toString(),
+                      referrer: null,
                     });
                     const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
                     expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceivedInstantly.toString());
@@ -895,7 +897,9 @@ describe.skip('TGE', () => {
                     expect(txRes.events?.[0].name).to.equal('Contribution');
                     expect(replaceNumericPropsWithStrings(txRes.events?.[0].args)).to.deep.equal({
                       contributor: contributor.address,
+                      receiver: contributor.address,
                       toCreate: toTokenDecimals(40).toString(),
+                      referrer: null,
                     });
                     const cotributorABAXBalance = (await abaxToken.query.balanceOf(contributor.address)).value.ok;
                     expect(cotributorABAXBalance?.toString()).to.equal(expectedAbaxAmountReceivedInstantlyWithBonus.toString());

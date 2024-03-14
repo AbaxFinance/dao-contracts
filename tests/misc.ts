@@ -8,6 +8,7 @@ import type { KeyringPair } from '@polkadot/keyring/types';
 import { expect } from 'chai';
 import { generateRandomSignerWithBalance, localApi } from 'wookashwackomytest-polkahat-network-helpers';
 import { isEqual } from 'lodash';
+import { AbaxAccessControlRole } from 'tests/consts';
 
 //based on the above
 export async function getTgeParams(tge: AbaxTge) {
@@ -33,6 +34,10 @@ export const createEnumChecker = <T extends string, TEnumValue extends string>(e
 };
 export type AnyAbaxContractEventEnumLiteral<T extends AnyAbaxContractEvent> = `${T}`;
 export type AnyAbaxContract = AbaxTge | PSP22Emitable;
+
+export function roleToSelectorId(role: AbaxAccessControlRole) {
+  return stringToSelectorId(role);
+}
 
 //////////////////////////
 

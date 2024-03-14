@@ -7,7 +7,7 @@ import AbaxTgeMethods from 'typechain/query/abax_tge';
 type RetType = NonNullable<ReturnPromiseType<AbaxTgeMethods['getTgeStorage']>['value']['ok']>;
 
 export async function queryTGEGetStorage(apiAt: ApiDecoration<'promise'>, tge: any) {
-  const res = await queryAt<RetType>(apiAt, tge, nobody().address, 'get_tge_storage', []);
+  const res = (await queryAt<any>(apiAt, tge, nobody().address, 'get_tge_storage', [])) as RetType;
   return {
     startTime: res[0],
     phaseTwoStartTime: res[1],

@@ -12,6 +12,7 @@ import { supportCreateVestingSchedule } from 'tests/setup/createVestingSchedule'
 import { TgeStorage, TgeStorageNumericKey } from 'tests/setup/queryTGEGetStorage';
 import { flush, proxy } from 'tests/soft-assert';
 import 'wookashwackomytest-polkahat-chai-matchers';
+import { Operation, Order, supportCreateSpendingOrder } from './createSpendingOrder';
 const softExpect = proxy(chai.expect);
 
 export interface ExpectStaticWithSoft extends Chai.ExpectStatic {
@@ -39,6 +40,7 @@ declare global {
         token: string,
         args?: [amount: BN, [waitingTime: BN, vestingTime: BN] | { account: string; fallbackValues: [waitingTime: BN, vestingTime: BN] }],
       ): AsyncAssertion;
+      createSpendingOrder(treasury: any, args: Order[]): AsyncAssertion;
       changeTgeStorage<TKey extends TgeStorageNumericKey>(contract: any, key: TKey, delta: BN): AsyncAssertion;
     }
   }
@@ -185,6 +187,7 @@ chai.use((c, utils) => {
   supportChangeReservedTokenAmounts(c.Assertion, utils);
   supportCreateVestingSchedule(c.Assertion, utils);
   supportChangeTgeStorage(c.Assertion, utils);
+  supportCreateSpendingOrder(c.Assertion, utils);
 });
 
 const expectWithSoft = chai.expect as ExpectStaticWithSoft;
