@@ -1,11 +1,8 @@
-import { ReturnPromiseType } from '@abaxfinance/utils';
 import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
 import { ABAX_DECIMALS, AZERO_DECIMALS, AbaxDAOSpecificRoles } from 'tests/consts';
-import { getTgeParams, roleToSelectorId } from 'tests/misc';
+import { roleToSelectorId } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
-import { getApiPreAndPostTx } from 'tests/setup/queryAt';
-import { queryNextIdVestOfAt } from 'tests/setup/queryVester';
 import { default as AbaxTge, default as AbaxTgeContract } from 'typechain/contracts/abax_tge';
 import AbaxToken from 'typechain/contracts/abax_token';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
@@ -16,12 +13,10 @@ import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
 import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
-import { MAX_U128, ONE_YEAR, replaceNumericPropsWithStrings } from 'wookashwackomytest-polkahat-chai-matchers';
+import { MAX_U128, ONE_YEAR } from 'wookashwackomytest-polkahat-chai-matchers';
 import { E3bn, E6bn, generateRandomSignerWithBalance, getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
 import { queryTGEGetStorage } from './setup/queryTGEGetStorage';
-
-const toE3 = (n: number) => new BN(n * 1e3);
 
 const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(ABAX_DECIMALS)));
 
@@ -164,7 +159,7 @@ async function deployTGE(
 
 const contributors: KeyringPair[] = [];
 
-describe.only('TGE', () => {
+describe('TGE', () => {
   const now = Date.now();
   let tge: AbaxTge;
   let abaxToken: AbaxToken;

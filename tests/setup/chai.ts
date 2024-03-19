@@ -1,4 +1,4 @@
-import { E12, parseAmountToBN } from '@abaxfinance/utils';
+import { E12, parseAmountToBN } from 'wookashwackomytest-utils';
 import type { AccountId } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
 import chai from 'chai';

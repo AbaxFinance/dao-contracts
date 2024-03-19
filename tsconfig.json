@@ -13,11 +13,8 @@
     "allowJs": false,
     "checkJs": false,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "find-process/*": ["find-process/*"]
-    }
+    "baseUrl": "."
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "src"]
+  "exclude": ["node_modules"]
 }

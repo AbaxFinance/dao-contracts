@@ -1,7 +1,7 @@
-import { ReturnPromiseType } from '@abaxfinance/utils';
 import type { ApiDecoration } from '@polkadot/api/types';
 import BN from 'bn.js';
 import { queryAt } from 'tests/setup/queryAt';
+import { ReturnPromiseType } from 'tests/tsUtils';
 import AbaxTgeMethods from 'typechain/query/abax_tge';
 import { getSigners } from 'wookashwackomytest-polkahat-network-helpers';
 

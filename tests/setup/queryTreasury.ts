@@ -1,4 +1,4 @@
-import { ReturnPromiseType } from '@abaxfinance/utils';
+import { ReturnPromiseType } from 'tests/tsUtils';
 import type { ApiDecoration } from '@polkadot/api/types';
 // import { nobody } from '@polkadot/keyring/pair/nobody';
 import { queryAt } from 'tests/setup/queryAt';

@@ -1,4 +1,4 @@
-import { ReturnPromiseType } from '@abaxfinance/utils';
+import { ReturnPromiseType } from 'tests/tsUtils';
 import type { ApiDecoration } from '@polkadot/api/types';
 import { queryAt } from 'tests/setup/queryAt';
 import VesterMethods from 'typechain/query/vester';

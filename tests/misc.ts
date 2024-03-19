@@ -3,7 +3,7 @@ import BN from 'bn.js';
 import AbaxTge from 'typechain/contracts/abax_tge';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import { AnyAbaxContractEvent } from 'typechain/events/enum';
-import { AccountId, replaceNumericPropsWithStrings } from 'wookashwackomytest-polkahat-chai-matchers';
+import { AccountId } from 'wookashwackomytest-polkahat-chai-matchers';
 import type { KeyringPair } from '@polkadot/keyring/types';
 import { expect } from 'chai';
 import { generateRandomSignerWithBalance, localApi } from 'wookashwackomytest-polkahat-network-helpers';

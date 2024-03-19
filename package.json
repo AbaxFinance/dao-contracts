@@ -20,8 +20,6 @@
     "prepare": "husky install"
   },
   "dependencies": {
-    "@abaxfinance/contract-helpers": "link:../abax-sdk/packages/contract-helpers",
-    "@abaxfinance/utils": "link:../abax-sdk/packages/utils",
     "@babel/core": "^7.24.0",
     "@babel/plugin-transform-runtime": "^7.24.0",
     "@babel/preset-env": "^7.24.0",
@@ -58,19 +56,19 @@
     "prettier": "^2.8.8",
     "pretty-quick": "^3.3.1",
     "rxjs": "^7.8.1",
-    "ts-node": "^10.9.2",
     "tsx": "^4.7.1",
     "typescript": "^5.4.2",
-    "wookashwackomytest-pendzl-tests": "^0.0.7",
-    "wookashwackomytest-polkahat-chai-matchers": "^0.0.65",
-    "wookashwackomytest-polkahat-network-helpers": "^0.0.8",
-    "wookashwackomytest-typechain-compiler": "0.0.38",
-    "wookashwackomytest-typechain-polkadot": "0.0.38",
-    "wookashwackomytest-typechain-types": "0.0.38"
+    "wookashwackomytest-pendzl-tests": "^0.0.12",
+    "wookashwackomytest-polkahat-chai-matchers": "^0.0.73",
+    "wookashwackomytest-polkahat-network-helpers": "^0.0.22",
+    "wookashwackomytest-typechain-compiler": "0.0.43",
+    "wookashwackomytest-typechain-polkadot": "0.0.43",
+    "wookashwackomytest-typechain-types": "0.0.43",
+    "wookashwackomytest-utils": "^0.0.103"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.5",
-    "@types/chai": "^4.3.12",
+    "@types/chai": "^4.3.13",
     "@types/chai-as-promised": "^7.1.8",
     "@types/fs-extra": "^11.0.4",
     "@types/glob": "^8.1.0",
