@@ -164,7 +164,7 @@ async function deployTGE(
 
 const contributors: KeyringPair[] = [];
 
-describe('TGE', () => {
+describe.only('TGE', () => {
   const now = Date.now();
   let tge: AbaxTge;
   let abaxToken: AbaxToken;

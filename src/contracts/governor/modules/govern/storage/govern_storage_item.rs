@@ -143,10 +143,7 @@ impl GovernData {
                 .ok_or(MathError::Overflow)?),
         );
 
-        Ok(self
-            .next_proposal_id()
-            .checked_sub(1)
-            .ok_or(MathError::Overflow)?)
+        Ok(proposal_id)
     }
 
     pub fn finalize(

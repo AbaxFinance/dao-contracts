@@ -3,9 +3,8 @@ import fs from 'fs-extra';
 import glob from 'glob';
 import { compileContractByNameAndCopyArtifacts } from './common';
 import { getArgvObj } from 'scripts/compile/getArgvObj';
-import path from 'path';
 
-const getAllContractNamesAndFolderNames = (contractsRootPath: string, regexFilter?: string | undefined) => {
+export const getAllContractNamesAndFolderNames = (contractsRootPath: string, regexFilter?: string | undefined) => {
   const names: [string, string][] = [];
   const paths = glob.sync(`${contractsRootPath}/**/Cargo.toml`);
   const maybeRegexFilter = regexFilter ? new RegExp(regexFilter) : null;

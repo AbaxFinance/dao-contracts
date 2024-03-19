@@ -323,7 +323,7 @@ mod governor {
                 total_votes,
                 u128::from(self.govern.rules().minimum_stake_part_e3),
                 1000,
-                Rounding::Up,
+                Rounding::Down,
             )?;
 
             let proposer_votes = self._balance_of(proposer);
@@ -337,7 +337,7 @@ mod governor {
                 minimum_votes_to_propose,
                 self.govern.rules().proposer_deposit_part_e3 as u128,
                 1000,
-                Rounding::Up,
+                Rounding::Down,
             )?;
             // create proposal
             let proposal_id = self.govern.register_new_proposal(

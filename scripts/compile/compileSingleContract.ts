@@ -1,6 +1,7 @@
 import { getArgvObj } from 'scripts/compile/getArgvObj';
 import { compileContractByNameAndCopyArtifacts } from './common';
 import chalk from 'chalk';
+import { getAllContractNamesAndFolderNames } from 'scripts/compile/compileAllContracts';
 
 const printHelp = () => {
   console.log(
@@ -24,7 +25,16 @@ const printHelp = () => {
     printHelp();
     process.exit(127);
   }
-  await compileContractByNameAndCopyArtifacts(contractsRootPath, contractName);
+
+  const contractNames = getAllContractNamesAndFolderNames(contractsRootPath);
+  const foundContract = contractNames.find(([name, _]) => name === contractName);
+
+  if (!foundContract) {
+    console.log(chalk.red(`Contract ${contractName} not found!`));
+    process.exit(127);
+  }
+
+  await compileContractByNameAndCopyArtifacts(foundContract[1], foundContract[0]);
 
   console.log('Success!');
   process.exit(0);

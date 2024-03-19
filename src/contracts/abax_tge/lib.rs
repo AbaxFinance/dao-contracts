@@ -209,11 +209,9 @@ pub mod abax_tge_contract {
             let bonus =
                 self.calculate_bonus_and_update_created_base_and_bonus(receiver, amount, None)?;
             ink::env::debug_println!("bonus {:?}", bonus);
-            self.generate_to_self(amount.checked_add(bonus).ok_or(MathError::Overflow)?)?;
-            self.tge.reserve_tokens(
-                receiver,
-                amount.checked_add(bonus).ok_or(MathError::Overflow)?,
-            )?;
+            let amount_plus_bonus = amount.checked_add(bonus).ok_or(MathError::Overflow)?;
+            self.generate_to_self(amount_plus_bonus)?;
+            self.tge.reserve_tokens(receiver, amount_plus_bonus)?;
 
             self.env().emit_event(Stakedrop {
                 receiver,
@@ -370,11 +368,10 @@ pub mod abax_tge_contract {
 
         fn _ensure_is_not_finished(&self) -> Result<(), TGEError> {
             if let Some(phase_two_start_time) = self.tge.phase_two_start_time {
-                if self.env().block_timestamp()
-                    > (phase_two_start_time
-                        .checked_add(self.tge.phase_two_duration)
-                        .ok_or(MathError::Overflow)?)
-                {
+                let phase_two_end = phase_two_start_time
+                    .checked_add(self.tge.phase_two_duration)
+                    .ok_or(MathError::Overflow)?;
+                if self.env().block_timestamp() > phase_two_end {
                     return Err(TGEError::TGEEnded);
                 }
             }
@@ -510,15 +507,13 @@ pub mod abax_tge_contract {
                         if self.tge.total_amount_minted() <= self.tge.phase_one_token_cap {
                             self.tge
                                 .phase_one_token_cap
-                                .checked_add(effective_tokens)
+                                .checked_add(effective_tokens / 2)
                                 .ok_or(MathError::Overflow)?
-                                / 2
                         } else {
                             self.tge
                                 .total_amount_minted()
-                                .checked_add(effective_tokens)
+                                .checked_add(effective_tokens / 2)
                                 .ok_or(MathError::Overflow)?
-                                / 2
                         };
                     ink::env::debug_println!("averaged_amount: {:?}", averaged_amount);
 
@@ -606,21 +601,10 @@ pub mod abax_tge_contract {
 
             match gen {
                 Generate::Reserve => {
-                    self.tge.reserve_tokens(
-                        to,
-                        amount_phase1
-                            .checked_add(amount_phase2)
-                            .ok_or(MathError::Overflow)?,
-                    )?;
+                    self.tge.reserve_tokens(to, amount)?;
                 }
                 Generate::Distribute => {
-                    self.distribute(
-                        to,
-                        amount_phase1
-                            .checked_add(amount_phase2)
-                            .ok_or(MathError::Overflow)?,
-                        INSTANT_CONTRIBUTOR_RELEASE_E3,
-                    )?;
+                    self.distribute(to, amount, INSTANT_CONTRIBUTOR_RELEASE_E3)?;
                 }
             }
 
@@ -636,10 +620,10 @@ pub mod abax_tge_contract {
                 let strategic_reserves_amount = amount_to_mint_phase2
                     .checked_sub(
                         founders_amount
-                            .checked_sub(foundation_amount)
-                            .ok_or(MathError::Underflow)?
-                            .checked_sub(amount_phase2)
-                            .ok_or(MathError::Underflow)?,
+                            .checked_add(foundation_amount)
+                            .ok_or(MathError::Overflow)?
+                            .checked_add(amount_phase2)
+                            .ok_or(MathError::Overflow)?,
                     )
                     .ok_or(MathError::Underflow)?;
                 self.tge.reserve_tokens(

@@ -17,7 +17,7 @@ export const compileContract = async (contractPath: string) => {
   const command = 'cargo';
   const args = ['contract', 'build', ...(process.env.BUILD_PROD ? ['--release'] : [])];
   console.log(getLineSeparator());
-  console.log(chalk.bgGreen(`running ${command} ${args.join(' ')}...`));
+  console.log(chalk.bgGreen(`running ${command} ${args.join(' ')} in ${contractPath}...`));
   console.log(getLineSeparator());
 
   return new Promise<number>((resolve, reject) => {

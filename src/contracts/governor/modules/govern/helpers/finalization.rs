@@ -52,11 +52,14 @@ pub fn minimum_to_finalize(
         let time_in_initial_period = initial_period_end
             .checked_sub(now)
             .ok_or(MathError::Underflow)? as u128;
-        mul_div_r_down(
+        let over_half = mul_div_r_down(
             half_total_votes,
             time_in_initial_period,
             rules.initial_period as u128,
-        )?
+        )?;
+        half_total_votes
+            .checked_add(over_half)
+            .ok_or(MathError::Overflow)?
     } else if now <= flat_period_end {
         ink::env::debug_println!("mid");
         half_total_votes
