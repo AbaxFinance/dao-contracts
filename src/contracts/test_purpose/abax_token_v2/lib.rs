@@ -2,18 +2,19 @@
 
 pub mod modules;
 
-#[pendzl::implementation(PSP22, PSP22Metadata, AccessControl, Upgradeable)]
+#[pendzl::implementation(PSP22, PSP22Metadata, AccessControl, SetCodeHash)]
 #[ink::contract]
 pub mod abax_token {
     use crate::modules::{
-        capped_infaltion_storage_field::CappedInflation,
-        new_storage_field::{NewStorageField, NewStorageFieldView},
+        capped_infaltion_storage_field::CappedInflation, new_storage_field::NewStorageFieldView,
         reserved::Reserved,
     };
     use ink::prelude::string::String;
-    use pendzl::contracts::token::psp22::{
-        extensions::mintable::PSP22Mintable, implementation::PSP22InternalDefaultImpl, PSP22Error,
-        PSP22Internal,
+    use pendzl::{
+        contracts::psp22::{
+            mintable::PSP22Mintable, PSP22Error, PSP22Internal, PSP22InternalDefaultImpl,
+        },
+        math::errors::MathError,
     };
 
     #[ink(event)]
@@ -23,6 +24,7 @@ pub mod abax_token {
     }
 
     const YEAR: u128 = 365 * 24 * 60 * 60 * 1000;
+    const TEN_YEARS: u128 = 10 * YEAR;
     const MINTER: RoleType = ink::selector_id!("MINTER");
     const GENERATOR: RoleType = ink::selector_id!("GENERATOR");
 
@@ -43,7 +45,12 @@ pub mod abax_token {
 
     #[overrider(PSP22Internal)]
     pub fn _mint_to(&mut self, to: &AccountId, amount: &Balance) -> Result<(), PSP22Error> {
-        if (self._total_supply() + amount) > self.capped_inflation.cap() {
+        if (self
+            ._total_supply()
+            .checked_add(*amount)
+            .ok_or(MathError::Overflow)?)
+            > self.capped_inflation.cap()
+        {
             return Err(PSP22Error::Custom("CapReached".into()));
         }
         self._mint_to_default_impl(to, amount)
@@ -63,7 +70,9 @@ pub mod abax_token {
         }
 
         pub fn _inflate_cap(&mut self) {
-            self.capped_inflation.inflate(self.env().block_timestamp());
+            self.capped_inflation
+                .inflate(self.env().block_timestamp())
+                .unwrap();
             self.env().emit_event(CapUpdated {
                 cap: self.capped_inflation.cap(),
             });
@@ -71,9 +80,15 @@ pub mod abax_token {
 
         #[ink(message)]
         pub fn increment_counter(&mut self) {
-            self.upgradeable
-                .counter
-                .set(&(self.upgradeable.counter.get().unwrap_or_default() + 1));
+            self.upgradeable.counter.set(
+                &(self
+                    .upgradeable
+                    .counter
+                    .get()
+                    .unwrap_or_default()
+                    .checked_add(1))
+                .unwrap(),
+            );
         }
 
         #[ink(message)]
@@ -84,9 +99,14 @@ pub mod abax_token {
         #[ink(message)]
         pub fn set_new_field_a(&mut self, value: u128) {
             let mut prev_new_field = self.upgradeable.new_field.get().unwrap_or_default();
-            prev_new_field
-                .a
-                .set(&(prev_new_field.a.get().unwrap_or_default() + value));
+            prev_new_field.a.set(
+                &(prev_new_field
+                    .a
+                    .get()
+                    .unwrap_or_default()
+                    .checked_add(value))
+                .unwrap(),
+            );
             self.upgradeable.new_field.set(&(prev_new_field));
         }
 
@@ -109,10 +129,10 @@ pub mod abax_token {
         fn generate(&mut self, to: AccountId, amount: Balance) -> Result<(), PSP22Error> {
             self._ensure_has_role(GENERATOR, Some(self.env().caller()))?;
             self._inflate_cap();
-            let delta_inflation = amount / YEAR / 10;
+            let delta_inflation = amount.checked_div(TEN_YEARS).ok_or(MathError::DivByZero)?;
             self.capped_inflation
-                .increase_inflation_rate_per_milisecond(delta_inflation);
-            self.capped_inflation.increase_cap(amount);
+                .increase_inflation_rate_per_milisecond(delta_inflation)?;
+            self.capped_inflation.increase_cap(amount)?;
             self._mint_to(&to, &amount)
         }
 

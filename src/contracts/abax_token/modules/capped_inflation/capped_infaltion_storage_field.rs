@@ -12,9 +12,6 @@ pub struct CappedInflation {
     inflation_rate_per_milisecond: Balance,
     #[lazy]
     last_cap_update: Timestamp,
-    // new field added
-    #[lazy]
-    added_new_field: Balance,
 }
 
 impl CappedInflation {
@@ -60,11 +57,10 @@ impl CappedInflation {
         }
         let time_diff = now
             .checked_sub(self.last_cap_update.get().unwrap_or(0))
-            .ok_or(MathError::Overflow)
-            .unwrap();
+            .ok_or(MathError::Overflow)? as u128;
         let increase_cap_by = self
             .inflation_rate_per_milisecond()
-            .checked_mul(time_diff as u128)
+            .checked_mul(time_diff)
             .ok_or(MathError::Overflow)?;
         self.increase_cap(increase_cap_by)?;
 

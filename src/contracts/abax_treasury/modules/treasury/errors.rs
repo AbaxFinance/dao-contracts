@@ -1,12 +1,15 @@
-use pendzl::contracts::{
-    access::access_control::AccessControlError, finance::general_vest::VestingError,
-    token::psp22::PSP22Error,
+use pendzl::{
+    contracts::{
+        access_control::AccessControlError, general_vest::VestingError, psp22::PSP22Error,
+    },
+    math::errors::MathError,
 };
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum AbaxTreasuryError {
     PSP22Error(PSP22Error),
+    MathError(MathError),
     AccessControlError(AccessControlError),
     VestingError(VestingError),
 
@@ -20,6 +23,12 @@ pub enum AbaxTreasuryError {
 impl From<PSP22Error> for AbaxTreasuryError {
     fn from(e: PSP22Error) -> Self {
         AbaxTreasuryError::PSP22Error(e)
+    }
+}
+
+impl From<MathError> for AbaxTreasuryError {
+    fn from(e: MathError) -> Self {
+        AbaxTreasuryError::MathError(e)
     }
 }
 

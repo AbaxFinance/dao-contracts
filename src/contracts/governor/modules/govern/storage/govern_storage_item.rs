@@ -1,9 +1,12 @@
 use ink::{env::DefaultEnvironment, primitives::AccountId, storage::Mapping};
-use pendzl::traits::{Balance, Hash, Timestamp};
+use pendzl::{
+    math::errors::MathError,
+    traits::{Balance, Hash, Timestamp},
+};
 
-use crate::{
-    finalization::minimum_to_finalize, GovernError, ProposalId, ProposalState, ProposalStatus,
-    UserVote, Vote, VotingRules,
+use crate::modules::govern::{
+    helpers::finalization::minimum_to_finalize,
+    traits::{GovernError, ProposalId, ProposalState, ProposalStatus, UserVote, Vote, VotingRules},
 };
 
 #[derive(Debug)]
@@ -110,14 +113,14 @@ impl GovernData {
         }
 
         let proposal_id = self.next_proposal_id();
-        self.next_proposal_id.set(&(proposal_id + 1));
+        self.next_proposal_id
+            .set(&(proposal_id.checked_add(1).ok_or(MathError::Overflow)?));
 
-        self.proposal_id_to_hash.insert(&proposal_id, proposal_hash);
-        self.proposal_hash_to_id
-            .insert(&proposal_hash, &proposal_id);
+        self.proposal_id_to_hash.insert(proposal_id, proposal_hash);
+        self.proposal_hash_to_id.insert(proposal_hash, &proposal_id);
 
         self.state.insert(
-            &proposal_id,
+            proposal_id,
             &ProposalState {
                 status: ProposalStatus::Active,
                 force_unstake_possible: false,
@@ -133,9 +136,17 @@ impl GovernData {
             },
         );
 
-        self.active_proposals.set(&(self.active_proposals() + 1));
+        self.active_proposals.set(
+            &(self
+                .active_proposals()
+                .checked_add(1)
+                .ok_or(MathError::Overflow)?),
+        );
 
-        Ok(self.next_proposal_id() - 1)
+        Ok(self
+            .next_proposal_id()
+            .checked_sub(1)
+            .ok_or(MathError::Overflow)?)
     }
 
     pub fn finalize(
@@ -152,7 +163,7 @@ impl GovernData {
         }
         let now = ink::env::block_timestamp::<DefaultEnvironment>();
 
-        let minimum_to_finalize = minimum_to_finalize(&state, &self.rules(), now, current_counter);
+        let minimum_to_finalize = minimum_to_finalize(&state, &self.rules(), now, current_counter)?;
 
         ink::env::debug_println!("minimum_to_finalize: {:?}", minimum_to_finalize);
         ink::env::debug_println!("votes_for: {:?}", state.votes_for);
@@ -162,26 +173,54 @@ impl GovernData {
             state.votes_against_with_slash
         );
 
-        if state.votes_against + state.votes_against_with_slash < minimum_to_finalize
+        if state
+            .votes_against
+            .checked_add(state.votes_against_with_slash)
+            .ok_or(MathError::Overflow)?
+            < minimum_to_finalize
             && state.votes_for < minimum_to_finalize
         {
             return Err(GovernError::FinalizeCondition);
         }
 
-        if state.votes_against + state.votes_against_with_slash >= state.votes_for {
-            if state.votes_against_with_slash > state.votes_against + state.votes_for {
+        if state
+            .votes_against
+            .checked_add(state.votes_against_with_slash)
+            .ok_or(MathError::Overflow)?
+            >= state.votes_for
+        {
+            if state.votes_against_with_slash
+                > state
+                    .votes_against
+                    .checked_add(state.votes_for)
+                    .ok_or(MathError::Overflow)?
+            {
                 state.status = ProposalStatus::DefeatedWithSlash;
             } else {
                 state.status = ProposalStatus::Defeated;
             }
-        } else if state.votes_for > state.votes_against + state.votes_against_with_slash {
+        } else if state.votes_for
+            > state
+                .votes_against
+                .checked_add(state.votes_against_with_slash)
+                .ok_or(MathError::Overflow)?
+        {
             state.status = ProposalStatus::Succeeded;
         } else {
             state.status = ProposalStatus::Defeated;
         }
 
-        let is_post_flat_period =
-            now >= state.start + self.rules().initial_period + self.rules().flat_period;
+        let initital_plus_flat_duration = self
+            .rules()
+            .initial_period
+            .checked_add(self.rules().flat_period)
+            .ok_or(MathError::Overflow)?;
+
+        let is_post_flat_period = now
+            >= state
+                .start
+                .checked_add(initital_plus_flat_duration)
+                .ok_or(MathError::Overflow)?;
         if is_post_flat_period {
             state.force_unstake_possible = true;
         }
@@ -189,9 +228,18 @@ impl GovernData {
         state.finalized = Some(now);
 
         self.state.insert(proposal_id, &state);
-        self.active_proposals.set(&(self.active_proposals() - 1));
-        self.finalized_proposals
-            .set(&(self.finalized_proposals() + 1));
+        self.active_proposals.set(
+            &(self
+                .active_proposals()
+                .checked_sub(1)
+                .ok_or(MathError::Overflow)?),
+        );
+        self.finalized_proposals.set(
+            &(self
+                .finalized_proposals()
+                .checked_add(1)
+                .ok_or(MathError::Overflow)?),
+        );
 
         Ok(state.status)
     }
@@ -218,14 +266,11 @@ impl GovernData {
     }
 
     pub fn status_of(&self, proposal_id: &ProposalId) -> Option<ProposalStatus> {
-        match self.state_of(proposal_id) {
-            Some(state) => Some(state.status),
-            None => None,
-        }
+        self.state_of(proposal_id).map(|state| state.status)
     }
 
     pub fn vote_of_for(&self, account: &AccountId, proposal_id: &ProposalId) -> Option<UserVote> {
-        self.votes.get(&(*account, *proposal_id))
+        self.votes.get((*account, *proposal_id))
     }
 
     pub fn update_vote_of_for(
@@ -239,60 +284,129 @@ impl GovernData {
             return Err(GovernError::InsuficientVotes);
         }
         let mut state = self
-            .state_of(&proposal_id)
+            .state_of(proposal_id)
             .ok_or(GovernError::ProposalDoesntExist)?;
         if state.status != ProposalStatus::Active {
             return Err(GovernError::WrongStatus);
         }
 
-        let existing_user_vote = self.vote_of_for(account, &proposal_id);
+        let existing_user_vote = self.vote_of_for(account, proposal_id);
         match existing_user_vote {
             None => match vote {
-                Vote::Agreed => state.votes_for += *amount,
-                Vote::Disagreed => state.votes_against += *amount,
-                Vote::DisagreedWithProposerSlashing => state.votes_against_with_slash += *amount,
+                Vote::Agreed => {
+                    state.votes_for = state
+                        .votes_for
+                        .checked_add(*amount)
+                        .ok_or(MathError::Overflow)?
+                }
+                Vote::Disagreed => {
+                    state.votes_against = state
+                        .votes_against
+                        .checked_add(*amount)
+                        .ok_or(MathError::Overflow)?
+                }
+                Vote::DisagreedWithProposerSlashing => {
+                    state.votes_against_with_slash = state
+                        .votes_against_with_slash
+                        .checked_add(*amount)
+                        .ok_or(MathError::Overflow)?
+                }
             },
             Some(old_vote) => match old_vote.vote {
                 Vote::Agreed => match vote {
                     Vote::Agreed => {
-                        state.votes_for -= old_vote.amount;
-                        state.votes_for += *amount;
+                        state.votes_for = state
+                            .votes_for
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_for = state
+                            .votes_for
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                     Vote::Disagreed => {
-                        state.votes_for -= old_vote.amount;
-                        state.votes_against += *amount;
+                        state.votes_for = state
+                            .votes_for
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_against = state
+                            .votes_against
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                     Vote::DisagreedWithProposerSlashing => {
-                        state.votes_for -= old_vote.amount;
-                        state.votes_against_with_slash += *amount;
+                        state.votes_for = state
+                            .votes_for
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_against_with_slash = state
+                            .votes_against_with_slash
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                 },
                 Vote::Disagreed => match vote {
                     Vote::Agreed => {
-                        state.votes_against -= old_vote.amount;
-                        state.votes_for += *amount;
+                        state.votes_against = state
+                            .votes_against
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_for = state
+                            .votes_for
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                     Vote::Disagreed => {
-                        state.votes_against -= old_vote.amount;
-                        state.votes_against += *amount;
+                        state.votes_against = state
+                            .votes_against
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_against = state
+                            .votes_against
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                     Vote::DisagreedWithProposerSlashing => {
-                        state.votes_against -= old_vote.amount;
-                        state.votes_against_with_slash += *amount;
+                        state.votes_against = state
+                            .votes_against
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_against_with_slash = state
+                            .votes_against_with_slash
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                 },
                 Vote::DisagreedWithProposerSlashing => match vote {
                     Vote::Agreed => {
-                        state.votes_against_with_slash -= old_vote.amount;
-                        state.votes_for += *amount;
+                        state.votes_against_with_slash = state
+                            .votes_against_with_slash
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_for = state
+                            .votes_for
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                     Vote::Disagreed => {
-                        state.votes_against_with_slash -= old_vote.amount;
-                        state.votes_against += *amount;
+                        state.votes_against_with_slash = state
+                            .votes_against_with_slash
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_against = state
+                            .votes_against
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                     Vote::DisagreedWithProposerSlashing => {
-                        state.votes_against_with_slash -= old_vote.amount;
-                        state.votes_against_with_slash += *amount;
+                        state.votes_against_with_slash = state
+                            .votes_against_with_slash
+                            .checked_sub(old_vote.amount)
+                            .ok_or(MathError::Underflow)?;
+                        state.votes_against_with_slash = state
+                            .votes_against_with_slash
+                            .checked_add(*amount)
+                            .ok_or(MathError::Overflow)?;
                     }
                 },
             },
@@ -303,7 +417,7 @@ impl GovernData {
             amount: *amount,
         };
 
-        self.votes.insert(&(*account, *proposal_id), &new_vote);
+        self.votes.insert((*account, *proposal_id), &new_vote);
 
         self.state.insert(proposal_id, &state);
         Ok(())
@@ -331,13 +445,10 @@ impl GovernData {
             return Err(GovernError::CantForceUnstake);
         }
 
-        match self.last_force_unstake.get(account) {
-            Some(last_proposal_id) => {
-                if last_proposal_id >= *proposal_id {
-                    return Err(GovernError::CantForceUnstake);
-                }
+        if let Some(last_proposal_id) = self.last_force_unstake.get(account) {
+            if last_proposal_id >= *proposal_id {
+                return Err(GovernError::CantForceUnstake);
             }
-            None => {}
         }
         self.last_force_unstake.insert(account, proposal_id);
         Ok(())

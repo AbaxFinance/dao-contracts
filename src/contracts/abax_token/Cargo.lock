@@ -223,7 +223,7 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -475,7 +475,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -535,7 +535,7 @@ dependencies = [
  "itertools 0.10.5",
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -551,7 +551,7 @@ dependencies = [
  "itertools 0.12.1",
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -566,7 +566,7 @@ dependencies = [
  "parity-scale-codec",
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
  "synstructure 0.13.1",
 ]
 
@@ -720,7 +720,7 @@ checksum = "adf157a4dc5a29b7b464aa8fe7edeff30076e07e13646a1c3874f58477dc99f8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -801,9 +801,9 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pendzl"
-version = "0.2.0-alpha"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd89e3a65d15a477a8cce78578c2b57197833d79bef6a27a9aec90a397e2d06e"
+checksum = "04e6edb068b22b8d9ceaff7ab80f646a1dc764d7d5c671b085e33af9778f0ab0"
 dependencies = [
  "ink",
  "parity-scale-codec",
@@ -814,11 +814,10 @@ dependencies = [
 
 [[package]]
 name = "pendzl_contracts"
-version = "0.2.0-alpha"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d527e2585172b62550b7c83fb226b5df4cdee4607abc673eb66a6976f8710fe"
+checksum = "4be73ddd2709d53c8f4ee92cce71ce6fcc6bcff4adc8c9a8ae28622614acf330"
 dependencies = [
- "ethnum",
  "hex",
  "ink",
  "parity-scale-codec",
@@ -828,11 +827,12 @@ dependencies = [
 
 [[package]]
 name = "pendzl_lang"
-version = "0.2.0-alpha"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f0100297c488bfc324c270ba765bdc596db60bf3dd1e192b10a6cb889e7e318"
+checksum = "16389a5c2c09f1a9c3becb6c6a7f7a6b90790504044afffaab7ea63f192eb8b5"
 dependencies = [
  "const_format",
+ "ethnum",
  "ink",
  "parity-scale-codec",
  "pendzl_lang_macro",
@@ -842,9 +842,9 @@ dependencies = [
 
 [[package]]
 name = "pendzl_lang_codegen"
-version = "0.2.0-alpha"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c31e1c47bd1e5aa137c5772c092e9fd5125ee6e0d8ebb661704767e3aabf5e8"
+checksum = "90d71dc7341a5ee1eec7828de68bbdfb691d28ab3b2d984dfad60ee1295d8954"
 dependencies = [
  "blake2",
  "cargo_metadata",
@@ -863,9 +863,9 @@ dependencies = [
 
 [[package]]
 name = "pendzl_lang_macro"
-version = "0.2.0-alpha"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "239b4e75994bfb8e9a28c2b49d3d6e88f1915ad339fe3f147290bea938a96852"
+checksum = "add1521b0badb806ac71ba84eef0a18a1cf0853b8f0154cbe13bf83371422eb3"
 dependencies = [
  "pendzl_lang_codegen",
  "proc-macro2",
@@ -903,7 +903,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6380dbe1fb03ecc74ad55d841cfc75480222d153ba69ddcb00977866cbdabdb8"
 dependencies = [
  "polkavm-derive-impl",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -915,7 +915,7 @@ dependencies = [
  "polkavm-common",
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -1221,7 +1221,7 @@ checksum = "7eb0b34b42edc17f6b7cac84a52a1c5f0e1bb2227e997ca9011ea3dd34e8610b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -1304,9 +1304,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.52"
+version = "2.0.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b699d15b36d1f02c3e7c69f8ffef53de37aefae075d8488d4ba1a7788d574a07"
+checksum = "7383cd0e49fff4b6b90ca5670bfd3e9d6a733b3f90c686605aa7eec8c4996032"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1333,7 +1333,7 @@ checksum = "c8af7666ab7b6390ab78131fb5b0fce11d6b7a6951602017c35fa82800708971"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -1359,7 +1359,7 @@ checksum = "c61f3ba182994efc43764a46c018c347bc492c79f024e705f46567b418f6d4f7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]
 
 [[package]]
@@ -1501,5 +1501,5 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.52",
+ "syn 2.0.53",
 ]

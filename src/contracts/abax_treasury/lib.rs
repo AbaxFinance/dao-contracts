@@ -1,25 +1,22 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-pub mod modules;
+mod modules;
 
-#[pendzl::implementation(AccessControl)]
+#[pendzl::implementation(AccessControl, SetCodeHash)]
 #[ink::contract]
 pub mod abax_treasury {
-    use ink::{prelude::vec::Vec, ToAccountId};
-
-    use crate::modules::{
+    pub use crate::modules::treasury::{
         errors::AbaxTreasuryError,
         events::{OrderCancelled, OrderCreated, OrderExecuted, VesterChanged},
         storage_fields::operations::OrdersStorage,
         structs::{Operation, Order, OrderId},
         traits::{AbaxTreasury, AbaxTreasuryView},
     };
-    use pendzl::contracts::{
-        finance::general_vest::{GeneralVest, GeneralVestRef},
-        token::psp22::PSP22Ref,
+    pub use ink::{prelude::vec::Vec, ToAccountId};
+    pub use pendzl::contracts::{
+        general_vest::{GeneralVest, GeneralVestRef},
+        psp22::{PSP22Ref, PSP22},
     };
-
-    use pendzl::contracts::token::psp22::PSP22;
 
     pub const PARAMETERS_ADMIN: RoleType = ink::selector_id!("PARAMETERS_ADMIN"); // 368_001_360_u32
     pub const SPENDER: RoleType = ink::selector_id!("SPENDER"); // 3_684_413_446_u32

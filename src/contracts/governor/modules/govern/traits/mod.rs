@@ -8,9 +8,10 @@ pub use structs::*;
 
 pub use pendzl::traits::String;
 
-pub use ink::prelude::string::ToString;
-pub use ink::prelude::vec::Vec;
-pub use ink::primitives::Hash;
+pub use ink::{
+    prelude::{string::ToString, vec::Vec},
+    primitives::Hash,
+};
 
 include!("govern.trait.rs");
 include!("govern_manage.trait.rs");

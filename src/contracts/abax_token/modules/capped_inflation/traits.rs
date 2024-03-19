@@ -1,9 +1,6 @@
 use pendzl::traits::{AccountId, Balance};
 
-use pendzl::contracts::token::psp22::PSP22Error;
-
-use ink::{contract_ref, env::DefaultEnvironment};
-pub type AbaxTokenRef = contract_ref!(AbaxToken, DefaultEnvironment);
+use pendzl::contracts::psp22::PSP22Error;
 
 #[ink::trait_definition]
 pub trait AbaxToken {

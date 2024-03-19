@@ -16,7 +16,7 @@ const ALL_ROLES = ['PARAMETERS_ADMIN', 'SPENDER', 'EXECUTOR', 'CANCELLER', 'CODE
 const [deployer, governor, foundation, other, receiver1, receiver2, receiver3, receiver4] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
 
-describe.only('Abax Treasury tests', () => {
+describe('Abax Treasury tests', () => {
   let treasury: AbaxTreasury;
   let vester: Vester;
   let tokenA: PSP22Emitable;

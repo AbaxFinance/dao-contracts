@@ -1,10 +1,11 @@
 use ink::storage::Mapping;
 use pendzl::{
-    contracts::{finance::general_vest::GeneralVestRef, token::psp22::PSP22Ref},
+    contracts::{general_vest::GeneralVestRef, psp22::PSP22Ref},
+    math::errors::MathError,
     traits::{AccountId, Balance, Timestamp},
 };
 
-use crate::modules::errors::TGEError;
+use crate::modules::tge::errors::TGEError;
 
 #[derive(Debug)]
 #[pendzl::storage_item]
@@ -61,7 +62,7 @@ impl PublicContributionStorage {
         phase_one_token_cap: u128,
         cost_to_mint_milion_tokens: u128,
     ) -> Self {
-        let instance = Self {
+        Self {
             start_time,
             phase_two_start_time: None,
             phase_two_duration,
@@ -80,25 +81,37 @@ impl PublicContributionStorage {
             bonus_created_by_account: Default::default(),
             reserved_tokens: Default::default(),
             referrers: Default::default(),
-        };
-        instance
+        }
     }
 
     pub fn total_amount_minted(&self) -> Balance {
         self.total_amount_minted
     }
 
-    pub fn increase_total_amount_minted(&mut self, amount: Balance) {
-        self.total_amount_minted += amount;
+    pub fn increase_total_amount_minted(&mut self, amount: Balance) -> Result<(), MathError> {
+        self.total_amount_minted = self
+            .total_amount_minted
+            .checked_add(amount)
+            .ok_or(MathError::Overflow)?;
+        Ok(())
     }
 
-    pub fn increase_base_amount_created(&mut self, account: &AccountId, amount: Balance) {
+    pub fn increase_base_amount_created(
+        &mut self,
+        account: &AccountId,
+        amount: Balance,
+    ) -> Result<(), MathError> {
         let received_base_amount = self
             .base_created_by_account
             .get(account)
             .unwrap_or_default();
-        self.base_created_by_account
-            .insert(account, &(received_base_amount + amount));
+        self.base_created_by_account.insert(
+            account,
+            &(received_base_amount
+                .checked_add(amount)
+                .ok_or(MathError::Overflow)?),
+        );
+        Ok(())
     }
 
     pub fn base_amount_created(&self, account: &AccountId) -> Balance {
@@ -107,13 +120,22 @@ impl PublicContributionStorage {
             .unwrap_or_default()
     }
 
-    pub fn increase_bonus_amount_created(&mut self, account: &AccountId, amount: Balance) {
+    pub fn increase_bonus_amount_created(
+        &mut self,
+        account: &AccountId,
+        amount: Balance,
+    ) -> Result<(), MathError> {
         let received_bonus_amount = self
             .bonus_created_by_account
             .get(account)
             .unwrap_or_default();
-        self.bonus_created_by_account
-            .insert(account, &(received_bonus_amount + amount));
+        self.bonus_created_by_account.insert(
+            account,
+            &(received_bonus_amount
+                .checked_add(amount)
+                .ok_or(MathError::Overflow)?),
+        );
+        Ok(())
     }
 
     pub fn bonus_amount_created(&self, account: &AccountId) -> Balance {
@@ -128,28 +150,42 @@ impl PublicContributionStorage {
             .unwrap_or_default()
     }
 
-    pub fn increase_contributed_amount(&mut self, account: AccountId, amount: Balance) {
+    pub fn increase_contributed_amount(
+        &mut self,
+        account: AccountId,
+        amount: Balance,
+    ) -> Result<(), MathError> {
         let contributed_amount = self
             .contributed_amount_by_account
-            .get(&account)
+            .get(account)
             .unwrap_or_default();
-        self.contributed_amount_by_account
-            .insert(account, &(contributed_amount + amount));
+        self.contributed_amount_by_account.insert(
+            account,
+            &(contributed_amount
+                .checked_add(amount)
+                .ok_or(MathError::Overflow)?),
+        );
+        Ok(())
     }
 
     pub fn reserved_tokens(&self, account: &AccountId) -> Balance {
         self.reserved_tokens.get(account).unwrap_or(0)
     }
 
-    pub fn reserve_tokens(&mut self, account: AccountId, amount: Balance) {
-        let reserved_amount = self.reserved_tokens.get(&account).unwrap_or_default();
-        self.reserved_tokens
-            .insert(account, &(reserved_amount + amount));
+    pub fn reserve_tokens(&mut self, account: AccountId, amount: Balance) -> Result<(), MathError> {
+        let reserved_amount = self.reserved_tokens.get(account).unwrap_or_default();
+        self.reserved_tokens.insert(
+            account,
+            &(reserved_amount
+                .checked_add(amount)
+                .ok_or(MathError::Overflow)?),
+        );
+        Ok(())
     }
 
     pub fn collect_reserved_tokens(&mut self, account: AccountId) -> Result<Balance, TGEError> {
         self.reserved_tokens
-            .take(&account)
+            .take(account)
             .ok_or(TGEError::NoReservedTokens)
     }
 

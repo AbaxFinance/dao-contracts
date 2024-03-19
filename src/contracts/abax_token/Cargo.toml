@@ -7,21 +7,21 @@ edition = "2021"
 [dependencies]
 ink = { version = "5.0.0", default-features = false }
 
-scale = { package = "parity-scale-codec", version = "3.6", default-features = false, features = [
+scale = { package = "parity-scale-codec", version = "3.6.9", default-features = false, features = [
     "derive",
     "chain-error",
 ] }
-scale-info = { version = "2.10", default-features = false, features = [
+scale-info = { version = "2.11", default-features = false, features = [
     "derive",
 ], optional = true }
 
 
-pendzl = { vesrions = "0.2.0-alpha", default-features = false, features = [
+pendzl = { version = "=0.2.3", default-features = false, features = [
     "psp22_impl",
     "psp22_metadata_impl",
     "psp22_mintable",
     "access_control_impl",
-    "upgradeable_impl",
+    "set_code_hash_impl",
 ] }
 
 

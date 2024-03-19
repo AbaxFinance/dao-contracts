@@ -1,6 +1,6 @@
 use ink::{prelude::vec::Vec, primitives::AccountId};
 use pendzl::{
-    contracts::finance::general_vest::VestingSchedule,
+    contracts::general_vest::VestingSchedule,
     traits::{Balance, Timestamp},
 };
 

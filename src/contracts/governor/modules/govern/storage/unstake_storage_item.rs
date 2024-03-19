@@ -1,7 +1,8 @@
-use crate::UnstakePeriodChanged;
 use ink::{env::DefaultEnvironment, primitives::AccountId};
-pub use pendzl::contracts::finance::general_vest::GeneralVestRef;
+pub use pendzl::contracts::general_vest::GeneralVestRef;
 use pendzl::traits::Timestamp;
+
+use crate::modules::govern::traits::UnstakePeriodChanged;
 
 #[derive(Debug, Default)]
 #[pendzl::storage_item]

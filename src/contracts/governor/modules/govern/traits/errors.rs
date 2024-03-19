@@ -1,6 +1,6 @@
 use pendzl::traits::String;
 pub use pendzl::{
-    contracts::{access::access_control::AccessControlError, token::psp22::PSP22Error},
+    contracts::{access_control::AccessControlError, psp22::PSP22Error},
     math::errors::MathError,
 };
 

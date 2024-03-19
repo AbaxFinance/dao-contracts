@@ -1,8 +1,6 @@
 use pendzl::traits::{AccountId, Timestamp};
 
-use crate::ProposalHash;
-
-use super::{Proposal, ProposalId, ProposalStatus, Vote, VotingRules};
+use super::{Proposal, ProposalHash, ProposalId, ProposalStatus, Vote, VotingRules};
 
 #[ink::event]
 pub struct ProposalCreated {

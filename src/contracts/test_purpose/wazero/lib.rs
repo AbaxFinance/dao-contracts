@@ -8,7 +8,7 @@ pub use traits::WrappedAZERO;
 mod wazero {
     use crate::WrappedAZERO;
     use ink::prelude::string::String;
-    use pendzl::contracts::token::psp22::{extensions::metadata::PSP22Metadata, PSP22Error};
+    use pendzl::contracts::psp22::{metadata::PSP22Metadata, PSP22Error};
 
     #[ink(storage)]
     #[derive(Default, pendzl::traits::StorageFieldGetter)]

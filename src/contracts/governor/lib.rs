@@ -1,13 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-pub mod governor_storage;
-pub mod helpers;
-pub mod traits;
-
-pub use governor_storage::*;
-pub use helpers::*;
-pub use traits::*;
-
+mod modules;
 /// This is Abax Governor Contract implementation.
 /// It allows for staking PSP22 token (Abax token) in exchange for PSP22Vault shares (votes).
 /// The shares are non-transferrable.
@@ -22,34 +15,45 @@ pub use traits::*;
 ///
 /// Contract is using pendzl Access Control to manage access to the messages
 
-#[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl, Upgradeable)]
+#[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl, SetCodeHash)]
 #[ink::contract]
 mod governor {
-    pub use super::*;
+    pub use crate::modules::govern::{
+        helpers::{
+            finalization::minimum_to_finalize,
+            hashes::{hash_description, hash_proposal},
+        },
+        storage::{
+            govern_storage_item::GovernData, locked_shares_storage_item::LockedSharesData,
+            unstake_storage_item::UnstakeData, vault_counter_storage_item::VaultCounterData,
+        },
+        traits::{
+            AbaxGovern, AbaxGovernInternal, AbaxGovernManage, AbaxGovernView, GovernError,
+            OpaqueTypes, Proposal, ProposalCreated, ProposalExecuted, ProposalFinalized,
+            ProposalHash, ProposalId, ProposalState, ProposalStatus, UserVote, Vote, VoteCasted,
+            VotingRules,
+        },
+    };
+    pub use ink::{
+        codegen::Env,
+        env::DefaultEnvironment,
+        prelude::string::{String, ToString},
+        ToAccountId,
+    };
 
-    use governor_storage::{
-        govern_storage_item::GovernData, locked_shares_storage_item::LockedSharesData,
-        unstake_storage_item::UnstakeData, vault_counter_storage_item::VaultCounterData,
-    };
-    use helpers::{
-        finalization::minimum_to_finalize,
-        hashes::{hash_description, hash_proposal},
-    };
-    use ink::{codegen::Env, env::DefaultEnvironment, ToAccountId};
-
-    use pendzl::contracts::finance::general_vest::{
-        ExternalTimeConstraint, ProvideVestScheduleInfo,
-    };
     pub use pendzl::{
         contracts::{
-            access::access_control::RoleType,
-            finance::general_vest::{GeneralVest, VestingSchedule},
-            token::psp22::{extensions::vault::implementation::PSP22VaultInternalDefaultImpl, *},
+            access_control::RoleType,
+            general_vest::{
+                ExternalTimeConstraint, GeneralVest, ProvideVestScheduleInfo, VestingSchedule,
+            },
+            psp22::{vault::PSP22VaultInternalDefaultImpl, *},
         },
+        math::operations::mul_div,
         traits::Flush,
     };
 
-    const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR");
+    pub const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR");
     pub const PARAMETERS_ADMIN: RoleType = ink::selector_id!("PARAMETERS_ADMIN"); // 368_001_360_u32
 
     #[derive(StorageFieldGetter)]
@@ -275,12 +279,15 @@ mod governor {
                 return None;
             }
 
-            Some(minimum_to_finalize(
-                &state,
-                &self.rules(),
-                ink::env::block_timestamp::<DefaultEnvironment>(),
-                self.counter.counter(),
-            ))
+            Some(
+                minimum_to_finalize(
+                    &state,
+                    &self.rules(),
+                    ink::env::block_timestamp::<DefaultEnvironment>(),
+                    self.counter.counter(),
+                )
+                .unwrap(),
+            )
         }
 
         #[ink(message)]
@@ -312,8 +319,13 @@ mod governor {
         ) -> Result<(), GovernError> {
             //check if the proposer has enough votes to create a proposal
             let total_votes = self._total_supply();
-            let minimum_votes_to_propose = total_votes / 1000_u128
-                * u16::from(self.govern.rules().minimum_stake_part_e3) as u128;
+            let minimum_votes_to_propose = mul_div(
+                total_votes,
+                u128::from(self.govern.rules().minimum_stake_part_e3),
+                1000,
+                Rounding::Up,
+            )?;
+
             let proposer_votes = self._balance_of(proposer);
             if proposer_votes < minimum_votes_to_propose {
                 return Err(GovernError::InsuficientVotes);
@@ -321,8 +333,12 @@ mod governor {
             let proposal_hash = hash_proposal(proposal);
 
             // make a proposer deposit
-            let proposer_deposit = total_votes / 1000_u128
-                * u16::from(self.govern.rules().proposer_deposit_part_e3) as u128;
+            let proposer_deposit = mul_div(
+                minimum_votes_to_propose,
+                self.govern.rules().proposer_deposit_part_e3 as u128,
+                1000,
+                Rounding::Up,
+            )?;
             // create proposal
             let proposal_id = self.govern.register_new_proposal(
                 proposer,
@@ -363,7 +379,7 @@ mod governor {
                     .ok_or(GovernError::ProposalDoesntExist)?
                     .proposer;
                 if self.env().caller() == proposer {
-                    balance + locked
+                    balance.checked_add(locked).ok_or(MathError::Overflow)?
                 } else {
                     balance
                 }

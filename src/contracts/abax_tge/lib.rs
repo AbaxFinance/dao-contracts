@@ -1,42 +1,48 @@
 // SPDX-License-Identifier: MIT
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-pub mod modules;
+mod constants;
+mod modules;
 
-#[pendzl::implementation(AccessControl)]
+/// A contract repsonsible for generating the Abax Token.
+#[pendzl::implementation(AccessControl, SetCodeHash)]
 #[ink::contract]
-pub mod abax_tge {
-    use crate::modules::{
+pub mod abax_tge_contract {
+    pub use crate::{
         constants::{
-            ALL_TO_PUBLIC_RATIO, BONUSE_FOR_CODE_USE_E3, CONTRIBUTION_BONUS_DENOMINATOR, E12_U128,
-            E3_U128, E6_U128, E8_U128, FOUNDATION_PART_E3, FOUNDERS_INSTANT_RELEASE_E3,
-            FOUNDERS_PART_E3, MAX_BONUS_MULTIPLIER_E3, PUBLIC_INSTANT_RELEASE_E3,
-            REFERER_REWARD_E3, VEST_DURATION,
+            ALL_TO_PUBLIC_RATIO, BONUS_DENOMINATOR, BONUS_FOR_REFERRER_USE_E3, BONUS_MAX_E3,
+            E12_U128, E3_U128, E6_U128, E8_U128, INSTANT_CONTRIBUTOR_RELEASE_E3,
+            INSTANT_FOUNDERS_RELEASE_E3, PART_OD_FOUNDATION_E3, PART_OF_FOUNDERS_E3,
+            REWARD_FOR_REFERER_E3, VEST_DURATION,
         },
-        errors::TGEError,
-        events::{BonusMultiplierSet, Contribution, PhaseChanged, Stakedrop},
-        storage_fields::public_contribution::PublicContributionStorage,
-        traits::{AbaxTGE, AbaxToken, AbaxTokenRef},
+        modules::tge::{
+            errors::TGEError,
+            events::{BonusMultiplierSet, Contribution, PhaseChanged, Stakedrop},
+            storage_fields::public_contribution::PublicContributionStorage,
+            traits::{AbaxTGE, AbaxTGEView, AbaxToken, AbaxTokenRef},
+        },
     };
-    use ink::{
+    pub use ink::{
+        codegen::Env,
         prelude::{vec, vec::Vec},
         ToAccountId,
     };
-
-    use crate::modules::traits::AbaxTGEView;
-    use pendzl::contracts::{
-        finance::general_vest::{GeneralVest, GeneralVestRef, VestingSchedule},
-        token::psp22::{PSP22Ref, PSP22},
+    use pendzl::math::errors::MathError;
+    pub use pendzl::{
+        contracts::{
+            general_vest::{GeneralVest, GeneralVestRef, VestingSchedule},
+            psp22::{PSP22Ref, PSP22},
+        },
+        math::operations::*,
     };
 
-    use ink::codegen::Env;
-
     const ADMIN: RoleType = 0;
-    const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN"); //4_193_574_647_u32
+    /// A role type for access to stakedrop functions - 4_193_574_647_u32.
+    pub const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN");
 
-    const MINIMUM_AMOUNT: Balance = 40_000_000_000_000; // 10 WAZERO in phase one
+    pub const MINIMUM_AMOUNT: Balance = 40_000_000_000_000; // 10 WAZERO in phase one
 
-    enum Generate {
+    pub enum Generate {
         // used to generate for referrers
         Reserve,
         // used to generate for contributors
@@ -101,19 +107,24 @@ pub mod abax_tge {
                 return Err(TGEError::AlreadyInitialized);
             }
 
-            self.generate_to_self(80 * self.tge.phase_one_token_cap / 100)?;
+            self.generate_to_self(mul_div(
+                80,
+                self.tge.phase_one_token_cap,
+                100,
+                Rounding::Down,
+            )?)?;
             self.tge.reserve_tokens(
                 self.tge.founders_address,
-                20 * self.tge.phase_one_token_cap / 100,
-            );
+                mul_div(20, self.tge.phase_one_token_cap, 100, Rounding::Down)?,
+            )?;
             self.tge.reserve_tokens(
                 self.tge.foundation_address,
-                2 * self.tge.phase_one_token_cap / 100,
-            );
+                mul_div(2, self.tge.phase_one_token_cap, 100, Rounding::Down)?,
+            )?;
             self.tge.reserve_tokens(
                 self.tge.strategic_reserves_address,
-                58 * self.tge.phase_one_token_cap / 100,
-            );
+                mul_div(58, self.tge.phase_one_token_cap, 100, Rounding::Down)?,
+            )?;
             Ok(())
         }
 
@@ -149,7 +160,7 @@ pub mod abax_tge {
                 vec![],
             )?;
             ink::env::debug_println!("post transfer");
-            self.tge.increase_contributed_amount(contributor, cost);
+            self.tge.increase_contributed_amount(contributor, cost)?;
 
             let bonus = self.calculate_bonus_and_update_created_base_and_bonus(
                 contributor,
@@ -160,10 +171,14 @@ pub mod abax_tge {
             ink::env::debug_println!("bonus {:?}", bonus);
             ink::env::debug_println!("to_create {:?}", to_create);
 
-            self.generate_tokens(receiver, to_create + bonus, Generate::Distribute)?;
+            self.generate_tokens(
+                receiver,
+                to_create.checked_add(bonus).ok_or(MathError::Overflow)?,
+                Generate::Distribute,
+            )?;
 
             if referrer.is_some() {
-                let referer_reward = mul_denom_e3(to_create, REFERER_REWARD_E3 as u128)?;
+                let referer_reward = mul_denom_e3(to_create, REWARD_FOR_REFERER_E3 as u128)?;
                 self.generate_tokens(referrer.unwrap(), referer_reward, Generate::Reserve)?;
             }
 
@@ -177,7 +192,7 @@ pub mod abax_tge {
             Ok(cost)
         }
 
-        // reserves amount + bonus of tokens for the receiver
+        // reserves amount.checked_add(bonus).ok_or(MathError::Overflow)? of tokens for the receiver
         // updates the contributed amount of the  by the fee_paid
         // updates the base created and bonus created amounts
         #[ink(message)]
@@ -189,13 +204,16 @@ pub mod abax_tge {
         ) -> Result<(), TGEError> {
             self._ensure_has_role(STAKEDROP_ADMIN, Some(self.env().caller()))?;
             self._ensure_has_not_started()?;
-            self.tge.increase_contributed_amount(receiver, fee_paid);
+            self.tge.increase_contributed_amount(receiver, fee_paid)?;
 
             let bonus =
                 self.calculate_bonus_and_update_created_base_and_bonus(receiver, amount, None)?;
             ink::env::debug_println!("bonus {:?}", bonus);
-            self.generate_to_self(amount + bonus)?;
-            self.tge.reserve_tokens(receiver, amount + bonus);
+            self.generate_to_self(amount.checked_add(bonus).ok_or(MathError::Overflow)?)?;
+            self.tge.reserve_tokens(
+                receiver,
+                amount.checked_add(bonus).ok_or(MathError::Overflow)?,
+            )?;
 
             self.env().emit_event(Stakedrop {
                 receiver,
@@ -214,14 +232,14 @@ pub mod abax_tge {
 
             let reserved_amount = self.tge.collect_reserved_tokens(account)?;
 
-            if account == self.tge.strategic_reserves_address {
-                self.distribute(account, reserved_amount, E3_U128 as u16)?;
-            } else if account == self.tge.foundation_address {
+            if account == self.tge.strategic_reserves_address
+                || account == self.tge.foundation_address
+            {
                 self.distribute(account, reserved_amount, E3_U128 as u16)?;
             } else if account == self.tge.founders_address {
-                self.distribute(account, reserved_amount, FOUNDERS_INSTANT_RELEASE_E3)?;
+                self.distribute(account, reserved_amount, INSTANT_FOUNDERS_RELEASE_E3)?;
             } else {
-                self.distribute(account, reserved_amount, PUBLIC_INSTANT_RELEASE_E3)?;
+                self.distribute(account, reserved_amount, INSTANT_CONTRIBUTOR_RELEASE_E3)?;
             }
             Ok(reserved_amount)
         }
@@ -351,15 +369,14 @@ pub mod abax_tge {
         }
 
         fn _ensure_is_not_finished(&self) -> Result<(), TGEError> {
-            if self
-                .tge
-                .phase_two_start_time
-                .is_some_and(|phase_two_start_time| {
-                    self.env().block_timestamp()
-                        > (phase_two_start_time + self.tge.phase_two_duration)
-                })
-            {
-                return Err(TGEError::TGEEnded);
+            if let Some(phase_two_start_time) = self.tge.phase_two_start_time {
+                if self.env().block_timestamp()
+                    > (phase_two_start_time
+                        .checked_add(self.tge.phase_two_duration)
+                        .ok_or(MathError::Overflow)?)
+                {
+                    return Err(TGEError::TGEEnded);
+                }
             }
             Ok(())
         }
@@ -388,18 +405,15 @@ pub mod abax_tge {
             self.tge.phase_two_start_time.is_none()
         }
     }
-
     impl TGEContract {
         // return bonus multiplier awarded for contribution
         fn get_contribution_bonus_multiplier_e3(&self, contributor: AccountId) -> u16 {
             let amount_contributed = self.tge.contributed_amount_by(&contributor);
-            ink::env::debug_println!("amount_contributed: {:?}", amount_contributed);
-            ink::env::debug_println!(
-                "get_contribution_bonus_multiplier_e3: {:?}",
-                10 * amount_contributed / CONTRIBUTION_BONUS_DENOMINATOR
-            );
-
-            u16::try_from(10 * amount_contributed / CONTRIBUTION_BONUS_DENOMINATOR).unwrap_or(100)
+            // if overflow happens return maximal bonus
+            u16::try_from(
+                mul_div(amount_contributed, 10, BONUS_DENOMINATOR, Rounding::Down).unwrap_or(100),
+            )
+            .unwrap_or(100)
         }
 
         /// returns the bonus amount of tokens based on the base_amount and zealy exp bonus, contribution bonus and refferer
@@ -413,19 +427,24 @@ pub mod abax_tge {
             ink::env::debug_println!(
                 "=======calculate_bonus_and_update_created_base_and_bonus start======="
             );
-            let mut bonus_multiplier_e3 = self.tge.exp_bonus_multiplier_of_e3(&contributor)
-                + self.get_contribution_bonus_multiplier_e3(contributor);
+            let mut bonus_multiplier_e3 = self
+                .tge
+                .exp_bonus_multiplier_of_e3(&contributor)
+                .checked_add(self.get_contribution_bonus_multiplier_e3(contributor))
+                .ok_or(MathError::Overflow)?;
 
             if referrer.is_some() {
-                bonus_multiplier_e3 += BONUSE_FOR_CODE_USE_E3;
+                bonus_multiplier_e3 = bonus_multiplier_e3
+                    .checked_add(BONUS_FOR_REFERRER_USE_E3)
+                    .ok_or(MathError::Overflow)?;
             }
 
-            if bonus_multiplier_e3 > MAX_BONUS_MULTIPLIER_E3 {
-                bonus_multiplier_e3 = MAX_BONUS_MULTIPLIER_E3;
+            if bonus_multiplier_e3 > BONUS_MAX_E3 {
+                bonus_multiplier_e3 = BONUS_MAX_E3;
             }
 
             self.tge
-                .increase_base_amount_created(&contributor, to_create);
+                .increase_base_amount_created(&contributor, to_create)?;
             let received_base = self.tge.base_amount_created(&contributor);
 
             let eligible_bonus = mul_denom_e3(received_base, bonus_multiplier_e3 as u128)?;
@@ -434,7 +453,8 @@ pub mod abax_tge {
             // it may happen that the previously one used refferers code and now one is not using one.
             // This may result in a bonus_already_received being greater than eligible_bonus
             let bonus = eligible_bonus.saturating_sub(bonus_already_received);
-            self.tge.increase_bonus_amount_created(&contributor, bonus);
+            self.tge
+                .increase_bonus_amount_created(&contributor, bonus)?;
             ink::env::debug_println!(
                 "=======calculate_bonus_and_update_created_base_and_bonus end======="
             );
@@ -456,11 +476,21 @@ pub mod abax_tge {
 
             if total_amount_minted >= self.tge.phase_one_token_cap {
                 amount_phase2 = to_create;
-            } else if total_amount_minted + to_create <= self.tge.phase_one_token_cap {
+            } else if total_amount_minted
+                .checked_add(to_create)
+                .ok_or(MathError::Overflow)?
+                <= self.tge.phase_one_token_cap
+            {
                 amount_phase1 = to_create;
             } else {
-                amount_phase1 = self.tge.phase_one_token_cap - total_amount_minted;
-                amount_phase2 = to_create - amount_phase1;
+                amount_phase1 = self
+                    .tge
+                    .phase_one_token_cap
+                    .checked_sub(total_amount_minted)
+                    .ok_or(MathError::Underflow)?;
+                amount_phase2 = to_create
+                    .checked_sub(amount_phase1)
+                    .ok_or(MathError::Underflow)?;
             }
 
             let cost_phase1: Balance =
@@ -471,21 +501,30 @@ pub mod abax_tge {
                     0
                 } else {
                     // take into account that during 2nd phase contributor also generates tokens to founders foundation and strategic reserves to keep 20/20/2/58 ratio.
-                    let effective_tokens = to_create * ALL_TO_PUBLIC_RATIO;
+                    let effective_tokens = to_create
+                        .checked_mul(ALL_TO_PUBLIC_RATIO)
+                        .ok_or(MathError::Overflow)?;
                     ink::env::debug_println!("effective_tokens: {:?}", effective_tokens);
 
                     let averaged_amount =
                         if self.tge.total_amount_minted() <= self.tge.phase_one_token_cap {
-                            self.tge.phase_one_token_cap + effective_tokens / 2
+                            self.tge
+                                .phase_one_token_cap
+                                .checked_add(effective_tokens)
+                                .ok_or(MathError::Overflow)?
+                                / 2
                         } else {
-                            self.tge.total_amount_minted() + effective_tokens / 2
+                            self.tge
+                                .total_amount_minted()
+                                .checked_add(effective_tokens)
+                                .ok_or(MathError::Overflow)?
+                                / 2
                         };
                     ink::env::debug_println!("averaged_amount: {:?}", averaged_amount);
 
                     let effective_cost_per_million = mul_denom_e12(self.tge.cost_to_mint_milion_tokens, averaged_amount)?  // denom avaradged amount to get human number of tokens 
                             .checked_div(E8_U128) // from the formula
-                            .ok_or(TGEError::MathError)?
-                        + 1;
+                            .unwrap().checked_add(1).ok_or(MathError::Overflow)?;
                     ink::env::debug_println!(
                         "effective_cost_per_million: {:?}",
                         effective_cost_per_million
@@ -498,7 +537,9 @@ pub mod abax_tge {
             ink::env::debug_println!("cost_phase1: {:?}", cost_phase1);
             ink::env::debug_println!("cost_phase2: {:?}", cost_phase2);
 
-            Ok(cost_phase1 + cost_phase2)
+            Ok(cost_phase1
+                .checked_add(cost_phase2)
+                .ok_or(MathError::Overflow)?)
         }
 
         // Generates tokens
@@ -513,7 +554,9 @@ pub mod abax_tge {
             ink::env::debug_println!("=======generate_tokens start=======");
             ink::env::debug_println!("amount: {:?}", amount);
             let total_amount_minted = self.tge.total_amount_minted();
-            let total_amount_minted_plus_amount = total_amount_minted + amount;
+            let total_amount_minted_plus_amount = total_amount_minted
+                .checked_add(amount)
+                .ok_or(MathError::Overflow)?;
 
             if total_amount_minted < self.tge.phase_one_token_cap
                 && total_amount_minted_plus_amount >= self.tge.phase_one_token_cap
@@ -531,13 +574,23 @@ pub mod abax_tge {
             } else if total_amount_minted_plus_amount <= self.tge.phase_one_token_cap {
                 amount_phase1 = amount;
             } else {
-                amount_phase1 = self.tge.phase_one_token_cap - total_amount_minted;
-                amount_phase2 = amount - amount_phase1;
+                amount_phase1 = self
+                    .tge
+                    .phase_one_token_cap
+                    .checked_sub(total_amount_minted)
+                    .ok_or(MathError::Underflow)?;
+                amount_phase2 = amount
+                    .checked_sub(amount_phase1)
+                    .ok_or(MathError::Underflow)?;
             }
 
             // in phase 2 whenever a token is generated during contribution appropariate amount of tokens is created for foundation, founders, strategic reserves to keep the 20/20/2/58 ratio.
-            let amount_to_mint_phase2 = ALL_TO_PUBLIC_RATIO * amount_phase2;
-            let amount_to_mint = amount_phase1 + amount_to_mint_phase2;
+            let amount_to_mint_phase2 = ALL_TO_PUBLIC_RATIO
+                .checked_mul(amount_phase2)
+                .ok_or(MathError::Overflow)?;
+            let amount_to_mint = amount_phase1
+                .checked_add(amount_to_mint_phase2)
+                .ok_or(MathError::Overflow)?;
 
             ink::env::debug_println!("total_amount_minted: {:?}", total_amount_minted);
             ink::env::debug_println!(
@@ -553,28 +606,46 @@ pub mod abax_tge {
 
             match gen {
                 Generate::Reserve => {
-                    self.tge.reserve_tokens(to, amount_phase1 + amount_phase2);
+                    self.tge.reserve_tokens(
+                        to,
+                        amount_phase1
+                            .checked_add(amount_phase2)
+                            .ok_or(MathError::Overflow)?,
+                    )?;
                 }
                 Generate::Distribute => {
-                    self.distribute(to, amount_phase1 + amount_phase2, PUBLIC_INSTANT_RELEASE_E3)?;
+                    self.distribute(
+                        to,
+                        amount_phase1
+                            .checked_add(amount_phase2)
+                            .ok_or(MathError::Overflow)?,
+                        INSTANT_CONTRIBUTOR_RELEASE_E3,
+                    )?;
                 }
             }
 
             if amount_phase2 > 0 {
                 let founders_amount =
-                    mul_denom_e3(amount_to_mint_phase2, FOUNDERS_PART_E3 as u128)?;
+                    mul_denom_e3(amount_to_mint_phase2, PART_OF_FOUNDERS_E3 as u128)?;
                 self.tge
-                    .reserve_tokens(self.tge.founders_address, founders_amount);
+                    .reserve_tokens(self.tge.founders_address, founders_amount)?;
                 let foundation_amount =
-                    mul_denom_e3(amount_to_mint_phase2, FOUNDATION_PART_E3 as u128)?;
+                    mul_denom_e3(amount_to_mint_phase2, PART_OD_FOUNDATION_E3 as u128)?;
                 self.tge
-                    .reserve_tokens(self.tge.foundation_address, foundation_amount);
-                let strategic_reserves_amount =
-                    amount_to_mint_phase2 - founders_amount - foundation_amount - amount_phase2;
+                    .reserve_tokens(self.tge.foundation_address, foundation_amount)?;
+                let strategic_reserves_amount = amount_to_mint_phase2
+                    .checked_sub(
+                        founders_amount
+                            .checked_sub(foundation_amount)
+                            .ok_or(MathError::Underflow)?
+                            .checked_sub(amount_phase2)
+                            .ok_or(MathError::Underflow)?,
+                    )
+                    .ok_or(MathError::Underflow)?;
                 self.tge.reserve_tokens(
                     self.tge.strategic_reserves_address,
                     strategic_reserves_amount,
-                );
+                )?;
             }
             ink::env::debug_println!("=======generate_tokens end=======");
             Ok(())
@@ -585,7 +656,7 @@ pub mod abax_tge {
 
             abax.generate(self.env().account_id(), amount)?;
             ink::env::debug_println!("increase total amount minted by: {:?}", amount);
-            self.tge.increase_total_amount_minted(amount);
+            self.tge.increase_total_amount_minted(amount)?;
             Ok(())
         }
 
@@ -600,7 +671,9 @@ pub mod abax_tge {
         ) -> Result<(), TGEError> {
             ink::env::debug_println!("=======distribute start=======");
             let amount_to_transfer = mul_denom_e3(amount, instant_e3 as u128)?;
-            let amount_to_vest = amount - amount_to_transfer;
+            let amount_to_vest = amount
+                .checked_sub(amount_to_transfer)
+                .ok_or(MathError::Underflow)?;
 
             ink::env::debug_println!("amount_to_transfer: {:?}", amount_to_transfer);
             ink::env::debug_println!("amount_to_vest: {:?}", amount_to_vest);
@@ -634,21 +707,14 @@ pub mod abax_tge {
             Ok(())
         }
     }
-    fn mul_denom_e12(a: u128, b: u128) -> Result<u128, TGEError> {
-        mul_div(a, b, E12_U128)
+    fn mul_denom_e12(a: u128, b: u128) -> Result<u128, MathError> {
+        mul_div(a, b, E12_U128, Rounding::Down)
     }
-    fn mul_denom_e6(a: u128, b: u128) -> Result<u128, TGEError> {
-        mul_div(a, b, E6_U128)
-    }
-
-    fn mul_denom_e3(a: u128, b: u128) -> Result<u128, TGEError> {
-        mul_div(a, b, E3_U128)
+    fn mul_denom_e6(a: u128, b: u128) -> Result<u128, MathError> {
+        mul_div(a, b, E6_U128, Rounding::Down)
     }
 
-    fn mul_div(a: u128, b: u128, c: u128) -> Result<u128, TGEError> {
-        a.checked_mul(b)
-            .ok_or(TGEError::MathError)?
-            .checked_div(c)
-            .ok_or(TGEError::MathError)
+    fn mul_denom_e3(a: u128, b: u128) -> Result<u128, MathError> {
+        mul_div(a, b, E3_U128, Rounding::Down)
     }
 }

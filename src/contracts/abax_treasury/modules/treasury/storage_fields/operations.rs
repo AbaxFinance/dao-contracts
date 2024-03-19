@@ -1,10 +1,11 @@
 use ink::{env::DefaultEnvironment, prelude::vec::Vec, storage::Mapping};
 use pendzl::{
-    contracts::finance::general_vest::GeneralVestRef,
+    contracts::general_vest::GeneralVestRef,
+    math::errors::MathError,
     traits::{AccountId, Timestamp},
 };
 
-use crate::modules::{
+use crate::modules::treasury::{
     errors::AbaxTreasuryError,
     events::VesterChanged,
     structs::{Operation, Order},
@@ -78,7 +79,8 @@ impl OrdersStorage {
             },
         );
 
-        self.next_order_id.set(&(order_id + 1));
+        self.next_order_id
+            .set(&(order_id.checked_add(1).ok_or(MathError::Overflow)?));
         Ok(order_id)
     }
 

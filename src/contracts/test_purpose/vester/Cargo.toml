@@ -10,15 +10,15 @@ edition = "2021"
 [dependencies]
 ink = { version = "5.0.0", default-features = false }
 
-scale = { package = "parity-scale-codec", version = "3.6", default-features = false, features = [
+scale = { package = "parity-scale-codec", version = "3.6.9", default-features = false, features = [
     "derive",
 ] }
-scale-info = { version = "2.10", default-features = false, features = [
+scale-info = { version = "2.11", default-features = false, features = [
     "derive",
 ], optional = true }
 
 # These dependencies
-pendzl = { vesrions = "0.2.0-alpha", default-features = false, features = [
+pendzl = { version = "=0.2.3", default-features = false, features = [
     "general_vest_impl",
 ] }
 [lib]

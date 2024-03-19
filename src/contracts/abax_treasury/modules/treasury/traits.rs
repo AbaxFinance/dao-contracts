@@ -2,12 +2,8 @@ use super::{
     errors::AbaxTreasuryError,
     structs::{Operation, Order, OrderId},
 };
-use ink::{contract_ref, env::DefaultEnvironment, prelude::vec::Vec};
+use ink::prelude::vec::Vec;
 use pendzl::traits::{AccountId, Timestamp};
-
-pub type AbaxTreasuryRef = contract_ref!(AbaxTreasury, DefaultEnvironment);
-
-pub type AbaxTreasuryViewRef = contract_ref!(AbaxTreasuryView, DefaultEnvironment);
 
 #[ink::trait_definition]
 /// Trait defining the functions for the Abax Treasury module.

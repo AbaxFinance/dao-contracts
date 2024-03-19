@@ -1,7 +1,7 @@
 use ink::storage::Mapping;
 use pendzl::{math::errors::MathError, traits::Balance};
 
-use crate::ProposalId;
+use crate::modules::govern::traits::ProposalId;
 
 #[derive(Debug, Default)]
 #[pendzl::storage_item]

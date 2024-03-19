@@ -20,7 +20,7 @@ pub fn mul_div_r_down(x: u128, y: u128, denominator: u128) -> Result<u128, MathE
     let res_u256: U256 = mul_u256.checked_div(denominator_u256).unwrap();
     let res = match u128::try_from(res_u256) {
         Ok(v) => Ok(v),
-        _ => Err(MathError::Overflow),
+        _ => Err(MathError::Overflow)?,
     }?;
 
     Ok(res)

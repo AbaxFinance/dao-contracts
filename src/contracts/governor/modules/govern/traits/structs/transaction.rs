@@ -1,4 +1,4 @@
-use crate::Vec;
+pub use ink::prelude::vec::Vec;
 
 #[derive(Debug, Clone, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(
@@ -52,11 +52,8 @@ impl scale::Decode for OpaqueTypes {
             input.read(&mut bytes[..len])?;
         } else {
             bytes = Vec::new();
-            loop {
-                match input.read_byte() {
-                    Ok(b) => bytes.push(b),
-                    Err(_) => break,
-                }
+            while let Ok(b) = input.read_byte() {
+                bytes.push(b);
             }
         };
 

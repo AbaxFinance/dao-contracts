@@ -1,9 +1,9 @@
 use pendzl::{
-    contracts::token::psp22::PSP22Error,
+    contracts::psp22::PSP22Error,
     traits::{AccountId, Balance},
 };
 
-use crate::modules::errors::TGEError;
+use crate::modules::tge::errors::TGEError;
 
 #[ink::trait_definition]
 /// Trait defining the functions for the TGE module.

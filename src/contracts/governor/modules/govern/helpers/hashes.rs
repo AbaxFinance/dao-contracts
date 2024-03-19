@@ -1,11 +1,10 @@
-use crate::traits::Vec;
-use crate::String;
-use ink::{
+pub use ink::{
     env::hash::{HashOutput, Sha2x256},
+    prelude::{string::String, vec::Vec},
     primitives::Hash,
 };
 
-use crate::Proposal;
+pub use crate::modules::govern::traits::Proposal;
 
 pub fn hash_description(description: &String) -> Hash {
     let mut output = <Sha2x256 as HashOutput>::Type::default();
