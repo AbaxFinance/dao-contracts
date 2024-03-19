@@ -3,8 +3,7 @@
 #[pendzl::implementation(PSP22, PSP22Metadata, PSP22Mintable)]
 #[ink::contract]
 pub mod psp22_emitable {
-    use pendzl::contracts::token::psp22;
-    use pendzl::contracts::token::psp22::PSP22Error;
+    use pendzl::contracts::psp22::PSP22Error;
 
     use ink::prelude::string::String;
 
@@ -12,9 +11,9 @@ pub mod psp22_emitable {
     #[derive(Default, pendzl::traits::StorageFieldGetter)]
     pub struct PSP22EmitableContract {
         #[storage_field]
-        psp22: psp22::implementation::PSP22Data,
+        psp22: PSP22Data,
         #[storage_field]
-        metadata: psp22::extensions::metadata::implementation::PSP22MetadataData,
+        metadata: PSP22MetadataData,
     }
 
     impl PSP22EmitableContract {

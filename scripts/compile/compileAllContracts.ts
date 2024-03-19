@@ -2,10 +2,10 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import glob from 'glob';
 import { compileContractByNameAndCopyArtifacts } from './common';
-import { getArgvObj } from '@abaxfinance/utils';
+import { getArgvObj } from 'scripts/compile/getArgvObj';
 
-const getAllContractNames = (contractsRootPath: string, regexFilter?: string | undefined) => {
-  const names: string[] = [];
+export const getAllContractNamesAndFolderNames = (contractsRootPath: string, regexFilter?: string | undefined) => {
+  const names: [string, string][] = [];
   const paths = glob.sync(`${contractsRootPath}/**/Cargo.toml`);
   const maybeRegexFilter = regexFilter ? new RegExp(regexFilter) : null;
   for (const p of paths) {
@@ -16,10 +16,16 @@ const getAllContractNames = (contractsRootPath: string, regexFilter?: string | u
         console.warn(`Found Cargo.toml in ${p} but failed to determine contract name`);
         continue;
       }
+      //if has no ink dependency log and continue
+      if (!data.match(/ink\s=/)) {
+        console.warn(`Found Cargo.toml in ${p} but failed to determine ink dependency`);
+        continue;
+      }
+
       const contractName = result[2];
       if (!maybeRegexFilter || contractName.match(maybeRegexFilter)) {
-        console.log(`Found contract ${contractName}!`);
-        names.push(contractName);
+        console.log(`Found contract ${contractName}! in ${p}`);
+        names.push([contractName, p]);
       }
     }
   }
@@ -28,12 +34,11 @@ const getAllContractNames = (contractsRootPath: string, regexFilter?: string | u
 
 (async (args: Record<string, unknown>) => {
   if (require.main !== module) return;
-  const contractsRootPath = './src/contracts';
-
+  const contractsRootPath = (args['path'] as string) ?? './src/contracts';
   const regex = (args['r'] ?? args['regex']) as string | undefined;
-  const contractNames = getAllContractNames(contractsRootPath, regex);
-  for (const name of contractNames) {
-    await compileContractByNameAndCopyArtifacts(contractsRootPath, name);
+  const contractNames = getAllContractNamesAndFolderNames(contractsRootPath, regex);
+  for (const [name, fullPath] of contractNames) {
+    await compileContractByNameAndCopyArtifacts(fullPath, name);
   }
   console.log('All contracts compiled successfuly!');
   process.exit(0);

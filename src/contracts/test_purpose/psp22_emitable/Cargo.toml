@@ -5,25 +5,25 @@ authors = [""]
 edition = "2021"
 
 [dependencies]
-ink = { version = "5.0.0-rc", default-features = false }
+ink = { version = "5.0.0", default-features = false }
 
-scale = { package = "parity-scale-codec", version = "3.6", default-features = false, features = [
+scale = { package = "parity-scale-codec", version = "3.6.9", default-features = false, features = [
     "derive",
+    "chain-error",
 ] }
-scale-info = { version = "2.10", default-features = false, features = [
+scale-info = { version = "2.11", default-features = false, features = [
     "derive",
 ], optional = true }
 
 
-pendzl = { version = "0.1.0-beta1", default-features = false, features = [
+pendzl = { version = "=0.2.3", default-features = false, features = [
     "psp22",
     "psp22_impl",
     "psp22_metadata",
     "psp22_metadata_impl",
     "psp22_mintable",
-    "psp22_mintable_impl"
+    "psp22_mintable_impl",
 ] }
-
 
 
 [lib]

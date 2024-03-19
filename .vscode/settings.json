@@ -1,0 +1,16 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "rust-analyzer.linkedProjects": [
+    "./src/contracts/abax_tge/Cargo.toml",
+    "./src/contracts/governor/Cargo.toml",
+    "./src/contracts/abax_token/Cargo.toml",
+    "./src/contracts/abax_treasury/Cargo.toml",
+    "./src/contracts/test_purpose/abax_token_v2/Cargo.toml",
+    "./src/contracts/test_purpose/flipper/Cargo.toml",
+    "./src/contracts/test_purpose/psp22_emitable/Cargo.toml",
+    "./src/contracts/test_purpose/vester/Cargo.toml",
+    "./src/contracts/test_purpose/wazero/Cargo.toml"
+  ],
+  "rust-analyzer.showUnlinkedFileNotification": true,
+  "rust-analyzer.cargo.features": "all"
+}

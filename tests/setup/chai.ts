@@ -1,9 +1,18 @@
-import chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { E12, parseAmountToBN } from 'wookashwackomytest-utils';
 import type { AccountId } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
+import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import { supportChangeContributedAmounts } from 'tests/setup/changeContributedAmounts';
+import { supportCreateVestingSchedule } from 'tests/setup/createVestingSchedule';
+import { TgeStorage, TgeStorageNumericKey } from 'tests/setup/queryTGEGetStorage';
 import { flush, proxy } from 'tests/soft-assert';
-import { E12, parseAmountToBN } from '@abaxfinance/utils';
+import 'wookashwackomytest-polkahat-chai-matchers';
+import { Operation, Order, supportCreateSpendingOrder } from './createSpendingOrder';
+import { supportchangeGeneratedBaseAmounts } from './changeBaseCreatedAmounts';
+import { supportchangeGeneratedBonusAmounts } from './changeBonusCreatedAmounts';
+import { supportchangeReservedForAmounts } from './changeReservedTokenAmounts';
+import { supportChangeBNResults } from './changeBNResult';
 const softExpect = proxy(chai.expect);
 
 export interface ExpectStaticWithSoft extends Chai.ExpectStatic {
@@ -20,6 +29,19 @@ declare global {
       almostEqualOrEqualNumber<TData extends number | string>(expected: TData, epsilon?: number): void;
       equalUpTo1Digit<TData extends BN | number | string>(expected: TData): void;
       almostDeepEqual<TData>(expected: TData): void;
+      // tge specific
+      changeReservedForAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeContributedAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeGeneratedBaseAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      changeGeneratedBonusAmounts(contract: any, accounts: string[], deltas: BN[]): AsyncAssertion;
+      createVestingSchedule(
+        vester: any,
+        account: string,
+        token: string,
+        args?: [amount: BN, [waitingTime: BN, vestingTime: BN] | { account: string; fallbackValues: [waitingTime: BN, vestingTime: BN] }],
+      ): AsyncAssertion;
+      createSpendingOrder(treasury: any, args: Order[]): AsyncAssertion;
+      changeBNResults(contract: any, methodName: string, args: any[][], deltas: BN[]): AsyncAssertion;
     }
   }
 }
@@ -125,7 +147,7 @@ chai.use((c, utils) => {
   });
   c.Assertion.addMethod('almostEqualOrEqualNumber', function (this: Chai.AssertionPrototype, expected: number | string, epsilon = 0.000001) {
     const actual = (expected as string) ? <string>this._obj : <number>this._obj;
-    almostEqualOrEqualNumber.apply(this, [expected, actual, epsilon]);
+    almostEqualOrEqualNumber.apply(this, [actual, expected, epsilon]);
   });
   c.Assertion.addMethod('equalUpTo1Digit', function (this: Chai.AssertionPrototype, expected: BN | number | string) {
     const actual = (expected as BN) ? <BN>this._obj : (expected as string) ? <string>this._obj : <number>this._obj;
@@ -157,6 +179,16 @@ chai.use(
     return `:\n${JSON.stringify(obj, getCircularReplacer(), 2)}`;
   }),
 );
+
+chai.use((c, utils) => {
+  supportchangeGeneratedBaseAmounts(c.Assertion, utils);
+  supportchangeGeneratedBonusAmounts(c.Assertion, utils);
+  supportChangeContributedAmounts(c.Assertion, utils);
+  supportchangeReservedForAmounts(c.Assertion, utils);
+  supportCreateVestingSchedule(c.Assertion, utils);
+  supportCreateSpendingOrder(c.Assertion, utils);
+  supportChangeBNResults(c.Assertion, utils);
+});
 
 const expectWithSoft = chai.expect as ExpectStaticWithSoft;
 expectWithSoft.soft = function (val: any, message?: string) {

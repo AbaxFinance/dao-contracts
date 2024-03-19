@@ -1,13 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-pub mod governor_storage;
-pub mod helpers;
-pub mod traits;
-
-pub use governor_storage::*;
-pub use helpers::*;
-pub use traits::*;
-
+mod modules;
 /// This is Abax Governor Contract implementation.
 /// It allows for staking PSP22 token (Abax token) in exchange for PSP22Vault shares (votes).
 /// The shares are non-transferrable.
@@ -16,41 +9,54 @@ pub use traits::*;
 /// The contract allows for proposing and voting on proposals by implementing Govern trait.
 /// To create a proposal, the proposer must have enough votes (shares) to meet the minimum stake part.
 /// While proposal is created the proposer must deposit a part of his votes. This votes are returned when proposal is finalized unless the proposal is finalized with 'DefeatedWithSlash' status.
+/// One share is one vote.
+/// Proposal has 3 periods of voting: Intial, Flat and Final which influence the minimum votes to finalize.
+/// If proposal was finalized in Final phase, it's possible to force unstake an account that didn't vote on that proposal.
 ///
 /// Contract is using pendzl Access Control to manage access to the messages
 
-#[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl)]
+#[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl, SetCodeHash)]
 #[ink::contract]
 mod governor {
-    pub use super::*;
-
-    use governor_storage::{
-        govern_storage_item::GovernData, locked_shares_storage_item::LockedSharesData,
-        unstake_storage_item::UnstakeData, vault_counter_storage_item::VaultCounterData,
-    };
-    use helpers::hashes::{hash_description, hash_proposal};
-    use ink::{
-        codegen::Env,
-        env::{
-            call::{build_call, ExecutionInput},
-            CallFlags, DefaultEnvironment,
+    pub use crate::modules::govern::{
+        helpers::{
+            finalization::minimum_to_finalize,
+            hashes::{hash_description, hash_proposal},
         },
+        storage::{
+            govern_storage_item::GovernData, locked_shares_storage_item::LockedSharesData,
+            unstake_storage_item::UnstakeData, vault_counter_storage_item::VaultCounterData,
+        },
+        traits::{
+            AbaxGovern, AbaxGovernInternal, AbaxGovernManage, AbaxGovernView, GovernError,
+            OpaqueTypes, Proposal, ProposalCreated, ProposalExecuted, ProposalFinalized,
+            ProposalHash, ProposalId, ProposalState, ProposalStatus, UserVote, Vote, VoteCasted,
+            VotingRules,
+        },
+    };
+    pub use ink::{
+        codegen::Env,
+        env::DefaultEnvironment,
+        prelude::string::{String, ToString},
         ToAccountId,
     };
 
-    use pendzl::contracts::finance::general_vest::ExternalTimeConstraint;
     pub use pendzl::{
         contracts::{
-            access::access_control::RoleType,
-            finance::general_vest::{GeneralVest, VestingSchedule},
-            token::psp22::{extensions::vault::implementation::PSP22VaultInternalDefaultImpl, *},
+            access_control::RoleType,
+            general_vest::{
+                ExternalTimeConstraint, GeneralVest, ProvideVestScheduleInfo, VestingSchedule,
+            },
+            psp22::{vault::PSP22VaultInternalDefaultImpl, *},
         },
+        math::operations::mul_div,
         traits::Flush,
     };
 
-    const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR");
+    pub const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR");
+    pub const PARAMETERS_ADMIN: RoleType = ink::selector_id!("PARAMETERS_ADMIN"); // 368_001_360_u32
 
-    #[derive(Default, StorageFieldGetter)]
+    #[derive(StorageFieldGetter)]
     #[ink(storage)]
     pub struct Governor {
         // pendzl storage fields
@@ -81,8 +87,12 @@ mod governor {
         assets: &Balance,
         shares: &Balance,
     ) -> Result<(), PSP22Error> {
+        ink::env::debug_println!("total supply pre {:?}", self._total_supply());
         self.counter.increase_counter(*shares);
-        self._deposit_default_impl(caller, receiver, assets, shares)
+        self.govern.set_last_stake_timestamp(receiver);
+        self._deposit_default_impl(caller, receiver, assets, shares)?;
+        ink::env::debug_println!("total supply post {:?}", self._total_supply());
+        Ok(())
     }
 
     #[overrider(PSP22VaultInternal)]
@@ -91,14 +101,18 @@ mod governor {
         caller: &AccountId,
         receiver: &AccountId,
         owner: &AccountId,
-        shares: &Balance,
         assets: &Balance,
+        shares: &Balance,
     ) -> Result<(), PSP22Error> {
-        if caller != owner {
+        if *caller != *owner && *caller != self.env().account_id() {
             self._decrease_allowance_from_to(owner, caller, shares)?;
         }
 
         self._burn_from(owner, shares)?;
+
+        if self._balance_of(owner) == 0 {
+            self.govern.remove_last_stake_timestamp(owner);
+        }
 
         self.vault
             .asset()
@@ -134,7 +148,7 @@ mod governor {
 
     #[overrider(PSP22)]
     fn transfer(&mut self, to: AccountId, value: Balance, data: Vec<u8>) -> Result<(), PSP22Error> {
-        Err(PSP22Error::Custom("Transfer is not allowed".to_string()))
+        Err(PSP22Error::Custom("Untransferrable".to_string()))
     }
 
     #[overrider(PSP22)]
@@ -145,7 +159,7 @@ mod governor {
         value: Balance,
         data: Vec<u8>,
     ) -> Result<(), PSP22Error> {
-        Err(PSP22Error::Custom("Transfer is not allowed".to_string()))
+        Err(PSP22Error::Custom("Untransferrable".to_string()))
     }
 
     impl Governor {
@@ -156,41 +170,27 @@ mod governor {
             unstake_period: Timestamp,
             name: String,
             symbol: String,
+            rules: VotingRules,
         ) -> Self {
-            let mut instance = Self::default();
-            // ACCESS CONTROL
-            //set admin to self
-            instance
-                ._grant_role(Self::_default_admin(), Some(Self::env().account_id()))
-                .expect("caller should become admin");
-            // PSP22VAULT
-            // set underlying asset
-            let psp22: PSP22Ref = asset.into();
-            instance.vault.asset.set(&psp22);
-            // query underlying asset decimals
-            let (success, asset_decimals) = instance._try_get_asset_decimals();
-            let decimals_to_set = if success { asset_decimals } else { 12 };
-            // set underlying asset decimals
-            instance.vault.underlying_decimals.set(&decimals_to_set);
-
-            // Unstaking
-            // set general vester
-            instance.unstake.set_general_vester(&vester);
-            instance.unstake.set_unstake_period(unstake_period);
-
-            //Metadata
-            instance.metadata.name.set(&Some(name));
-            instance.metadata.symbol.set(&Some(symbol));
-
+            let instance = Self {
+                access_control: AccessControlData::new(Some(Self::env().caller())),
+                psp22: PSP22Data::default(),
+                vault: PSP22VaultData::new(asset, None),
+                metadata: PSP22MetadataData::new(Some(name), Some(symbol)),
+                govern: GovernData::new(&rules),
+                counter: VaultCounterData::default(),
+                lock: LockedSharesData::default(),
+                unstake: UnstakeData::new(vester, unstake_period),
+            };
             instance
         }
     }
 
-    impl Govern for Governor {
+    impl AbaxGovern for Governor {
         #[ink(message)]
         fn propose(&mut self, proposal: Proposal, description: String) -> Result<(), GovernError> {
             let description_hash = hash_description(&description);
-            if description_hash != proposal.describtion_hash {
+            if description_hash != proposal.description_hash {
                 return Err(GovernError::WrongDescriptionHash);
             }
             self._propose(&self.env().caller(), &proposal)
@@ -216,41 +216,144 @@ mod governor {
         ) -> Result<(), GovernError> {
             self._cast_vote(&self.env().caller(), proposal_id, vote, _reason)
         }
+
+        #[ink(message)]
+        fn force_unstake(
+            &mut self,
+            account: AccountId,
+            proposal_id: ProposalId,
+        ) -> Result<(), GovernError> {
+            self._force_unstake(&account, &proposal_id)?;
+            Ok(())
+        }
     }
 
-    impl GovernInternal for Governor {
+    impl AbaxGovernManage for Governor {
+        #[ink(message)]
+        fn change_voting_rules(&mut self, rules: VotingRules) -> Result<(), GovernError> {
+            self._ensure_has_role(PARAMETERS_ADMIN, Some(self.env().caller()))?;
+            self.govern.change_rule(&rules);
+            Ok(())
+        }
+    }
+
+    impl AbaxGovernView for Governor {
+        #[ink(message)]
+        fn vester(&self) -> AccountId {
+            self.unstake.general_vester().to_account_id()
+        }
+
+        #[ink(message)]
+        fn hash(&self, proposal: Proposal) -> ProposalHash {
+            hash_proposal(&proposal)
+        }
+
+        #[ink(message)]
+        fn hash_description(&self, description: String) -> Hash {
+            hash_description(&description)
+        }
+
+        #[ink(message)]
+        fn hash_by_id(&self, proposal_id: ProposalId) -> Option<ProposalHash> {
+            self.govern.proposal_id_to_hash(&proposal_id)
+        }
+
+        #[ink(message)]
+        fn rules(&self) -> VotingRules {
+            self.govern.rules()
+        }
+
+        #[ink(message)]
+        fn status(&self, proposal_id: ProposalId) -> Option<ProposalStatus> {
+            self.govern.state_of(&proposal_id).map(|state| state.status)
+        }
+
+        #[ink(message)]
+        fn minimum_to_finalize(&self, proposal_id: ProposalId) -> Option<Balance> {
+            let state = match self.govern.state_of(&proposal_id) {
+                Some(state) => state,
+                None => return None,
+            };
+
+            if state.status != ProposalStatus::Active {
+                return None;
+            }
+
+            Some(
+                minimum_to_finalize(
+                    &state,
+                    &self.rules(),
+                    ink::env::block_timestamp::<DefaultEnvironment>(),
+                    self.counter.counter(),
+                )
+                .unwrap(),
+            )
+        }
+
+        #[ink(message)]
+        fn state(&self, proposal_id: ProposalId) -> Option<ProposalState> {
+            self.govern.state_of(&proposal_id)
+        }
+
+        #[ink(message)]
+        fn vote_of_for(&self, account: AccountId, proposal_id: ProposalId) -> Option<UserVote> {
+            self.govern.vote_of_for(&account, &proposal_id)
+        }
+
+        #[ink(message)]
+        fn last_force_unstakes(&self, account: AccountId) -> Option<ProposalId> {
+            self.govern.last_force_unstake(&account)
+        }
+
+        #[ink(message)]
+        fn last_stake_timestamp(&self, account: AccountId) -> Option<Timestamp> {
+            self.govern.last_stake_timestamp(&account)
+        }
+    }
+
+    impl AbaxGovernInternal for Governor {
         fn _propose(
             &mut self,
             proposer: &AccountId,
             proposal: &Proposal,
         ) -> Result<(), GovernError> {
-            //check if the proposer has enoough votes to create a proposal
+            //check if the proposer has enough votes to create a proposal
             let total_votes = self._total_supply();
-            let minimum_votes_to_propose = total_votes / u16::MAX as u128
-                * u16::from(self.govern.rules().minimum_stake_part_u16) as u128;
+            let minimum_votes_to_propose = mul_div(
+                total_votes,
+                u128::from(self.govern.rules().minimum_stake_part_e3),
+                1000,
+                Rounding::Down,
+            )?;
+
             let proposer_votes = self._balance_of(proposer);
             if proposer_votes < minimum_votes_to_propose {
-                return Err(GovernError::InnsuficientVotes);
+                return Err(GovernError::InsuficientVotes);
             }
+            let proposal_hash = hash_proposal(proposal);
 
+            // make a proposer deposit
+            let proposer_deposit = mul_div(
+                minimum_votes_to_propose,
+                self.govern.rules().proposer_deposit_part_e3 as u128,
+                1000,
+                Rounding::Down,
+            )?;
             // create proposal
-            let (proposal_id, proposal_hash) = self.govern.register_new_proposal(
+            let proposal_id = self.govern.register_new_proposal(
                 proposer,
-                proposal,
+                &proposal_hash,
+                proposal.earliest_execution,
                 total_votes,
                 self.counter.counter(),
             )?;
 
-            // make a proposer deposit
-            let proposer_deposit = total_votes / u16::MAX as u128
-                * u16::from(self.govern.rules().proposer_deposit_part_u16) as u128;
-
             self.lock.lock(&proposal_id, proposer_deposit)?;
-            self._transfer(
-                proposer,
-                &ink::env::account_id::<DefaultEnvironment>(),
-                &proposer_deposit,
-            )?;
+            let proposer_balance = self._balance_of(proposer);
+            ink::env::debug_println!("total supply {:?}", total_votes);
+            ink::env::debug_println!("proposer balance {:?}", proposer_balance);
+            ink::env::debug_println!("proposer deposit {:?}", proposer_deposit);
+            self._transfer(proposer, &self.env().account_id(), &proposer_deposit)?;
 
             ink::env::emit_event::<DefaultEnvironment, ProposalCreated>(ProposalCreated {
                 proposal_id,
@@ -267,8 +370,23 @@ mod governor {
             vote: Vote,
             #[allow(unused_variables)] reason: Vec<u8>,
         ) -> Result<(), GovernError> {
+            let voter_votes = {
+                let balance = self._balance_of(voter);
+                let locked = self.lock.locked(&proposal_id);
+                let proposer = self
+                    .govern
+                    .state_of(&proposal_id)
+                    .ok_or(GovernError::ProposalDoesntExist)?
+                    .proposer;
+                if self.env().caller() == proposer {
+                    balance.checked_add(locked).ok_or(MathError::Overflow)?
+                } else {
+                    balance
+                }
+            };
+
             self.govern
-                .update_vote_of_for(voter, &proposal_id, &vote, &0)?;
+                .update_vote_of_for(voter, &proposal_id, &vote, &voter_votes)?;
 
             ink::env::emit_event::<DefaultEnvironment, VoteCasted>(VoteCasted {
                 account: *voter,
@@ -287,7 +405,7 @@ mod governor {
                 let locked = self.lock.locked(proposal_id);
                 self.lock.unlock(proposal_id, locked)?;
                 self._transfer(
-                    &ink::env::account_id::<DefaultEnvironment>(),
+                    &self.env().account_id(),
                     &self.govern.state_of(proposal_id).unwrap().proposer,
                     &locked,
                 )?;
@@ -313,16 +431,39 @@ mod governor {
             for tx in &proposal.transactions {
                 self.flush();
 
-                let result = build_call::<DefaultEnvironment>()
+                ink::env::debug_println!("{:?}", tx.callee);
+                ink::env::debug_println!("{:?}", tx.selector);
+                ink::env::debug_println!("{:?}", tx.input);
+                // let call = tx.clone().build_call();
+                let call = ink::env::call::build_call::<DefaultEnvironment>()
                     .call(tx.callee)
                     .transferred_value(tx.transferred_value)
-                    .exec_input(ExecutionInput::new(tx.selector.into()).push_arg(&tx.input))
-                    .call_flags(CallFlags::default().set_allow_reentry(true))
-                    .returns::<()>()
-                    .try_invoke()
-                    .map_err(|_| GovernError::UnderlyingTransactionReverted);
+                    .call_flags(ink::env::CallFlags::ALLOW_REENTRY)
+                    .exec_input(
+                        ink::env::call::ExecutionInput::new(tx.selector.into())
+                            .push_arg(OpaqueTypes(tx.input.clone())),
+                    )
+                    .returns::<OpaqueTypes>()
+                    .try_invoke();
+                match call {
+                    Ok(contract_res) => match contract_res {
+                        Ok(_) => Ok(()),
+                        Err(e) => Err(GovernError::UnderlyingTransactionReverted(
+                            ink::env::format!("{:?}", e),
+                        )),
+                    },
+                    Err(e) => match e {
+                        ink::env::Error::Decode(err) => {
+                            Err(GovernError::UnderlyingTransactionReverted(
+                                ink::env::format!("Decode Error: {:?}", err),
+                            ))
+                        }
+                        _ => Err(GovernError::UnderlyingTransactionReverted(
+                            ink::env::format!("{:?}", e),
+                        )),
+                    },
+                }?;
                 self.load();
-                result?.unwrap()
             }
 
             ink::env::emit_event::<DefaultEnvironment, ProposalExecuted>(ProposalExecuted {
@@ -330,6 +471,32 @@ mod governor {
             });
 
             Ok(())
+        }
+
+        fn _force_unstake(
+            &mut self,
+            account: &AccountId,
+            proposal_id: &ProposalId,
+        ) -> Result<(), GovernError> {
+            self.govern.force_unstake(account, proposal_id)?;
+            let balance = self._balance_of(account);
+            let assets = self._preview_redeem(&balance)?;
+            self._withdraw(
+                &self.env().account_id(),
+                account,
+                account,
+                &assets,
+                &balance,
+            )?;
+
+            Ok(())
+        }
+    }
+
+    impl ProvideVestScheduleInfo for Governor {
+        #[ink(message)]
+        fn get_waiting_and_vesting_durations(&self) -> (Timestamp, Timestamp) {
+            (0, self.unstake.unstake_period())
         }
     }
 }

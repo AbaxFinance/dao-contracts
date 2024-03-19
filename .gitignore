@@ -1,9 +1,9 @@
 .cache
 .cache/**/*.*
-.vscode
 .idea
 ev
 test-chain-data
+test-chain-state-tmp
 
 *.testrun*.log
 dist
@@ -43,5 +43,5 @@ yarn.lock
 *deployedContracts.json
 *deployedContracts.*.*.json
 
-build.log
-build.log.html
+*.log
+*.log.html

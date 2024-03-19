@@ -1,7 +1,7 @@
 import { encodeAddress } from '@polkadot/util-crypto';
 import chalk from 'chalk';
 import fs from 'fs-extra';
-import { getArgvObj } from '@abaxfinance/utils';
+import { getArgvObj } from 'wookashwackomytest-utils';
 
 const printHelp = () => {
   console.log(chalk.yellow('Supply input file via') + chalk.green('--input <path> ') + chalk.yellow('or as a first argument of the script'));
