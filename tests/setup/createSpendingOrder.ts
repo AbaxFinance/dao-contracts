@@ -1,7 +1,7 @@
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
 import { getApiPreAndPostTx } from 'tests/setup/queryAt';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { SignAndSendSuccessResponse } from '@c-forge/typechain-types';
 import { queryNextOrderIdAt, queryOrder } from './queryTreasury';
 import { isNil } from 'lodash';
 

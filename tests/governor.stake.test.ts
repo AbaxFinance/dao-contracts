@@ -6,8 +6,8 @@ import Governor from 'typechain/contracts/governor';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
 import { GovernError } from 'typechain/types-returns/governor';
-import { PSP22Error, PSP22ErrorBuilder } from 'wookashwackomytest-polkahat-chai-matchers';
-import { E12bn, E6bn, U128_MAX_VALUE } from 'wookashwackomytest-polkahat-network-helpers';
+import { PSP22Error, PSP22ErrorBuilder } from '@c-forge/polkahat-chai-matchers';
+import { E12bn, E6bn, U128_MAX_VALUE } from '@c-forge/polkahat-network-helpers';
 
 async function stakeAndCheck(govToken: PSP22Emitable, governor: Governor, staker: KeyringPair, amount: BN, expectedError?: GovernError | PSP22Error) {
   const query = governor.withSigner(staker).query.deposit(amount, staker.address);

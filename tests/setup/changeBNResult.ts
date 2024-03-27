@@ -1,7 +1,7 @@
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
-import { getApiAt, getSigners } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { getApiAt, getSigners } from '@c-forge/polkahat-network-helpers';
+import { SignAndSendSuccessResponse } from '@c-forge/typechain-types';
 import { queryAt } from './queryAt';
 
 const alice = getSigners()[0];

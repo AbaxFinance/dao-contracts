@@ -6,8 +6,8 @@ import AbaxToken from 'typechain/contracts/abax_token';
 import AbaxTokenV2Contract from 'typechain/contracts/abax_token_v2';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
 import AbaxTokenV2Deployer from 'typechain/deployers/abax_token_v2';
-import { getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { getSigners, localApi, time } from '@c-forge/polkahat-network-helpers';
+import { SignAndSendSuccessResponse } from '@c-forge/typechain-types';
 
 const [deployer, upgrader, minter, generator, other, ...rest] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));

@@ -1,4 +1,4 @@
-import { E12, parseAmountToBN } from 'wookashwackomytest-utils';
+import { E12, parseAmountToBN } from '@abaxfinance/utils';
 import type { AccountId } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
 import chai from 'chai';
@@ -7,7 +7,7 @@ import { supportChangeContributedAmounts } from 'tests/setup/changeContributedAm
 import { supportCreateVestingSchedule } from 'tests/setup/createVestingSchedule';
 import { TgeStorage, TgeStorageNumericKey } from 'tests/setup/queryTGEGetStorage';
 import { flush, proxy } from 'tests/soft-assert';
-import 'wookashwackomytest-polkahat-chai-matchers';
+import '@c-forge/polkahat-chai-matchers';
 import { Operation, Order, supportCreateSpendingOrder } from './createSpendingOrder';
 import { supportchangeGeneratedBaseAmounts } from './changeBaseCreatedAmounts';
 import { supportchangeGeneratedBonusAmounts } from './changeBonusCreatedAmounts';

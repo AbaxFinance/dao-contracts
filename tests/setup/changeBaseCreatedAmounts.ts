@@ -1,7 +1,7 @@
 import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
-import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { getApiAt } from '@c-forge/polkahat-network-helpers';
+import { SignAndSendSuccessResponse } from '@c-forge/typechain-types';
 import { queryTGEGeneratedBaseAmountBy } from './queryTGE';
 
 async function changeGeneratedBaseAmounts(this: Chai.AssertionPrototype, contract: any, addresses: string[], deltas: BN[]): Promise<void> {

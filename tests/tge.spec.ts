@@ -13,9 +13,9 @@ import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
 import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
-import { MAX_U128, ONE_YEAR } from 'wookashwackomytest-polkahat-chai-matchers';
-import { E3bn, E6bn, generateRandomSignerWithBalance, getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { MAX_U128, ONE_YEAR } from '@c-forge/polkahat-chai-matchers';
+import { E3bn, E6bn, generateRandomSignerWithBalance, getSigners, localApi, time } from '@c-forge/polkahat-network-helpers';
+import { SignAndSendSuccessResponse } from '@c-forge/typechain-types';
 import { queryTGEGetStorage } from './setup/queryTGEGetStorage';
 
 const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(ABAX_DECIMALS)));
