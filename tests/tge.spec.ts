@@ -631,7 +631,7 @@ describe('TGE', () => {
         });
 
         describe('price discovery', () => {
-          it('user wants to creat 5 million tokens on top 20 million intended for Public Contributors. \n Ge will receive 5,5 millions because of 10% bonus. total of 27,5 million ABAX tokens being created. Price increases to 0.0315', async () => {
+          it('user wants to create 5 million tokens on top 20 million intended for Public Contributors. \n He will receive 5,5 millions because of 10% bonus. total of 27,5 million ABAX tokens being created. Price increases to 0.0315', async () => {
             const contributor = contributors[3];
             const desiredAmountOfAbaxToGet = toTokenDecimals(5_000_000);
             await wAZERO.tx.mint(contributor.address, A_LOT_OF_TOKENS);

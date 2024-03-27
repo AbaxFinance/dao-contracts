@@ -132,7 +132,7 @@ async function executeAndCheck(governor: Governor, voter: KeyringPair, proposalI
   }
 }
 
-describe.only('Governor', () => {
+describe('Governor', () => {
   let governor: Governor;
   let token: PSP22Emitable;
   let vester: Vester;
