@@ -3,9 +3,9 @@ import type { ContractCallOutcome } from '@polkadot/api-contract/types';
 import type { ApiDecoration } from '@polkadot/api/types';
 import type { ContractExecResult } from '@polkadot/types/interfaces';
 import { firstValueFrom, map } from 'rxjs';
-import { convertWeight } from 'wookashwackomytest-polkahat-chai-matchers';
-import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse, _genValidGasLimitAndValue } from 'wookashwackomytest-typechain-types';
+import { convertWeight } from '@c-forge/polkahat-chai-matchers';
+import { getApiAt } from '@c-forge/polkahat-network-helpers';
+import { SignAndSendSuccessResponse, genValidContractOptionsWithValue } from '@c-forge/typechain-types';
 import type { ApiPromise } from '@polkadot/api';
 
 export async function getApiPreAndPostTx(tx: SignAndSendSuccessResponse, api: ApiPromise) {
@@ -28,7 +28,7 @@ export async function queryAt<T>(apiAt: ApiDecoration<'promise'>, contract: any,
       asAddress,
       contract.address,
       0,
-      (await _genValidGasLimitAndValue(contract.nativeAPI)).gasLimit!,
+      (await genValidContractOptionsWithValue(contract.nativeAPI)).gasLimit,
       null, //storageDepositLimit
       encoded,
     )

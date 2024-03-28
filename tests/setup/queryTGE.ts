@@ -3,7 +3,7 @@ import BN from 'bn.js';
 import { queryAt } from 'tests/setup/queryAt';
 import { ReturnPromiseType } from 'tests/tsUtils';
 import AbaxTgeMethods from 'typechain/query/abax_tge';
-import { getSigners } from 'wookashwackomytest-polkahat-network-helpers';
+import { getSigners } from '@c-forge/polkahat-network-helpers';
 
 const alice = getSigners()[0];
 

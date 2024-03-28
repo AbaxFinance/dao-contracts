@@ -7,7 +7,7 @@ import Vester from 'typechain/contracts/vester';
 import VesterDeployer from 'typechain/deployers/vester';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import PSP22EmitableDeployer from 'typechain/deployers/psp22_emitable';
-import { getSigners, localApi, time, transferNativeFromTo } from 'wookashwackomytest-polkahat-network-helpers';
+import { getSigners, localApi, time, transferNativeFromTo } from '@c-forge/polkahat-network-helpers';
 import { roleToSelectorId, testAccessControlForMessage } from './misc';
 import { Operation } from './setup/createSpendingOrder';
 

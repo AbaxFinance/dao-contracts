@@ -15,8 +15,8 @@ import VesterDeployer from 'typechain/deployers/vester';
 import { ProposalCreated } from 'typechain/event-types/governor';
 import { Proposal, Transaction, VotingRules } from 'typechain/types-arguments/governor';
 import { GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
-import { ONE_DAY } from 'wookashwackomytest-polkahat-chai-matchers';
-import { E12bn, duration, generateRandomSignerWithBalance, getSigners, localApi, time } from 'wookashwackomytest-polkahat-network-helpers';
+import { ONE_DAY } from '@c-forge/polkahat-chai-matchers';
+import { E12bn, duration, generateRandomSignerWithBalance, getSigners, localApi, time } from '@c-forge/polkahat-network-helpers';
 import { numbersToHex, paramsToInputNumbers } from './paramsHexConversionUtils';
 import { roleToSelectorId } from 'tests/misc';
 

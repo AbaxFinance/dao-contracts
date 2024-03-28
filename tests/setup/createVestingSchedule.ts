@@ -2,8 +2,8 @@ import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
 import { getApiPreAndPostTx } from 'tests/setup/queryAt';
 import { queryNextIdVestOfAt, queryVestingScheduleOfAt } from 'tests/setup/queryVester';
-import { getApiAt } from 'wookashwackomytest-polkahat-network-helpers';
-import { SignAndSendSuccessResponse } from 'wookashwackomytest-typechain-types';
+import { getApiAt } from '@c-forge/polkahat-network-helpers';
+import { SignAndSendSuccessResponse } from '@c-forge/typechain-types';
 
 async function createVestingSchedule(
   this: Chai.AssertionPrototype,
