@@ -80,7 +80,7 @@ const auditorAddress = '5HC2j3oJrieqBd4zFdX1VcLe6GbgGhfMRbjQUSB8RdZeRZkf';
     await new GovernorDeployer(api, signer).new(abaxToken.address, vester.address, UNSTAKE_PERIOD, 'ABAX Votes', 'vABAX', VOTING_RULES)
   ).contract;
 
-  const treasury = (await new AbaxTreasuryDeployer(api, signer).new(governor.address, auditorAddress, auditorAddress, vester.address)).contract;
+  const treasury = (await new AbaxTreasuryDeployer(api, signer).new(governor.address, auditorAddress, vester.address)).contract;
 
   const abaxTge = (
     await new AbaxTgeDeployer(api, signer).new(
