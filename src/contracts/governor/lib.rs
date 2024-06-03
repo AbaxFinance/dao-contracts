@@ -34,6 +34,7 @@ mod governor {
             VotingRules,
         },
     };
+    use ink::codegen::TraitCallBuilder;
     pub use ink::{
         codegen::Env,
         env::DefaultEnvironment,
@@ -116,18 +117,28 @@ mod governor {
 
         self.vault
             .asset()
-            .approve(self.unstake.general_vester().to_account_id(), *assets)?;
+            .call_mut()
+            .approve(self.unstake.general_vester().to_account_id(), *assets)
+            .call_v1()
+            .invoke()?;
 
-        match self.unstake.general_vester().create_vest(
-            *receiver,
-            Some(self.vault.asset().to_account_id()),
-            *assets,
-            VestingSchedule::External(ExternalTimeConstraint {
-                account: self.env().account_id(),
-                fallback_values: (self.unstake.unstake_period(), 0),
-            }),
-            Vec::<u8>::new(),
-        ) {
+        match self
+            .unstake
+            .general_vester()
+            .call_mut()
+            .create_vest(
+                *receiver,
+                Some(self.vault.asset().to_account_id()),
+                *assets,
+                VestingSchedule::External(ExternalTimeConstraint {
+                    account: self.env().account_id(),
+                    fallback_values: (self.unstake.unstake_period(), 0),
+                }),
+                Vec::<u8>::new(),
+            )
+            .call_v1()
+            .invoke()
+        {
             Ok(_) => {}
             Err(_) => {
                 return Err(PSP22Error::Custom(
@@ -436,7 +447,7 @@ mod governor {
                 ink::env::debug_println!("{:?}", tx.input);
                 // let call = tx.clone().build_call();
                 let call = ink::env::call::build_call::<DefaultEnvironment>()
-                    .call(tx.callee)
+                    .call_v1(tx.callee)
                     .transferred_value(tx.transferred_value)
                     .call_flags(ink::env::CallFlags::ALLOW_REENTRY)
                     .exec_input(
@@ -449,17 +460,17 @@ mod governor {
                     Ok(contract_res) => match contract_res {
                         Ok(_) => Ok(()),
                         Err(e) => Err(GovernError::UnderlyingTransactionReverted(
-                            ink::env::format!("{:?}", e),
+                            ink::prelude::format!("{:?}", e),
                         )),
                     },
                     Err(e) => match e {
                         ink::env::Error::Decode(err) => {
                             Err(GovernError::UnderlyingTransactionReverted(
-                                ink::env::format!("Decode Error: {:?}", err),
+                                ink::prelude::format!("Decode Error: {:?}", err),
                             ))
                         }
                         _ => Err(GovernError::UnderlyingTransactionReverted(
-                            ink::env::format!("{:?}", e),
+                            ink::prelude::format!("{:?}", e),
                         )),
                     },
                 }?;

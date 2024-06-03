@@ -35,7 +35,7 @@ export type AnyAbaxContractEventEnumLiteral<T extends AnyAbaxContractEvent> = `$
 export type AnyAbaxContract = AbaxTge | PSP22Emitable;
 
 export function roleToSelectorId(role: AbaxAccessControlRole) {
-  return stringToSelectorId(role);
+  return parseInt(stringToSelectorId(role));
 }
 
 //////////////////////////
