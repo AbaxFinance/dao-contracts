@@ -22,6 +22,7 @@ pub mod abax_tge_contract {
             traits::{AbaxTGE, AbaxTGEView, AbaxToken, AbaxTokenRef},
         },
     };
+    use ink::codegen::TraitCallBuilder;
     pub use ink::{
         codegen::Env,
         prelude::{vec, vec::Vec},
@@ -153,12 +154,17 @@ pub mod abax_tge_contract {
 
             let cost = self.calculate_cost(to_create)?;
             ink::env::debug_println!("cost {:?}", cost);
-            self.tge.wazero.transfer_from(
-                contributor,
-                self.tge.strategic_reserves_address,
-                cost,
-                vec![],
-            )?;
+            self.tge
+                .wazero
+                .call_mut()
+                .transfer_from(
+                    contributor,
+                    self.tge.strategic_reserves_address,
+                    cost,
+                    vec![],
+                )
+                .call_v1()
+                .invoke()?;
             ink::env::debug_println!("post transfer");
             self.tge.increase_contributed_amount(contributor, cost)?;
 
@@ -638,7 +644,10 @@ pub mod abax_tge_contract {
         fn generate_to_self(&mut self, amount: Balance) -> Result<(), TGEError> {
             let mut abax: AbaxTokenRef = self.tge.generated_token_address.into();
 
-            abax.generate(self.env().account_id(), amount)?;
+            abax.call_mut()
+                .generate(self.env().account_id(), amount)
+                .call_v1()
+                .invoke()?;
             ink::env::debug_println!("increase total amount minted by: {:?}", amount);
             self.tge.increase_total_amount_minted(amount)?;
             Ok(())
@@ -663,7 +672,11 @@ pub mod abax_tge_contract {
             ink::env::debug_println!("amount_to_vest: {:?}", amount_to_vest);
             ink::env::debug_println!("amount: {:?}", amount);
             let mut psp22: PSP22Ref = self.tge.generated_token_address.into();
-            psp22.transfer(to, amount_to_transfer, Vec::<u8>::new())?;
+            psp22
+                .call_mut()
+                .transfer(to, amount_to_transfer, Vec::<u8>::new())
+                .call_v1()
+                .invoke()?;
 
             ink::env::debug_println!("post transfer");
 
@@ -680,14 +693,22 @@ pub mod abax_tge_contract {
             let mut general_vest: GeneralVestRef = self.tge.vester.to_account_id().into();
             let mut psp22: PSP22Ref = self.tge.generated_token_address.into();
 
-            psp22.approve(self.tge.vester.to_account_id(), amount)?;
-            general_vest.create_vest(
-                to,
-                Some(psp22.to_account_id()),
-                amount,
-                VestingSchedule::Constant(0, VEST_DURATION),
-                vec![],
-            )?;
+            psp22
+                .call_mut()
+                .approve(self.tge.vester.to_account_id(), amount)
+                .call_v1()
+                .invoke()?;
+            general_vest
+                .call_mut()
+                .create_vest(
+                    to,
+                    Some(psp22.to_account_id()),
+                    amount,
+                    VestingSchedule::Constant(0, VEST_DURATION),
+                    vec![],
+                )
+                .call_v1()
+                .invoke()?;
             Ok(())
         }
     }

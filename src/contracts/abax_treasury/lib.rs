@@ -12,6 +12,7 @@ pub mod abax_treasury {
         structs::{Operation, Order, OrderId},
         traits::{AbaxTreasury, AbaxTreasuryView},
     };
+    use ink::codegen::TraitCallBuilder;
     pub use ink::{prelude::vec::Vec, ToAccountId};
     pub use pendzl::contracts::{
         general_vest::{GeneralVest, GeneralVestRef},
@@ -108,7 +109,11 @@ pub mod abax_treasury {
                 match operation {
                     Operation::PSP22Transfer(transfer) => {
                         let mut psp22: PSP22Ref = transfer.asset.into();
-                        psp22.transfer(transfer.to, transfer.amount, Vec::<u8>::new())?;
+                        psp22
+                            .call_mut()
+                            .transfer(transfer.to, transfer.amount, Vec::<u8>::new())
+                            .call_v1()
+                            .invoke()?;
                     }
                     Operation::NativeTransfer(transfer) => {
                         match self.env().transfer(transfer.to, transfer.amount) {
@@ -122,24 +127,36 @@ pub mod abax_treasury {
                         if let Some(asset) = vest.asset {
                             let mut psp22: PSP22Ref = asset.into();
 
-                            psp22.approve(vester.to_account_id(), vest.amount)?;
+                            psp22
+                                .call_mut()
+                                .approve(vester.to_account_id(), vest.amount)
+                                .call_v1()
+                                .invoke()?;
 
-                            vester.create_vest(
-                                vest.receiver,
-                                Some(asset),
-                                vest.amount,
-                                vest.schedule,
-                                Vec::<u8>::new(),
-                            )?;
+                            vester
+                                .call_mut()
+                                .create_vest(
+                                    vest.receiver,
+                                    Some(asset),
+                                    vest.amount,
+                                    vest.schedule,
+                                    Vec::<u8>::new(),
+                                )
+                                .call_v1()
+                                .invoke()?;
                         } else {
                             //TODO create a tx with value transfer
-                            vester.create_vest(
-                                vest.receiver,
-                                None,
-                                vest.amount,
-                                vest.schedule,
-                                Vec::<u8>::new(),
-                            )?;
+                            vester
+                                .call_mut()
+                                .create_vest(
+                                    vest.receiver,
+                                    None,
+                                    vest.amount,
+                                    vest.schedule,
+                                    Vec::<u8>::new(),
+                                )
+                                .call_v1()
+                                .invoke()?;
                         }
                     }
                 }
