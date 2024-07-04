@@ -57,7 +57,7 @@ impl CappedInflation {
         }
         let time_diff = now
             .checked_sub(self.last_cap_update.get().unwrap_or(0))
-            .ok_or(MathError::Overflow)? as u128;
+            .ok_or(MathError::Underflow)? as u128;
         let increase_cap_by = self
             .inflation_rate_per_milisecond()
             .checked_mul(time_diff)
