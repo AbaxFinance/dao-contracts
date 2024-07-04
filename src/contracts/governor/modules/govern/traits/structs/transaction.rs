@@ -57,8 +57,6 @@ impl scale::Decode for OpaqueTypes {
             }
         };
 
-        ink::env::debug_println!("Decoded OpaqueTypes: {:?}", bytes);
-
         Ok(OpaqueTypes(bytes))
     }
 }

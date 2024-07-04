@@ -88,11 +88,10 @@ mod governor {
         assets: &Balance,
         shares: &Balance,
     ) -> Result<(), PSP22Error> {
-        ink::env::debug_println!("total supply pre {:?}", self._total_supply());
         self.counter.increase_counter(*shares);
         self.govern.set_last_stake_timestamp(receiver);
         self._deposit_default_impl(caller, receiver, assets, shares)?;
-        ink::env::debug_println!("total supply post {:?}", self._total_supply());
+
         Ok(())
     }
 
@@ -383,9 +382,7 @@ mod governor {
 
             self.lock.lock(&proposal_id, proposer_deposit)?;
             let proposer_balance = self._balance_of(proposer);
-            ink::env::debug_println!("total supply {:?}", total_votes);
-            ink::env::debug_println!("proposer balance {:?}", proposer_balance);
-            ink::env::debug_println!("proposer deposit {:?}", proposer_deposit);
+
             self._transfer(proposer, &self.env().account_id(), &proposer_deposit)?;
 
             ink::env::emit_event::<DefaultEnvironment, ProposalCreated>(ProposalCreated {
@@ -464,9 +461,6 @@ mod governor {
             for tx in &proposal.transactions {
                 self.flush();
 
-                ink::env::debug_println!("{:?}", tx.callee);
-                ink::env::debug_println!("{:?}", tx.selector);
-                ink::env::debug_println!("{:?}", tx.input);
                 // let call = tx.clone().build_call();
                 let call = ink::env::call::build_call::<DefaultEnvironment>()
                     .call_v1(tx.callee)
