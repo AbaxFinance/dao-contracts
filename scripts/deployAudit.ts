@@ -69,7 +69,6 @@ const auditorAddress = '5HC2j3oJrieqBd4zFdX1VcLe6GbgGhfMRbjQUSB8RdZeRZkf';
   const foundersAddress = auditorAddress; //keyring.createFromUri(testSeeds['founders'], {}, 'sr25519').address;
   const foundationAddress = auditorAddress; //keyring.createFromUri(testSeeds['foundation'], {}, 'sr25519').address;
 
-  //TODO: hardcode wAZERO
   const wAZERO = (await new WazeroDeployer(api, signer).new()).contract;
 
   const abaxToken = (await new AbaxTokenDeployer(api, signer).new('ABAX', 'ABAX', ABAX_DECIMALS)).contract;

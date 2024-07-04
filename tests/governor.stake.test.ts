@@ -77,7 +77,7 @@ export function testStaking(
     });
     describe(`Stake `, () => {
       it(`tries to stake 0`, async () => {
-        await stakeAndCheck(ctx.govToken, ctx.governor, ctx.users[0], new BN(0)); //TODO or GovernErrorBuilder.AmountIsZero()
+        await stakeAndCheck(ctx.govToken, ctx.governor, ctx.users[0], new BN(0));
       });
       it(`tries to stake but hasn't given allowance`, async () => {
         await stakeAndCheck(ctx.govToken, ctx.governor, ctx.users[0], new BN(1), PSP22ErrorBuilder.InsufficientAllowance());
@@ -127,7 +127,7 @@ export function testStaking(
           await ctx.governor.withSigner(ctx.users[0]).tx.deposit(amountStaked, ctx.users[0].address);
         });
         it(`tries to initialize unstake of 0 amount`, async () => {
-          await initializeUnstakeAndCheck(ctx.vester, ctx.govToken, ctx.governor, ctx.users[0], new BN(0)); //, GovernErrorBuilder.AmountIsZero());
+          await initializeUnstakeAndCheck(ctx.vester, ctx.govToken, ctx.governor, ctx.users[0], new BN(0));
         });
 
         it(`tries to unstake more than has`, async () => {

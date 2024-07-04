@@ -76,9 +76,6 @@ async function proposeAndCheck(
         )
       );
     });
-
-    //votes for should be initiated to proposer deposit
-    // TODO ideally checks that won't check state 1v1
   }
 
   return [proposalId, descriptionHash.toString()] as const;
@@ -115,7 +112,6 @@ async function finalizeAndCheck(governor: Governor, voter: KeyringPair, proposal
         status: expectedOutcome,
       });
     }
-    // TODO ideally checks that won't check state 1v1
   }
 }
 
