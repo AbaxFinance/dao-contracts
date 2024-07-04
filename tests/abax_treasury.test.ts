@@ -79,7 +79,6 @@ describe('Abax Treasury tests', () => {
       await transferNativeFromTo(api, deployer, { address: treasury.address } as any, ONE_TOKEN.muln(100));
     });
     describe('while create order is called by the SPENDER', () => {
-      // TODO handle event data
       it('should create order with one operation ', async () => {
         const earliestExecution = (await time.latest()) + ONE_DAY.toNumber();
         const latestExecution = earliestExecution + ONE_YEAR.toNumber();
@@ -257,7 +256,6 @@ describe('Abax Treasury tests', () => {
         beforeEach(async () => {
           earliestExecution = (await time.latest()) + ONE_DAY.toNumber();
           latestExecution = earliestExecution + ONE_YEAR.toNumber();
-          //TODO add vest of native currency
           operations = [
             { nativeTransfer: { to: receiver1.address, amount: ONE_TOKEN.muln(10) } },
             {
@@ -298,7 +296,14 @@ describe('Abax Treasury tests', () => {
               await expect(tx).to.changePSP22Balances(tokenA, [treasury.address, vester.address], [ONE_TOKEN.muln(10).neg(), ONE_TOKEN.muln(10)]);
               await expect(tx).to.changePSP22Balances(tokenB, [treasury.address, vester.address], [ONE_TOKEN.muln(10).neg(), ONE_TOKEN.muln(10)]);
               await expect(tx).to.changePSP22Balances(tokenC, [treasury.address, receiver4.address], [ONE_TOKEN.muln(10).neg(), ONE_TOKEN.muln(10)]);
-              // TODO: cehck that 2 vesting schedules were created
+              await expect(tx).to.createVestingSchedule(vester, receiver2.address, tokenA.address, [ONE_TOKEN.muln(10), [ONE_DAY, ONE_YEAR]]);
+              await expect(tx).to.createVestingSchedule(vester, receiver3.address, tokenB.address, [
+                ONE_TOKEN.muln(10),
+                {
+                  account: other.address,
+                  fallbackValues: [ONE_DAY, ONE_YEAR],
+                },
+              ]);
             });
           });
         });

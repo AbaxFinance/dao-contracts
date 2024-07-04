@@ -94,7 +94,6 @@ function createContributeTestPhase1() {
       .value.ok;
     expect(queryRes?.ok?.toString(), 'amountToContribute').to.equal(amountToContribute.toString());
 
-    // TODO : blad w liczeniu, nie nalicza się bonusu za kontrybucje
     const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer?.address ?? null);
     await expect(tx).to.eventually.be.fulfilled;
 
@@ -521,8 +520,8 @@ describe('TGE', () => {
 
             expect(cost.toString()).to.equal(expectedCost.toString());
 
-            await expect(tx).to.changePSP22Balances(abaxToken, [contributors[1].address], [baseAmountToMint.muln(110).divn(100).muln(40).divn(100)]); //TODO agree on rounding
-            await expect(tx).to.changePSP22Balances(wAZERO, [strategicReserves.address], [expectedCost]); //TODO agree on rounding
+            await expect(tx).to.changePSP22Balances(abaxToken, [contributors[1].address], [baseAmountToMint.muln(110).divn(100).muln(40).divn(100)]);
+            await expect(tx).to.changePSP22Balances(wAZERO, [strategicReserves.address], [expectedCost]);
             await expect(tx).to.createVestingSchedule(vester, contributors[1].address, abaxToken.address, [
               baseAmountToMint.muln(110).divn(100).muln(60).divn(100),
               [new BN(0), ONE_YEAR.muln(4)],
@@ -611,7 +610,6 @@ describe('TGE', () => {
     });
   });
 
-  // TODO
   describe('price discovery', () => {
     beforeEach(async function () {
       for (const contributor of contributors) {

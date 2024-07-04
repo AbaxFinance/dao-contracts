@@ -63,7 +63,7 @@ const VOTING_RULES: VotingRules = {
   const signer = keyring.createFromUri(seed, {}, 'sr25519'); // getSigners()[0];
   const deployPath = path.join(outputJsonFolder, 'deployedContracts.azero.testnet.json');
 
-  //TODO: hardcode addresses
+  //Note: hardcode addresses
   const ABAX_TOKEN_DEFAULT_ADMIN = signer.address;
   const ABAX_TGE_DEFAULT_ADMIN = signer.address;
   const ABAX_TGE_STAKEDROP_ADMIN = signer.address;
@@ -71,7 +71,7 @@ const VOTING_RULES: VotingRules = {
   const foundersAddress = signer.address; //keyring.createFromUri(testSeeds['founders'], {}, 'sr25519').address;
   const foundationAddress = signer.address; //keyring.createFromUri(testSeeds['foundation'], {}, 'sr25519').address;
 
-  //TODO: hardcode wAZERO
+  //Note: hardcode wAZERO
   const wAZERO = (await new WazeroDeployer(api, signer).new()).contract;
 
   const abaxToken = (await new AbaxTokenDeployer(api, signer).new('ABAX', 'ABAX', ABAX_DECIMALS)).contract;
