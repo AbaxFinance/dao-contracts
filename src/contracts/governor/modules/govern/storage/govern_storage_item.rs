@@ -162,14 +162,6 @@ impl GovernData {
 
         let minimum_to_finalize = minimum_to_finalize(&state, &self.rules(), now, current_counter)?;
 
-        ink::env::debug_println!("minimum_to_finalize: {:?}", minimum_to_finalize);
-        ink::env::debug_println!("votes_for: {:?}", state.votes_for);
-        ink::env::debug_println!("votes_against: {:?}", state.votes_against);
-        ink::env::debug_println!(
-            "votes_against_with_slash: {:?}",
-            state.votes_against_with_slash
-        );
-
         if state
             .votes_against
             .checked_add(state.votes_against_with_slash)

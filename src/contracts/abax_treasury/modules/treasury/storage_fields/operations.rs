@@ -61,14 +61,6 @@ impl OrdersStorage {
         operations: &Vec<Operation>,
     ) -> Result<u32, AbaxTreasuryError> {
         let order_id = self.next_order_id();
-        ink::env::debug_println!(
-            "{:?}",
-            Order {
-                earliest_execution,
-                latest_execution,
-                operations: operations.clone(),
-            },
-        );
 
         self.orders.insert(
             &order_id,
