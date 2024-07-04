@@ -30,8 +30,8 @@ mod governor {
         traits::{
             AbaxGovern, AbaxGovernInternal, AbaxGovernManage, AbaxGovernView, GovernError,
             OpaqueTypes, Proposal, ProposalCreated, ProposalExecuted, ProposalFinalized,
-            ProposalHash, ProposalId, ProposalState, ProposalStatus, UserVote, Vote, VoteCasted,
-            VotingRules,
+            ProposalHash, ProposalId, ProposalState, ProposalStatus, UnstakePeriodChanged,
+            UserVote, Vote, VoteCasted, VotingRules, VotingRulesChanged,
         },
     };
     use ink::codegen::TraitCallBuilder;
@@ -182,7 +182,9 @@ mod governor {
             name: String,
             symbol: String,
             rules: VotingRules,
-        ) -> Self {
+        ) -> Result<Self, GovernError> {
+            _ensure_voting_rules_and_unstake_period_are_valid(&rules, unstake_period)?;
+
             let instance = Self {
                 access_control: AccessControlData::new(Some(Self::env().caller())),
                 psp22: PSP22Data::default(),
@@ -193,7 +195,7 @@ mod governor {
                 lock: LockedSharesData::default(),
                 unstake: UnstakeData::new(vester, unstake_period),
             };
-            instance
+            Ok(instance)
         }
     }
 
@@ -242,8 +244,28 @@ mod governor {
     impl AbaxGovernManage for Governor {
         #[ink(message)]
         fn change_voting_rules(&mut self, rules: VotingRules) -> Result<(), GovernError> {
+            _ensure_voting_rules_and_unstake_period_are_valid(
+                &rules,
+                self.unstake.unstake_period(),
+            )?;
             self._ensure_has_role(PARAMETERS_ADMIN, Some(self.env().caller()))?;
             self.govern.change_rule(&rules);
+            ink::env::emit_event::<DefaultEnvironment, VotingRulesChanged>(VotingRulesChanged {
+                rules,
+            });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn change_unstake_period(&mut self, period: Timestamp) -> Result<(), GovernError> {
+            _ensure_voting_rules_and_unstake_period_are_valid(&self.rules(), period)?;
+            self._ensure_has_role(PARAMETERS_ADMIN, Some(self.env().caller()))?;
+            self.unstake.set_unstake_period(period);
+            ink::env::emit_event::<DefaultEnvironment, UnstakePeriodChanged>(
+                UnstakePeriodChanged {
+                    unstake_period: period,
+                },
+            );
             Ok(())
         }
     }
@@ -509,5 +531,22 @@ mod governor {
         fn get_waiting_and_vesting_durations(&self) -> (Timestamp, Timestamp) {
             (0, self.unstake.unstake_period())
         }
+    }
+
+    fn _ensure_voting_rules_and_unstake_period_are_valid(
+        rules: &VotingRules,
+        unstake_period: Timestamp,
+    ) -> Result<(), GovernError> {
+        if rules
+            .initial_period
+            .checked_add(rules.flat_period)
+            .ok_or(MathError::Overflow)?
+            .checked_add(rules.final_period)
+            .ok_or(MathError::Overflow)?
+            > unstake_period
+        {
+            return Err(GovernError::UnstakeShorterThanVotingPeriod);
+        }
+        Ok(())
     }
 }
