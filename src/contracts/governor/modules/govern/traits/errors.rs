@@ -19,6 +19,7 @@ pub enum GovernError {
     WrongDescriptionHash,
     CantForceUnstake,
     AccessControlError(AccessControlError),
+    UnstakeShorterThanVotingPeriod,
 }
 
 impl From<MathError> for GovernError {

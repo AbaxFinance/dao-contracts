@@ -14,7 +14,7 @@ import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { ProposalCreated } from 'typechain/event-types/governor';
 import { Proposal, Transaction, VotingRules } from 'typechain/types-arguments/governor';
-import { GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
+import { AccessControlError, GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
 import { ONE_DAY } from '@c-forge/polkahat-chai-matchers';
 import { E12bn, duration, generateRandomSignerWithBalance, getSigners, localApi, time } from '@c-forge/polkahat-network-helpers';
 import { numbersToHex, paramsToInputNumbers } from './paramsHexConversionUtils';
@@ -154,6 +154,97 @@ describe('Governor', () => {
     vester = (await new VesterDeployer(api, deployer).new()).contract;
     governor = (await new GovernorDeployer(api, deployer).new(token.address, vester.address, UNSTAKE_PERIOD, 'Governor Votes', 'VOTE', VOTING_RULES))
       .contract;
+  });
+
+  describe('deployment', async () => {
+    it('should fail when unstake period is shorter than sum of voting periods', async () => {
+      const rules: VotingRules = {
+        minimumStakePartE3: 10,
+        proposerDepositPartE3: 100,
+        initialPeriod: ONE_DAY.muln(3),
+        flatPeriod: ONE_DAY.muln(7),
+        finalPeriod: ONE_DAY.muln(4),
+      };
+      await expect(
+        new GovernorDeployer(await localApi.get(), deployer).new(token.address, vester.address, ONE_DAY.muln(10), 'Governor Votes', 'VOTE', rules),
+      ).to.be.rejected;
+    });
+  });
+
+  //
+  describe('Manage', () => {
+    describe('changeVotingRules', () => {
+      it('should fail when trying to change voting rules without proper role', async () => {
+        await expect(governor.withSigner(voters[0]).query.changeVotingRules(VOTING_RULES)).to.be.revertedWithError(
+          GovernErrorBuilder.AccessControlError(AccessControlError.missingRole),
+        );
+      });
+
+      it('should fail when unstake period is shorter than sum of voting periods', async () => {
+        const newVotingRules = {
+          minimumStakePartE3: 20,
+          proposerDepositPartE3: 200,
+          initialPeriod: ONE_DAY.muln(50),
+          flatPeriod: ONE_DAY.muln(100),
+          finalPeriod: ONE_DAY.muln(50),
+        };
+        await governor.tx.grantRole(roleToSelectorId('PARAMETERS_ADMIN' as any), deployer.address);
+        await expect(governor.withSigner(deployer).query.changeVotingRules(newVotingRules)).to.be.revertedWithError(
+          GovernErrorBuilder.UnstakeShorterThanVotingPeriod(),
+        );
+      });
+      it('should change voting rules', async () => {
+        const newVotingRules = {
+          minimumStakePartE3: 20,
+          proposerDepositPartE3: 200,
+          initialPeriod: ONE_DAY.muln(5),
+          flatPeriod: ONE_DAY.muln(10),
+          finalPeriod: ONE_DAY.muln(5),
+        };
+        await governor.tx.grantRole(roleToSelectorId('PARAMETERS_ADMIN' as any), deployer.address);
+        await expect(governor.withSigner(deployer).query.changeVotingRules(newVotingRules)).to.haveOkResult();
+
+        const tx = governor.withSigner(deployer).tx.changeVotingRules(newVotingRules);
+        await expect(tx).to.emitEvent(governor, 'VotingRulesChanged', {
+          rules: {
+            minimumStakePartE3: newVotingRules.minimumStakePartE3,
+            proposerDepositPartE3: newVotingRules.proposerDepositPartE3,
+            initialPeriod: newVotingRules.initialPeriod,
+            flatPeriod: newVotingRules.flatPeriod,
+            finalPeriod: newVotingRules.finalPeriod,
+          },
+        });
+      });
+    });
+
+    describe('changeUnstakePeriod', () => {
+      it('should fail when trying to change unstake period without proper role', async () => {
+        await expect(governor.withSigner(voters[0]).query.changeUnstakePeriod(UNSTAKE_PERIOD)).to.be.revertedWithError(
+          GovernErrorBuilder.AccessControlError(AccessControlError.missingRole),
+        );
+      });
+
+      it('should fail when unstake period is shorter than sum of voting periods', async () => {
+        const newUnstakePeriod = ONE_DAY.muln(5);
+        await governor.tx.grantRole(roleToSelectorId('PARAMETERS_ADMIN' as any), deployer.address);
+        await expect(governor.withSigner(deployer).query.changeUnstakePeriod(newUnstakePeriod)).to.be.revertedWithError(
+          GovernErrorBuilder.UnstakeShorterThanVotingPeriod(),
+        );
+      });
+
+      it('should change unstake period', async () => {
+        const newUnstakePeriod = ONE_DAY.muln(100);
+
+        await governor.tx.grantRole(roleToSelectorId('PARAMETERS_ADMIN' as any), deployer.address);
+        await expect(governor.withSigner(deployer).query.changeUnstakePeriod(newUnstakePeriod)).to.haveOkResult();
+        const tx = governor.withSigner(deployer).tx.changeUnstakePeriod(newUnstakePeriod);
+        await expect(tx).to.emitEvent(governor, 'UnstakePeriodChanged', {
+          unstakePeriod: newUnstakePeriod,
+        });
+
+        await expect(governor.query.getWaitingAndVestingDurations()).to.haveOkResult([0, newUnstakePeriod]);
+      });
+    });
   });
 
   describe('after deployment', () => {

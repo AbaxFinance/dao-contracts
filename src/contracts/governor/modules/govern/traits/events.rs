@@ -36,7 +36,7 @@ pub struct VoteCasted {
 }
 
 #[ink::event]
-pub struct RulesChanged {
+pub struct VotingRulesChanged {
     pub rules: VotingRules,
 }
 
