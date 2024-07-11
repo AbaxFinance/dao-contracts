@@ -177,6 +177,8 @@ mod governor {
         pub fn new(
             asset: AccountId,
             vester: AccountId,
+            foundation: AccountId,
+            parameters_admin: Option<AccountId>,
             unstake_period: Timestamp,
             name: String,
             symbol: String,
@@ -184,8 +186,8 @@ mod governor {
         ) -> Result<Self, GovernError> {
             _ensure_voting_rules_and_unstake_period_are_valid(&rules, unstake_period)?;
 
-            let instance = Self {
-                access_control: AccessControlData::new(Some(Self::env().caller())),
+            let mut instance = Self {
+                access_control: AccessControlData::new(Some(Self::env().account_id())),
                 psp22: PSP22Data::default(),
                 vault: PSP22VaultData::new(asset, None),
                 metadata: PSP22MetadataData::new(Some(name), Some(symbol)),
@@ -194,13 +196,23 @@ mod governor {
                 lock: LockedSharesData::default(),
                 unstake: UnstakeData::new(vester, unstake_period),
             };
+
+            if let Some(admin) = parameters_admin {
+                instance._grant_role(PARAMETERS_ADMIN, Some(admin))?;
+            }
+
+            instance._grant_role(EXECUTOR, Some(foundation))?;
             Ok(instance)
         }
     }
 
     impl AbaxGovern for Governor {
         #[ink(message)]
-        fn propose(&mut self, proposal: Proposal, description: String) -> Result<(), GovernError> {
+        fn propose(
+            &mut self,
+            proposal: Proposal,
+            description: String,
+        ) -> Result<ProposalId, GovernError> {
             let description_hash = hash_description(&description);
             if description_hash != proposal.description_hash {
                 return Err(GovernError::WrongDescriptionHash);
@@ -348,7 +360,7 @@ mod governor {
             &mut self,
             proposer: &AccountId,
             proposal: &Proposal,
-        ) -> Result<(), GovernError> {
+        ) -> Result<ProposalId, GovernError> {
             //check if the proposer has enough votes to create a proposal
             let total_votes = self._total_supply();
             let minimum_votes_to_propose = mul_div(
@@ -381,7 +393,6 @@ mod governor {
             )?;
 
             self.lock.lock(&proposal_id, proposer_deposit)?;
-            let proposer_balance = self._balance_of(proposer);
 
             self._transfer(proposer, &self.env().account_id(), &proposer_deposit)?;
 
@@ -390,7 +401,7 @@ mod governor {
                 proposal_hash,
                 proposal: proposal.clone(),
             });
-            Ok(())
+            Ok(proposal_id)
         }
 
         fn _cast_vote(
@@ -523,7 +534,7 @@ mod governor {
     impl ProvideVestScheduleInfo for Governor {
         #[ink(message)]
         fn get_waiting_and_vesting_durations(&self) -> (Timestamp, Timestamp) {
-            (0, self.unstake.unstake_period())
+            (self.unstake.unstake_period(), 0)
         }
     }
 

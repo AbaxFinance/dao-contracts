@@ -1,0 +1,47 @@
+[package]
+name = "register_asset_proposal"
+version = "0.1.0"
+authors = [""]
+edition = "2021"
+
+[dependencies]
+ink = { version = "5.0.0", default-features = false }
+
+scale = { package = "parity-scale-codec", version = "3.6.9", default-features = false, features = [
+    "derive",
+] }
+scale-info = { version = "2.11", default-features = false, features = [
+    "derive",
+], optional = true }
+
+pendzl = { version = "0.2.4", default-features = false, features = [
+    "psp22",
+    "psp22_burnable",
+    "psp22_mintable",
+    "ownable",
+    "pausable",
+    "access_control",
+] }
+
+[lib]
+name = "register_asset_proposal"
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info",
+    "scale-info/std",
+    "pendzl/std",
+]
+ink-as-dependency = []
+
+[profile.dev]
+codegen-units = 16
+panic = "abort"
+lto = false
+[profile.release]
+panic = "abort"
+lto = false

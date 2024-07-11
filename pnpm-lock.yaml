@@ -24,20 +24,20 @@ dependencies:
     specifier: ^0.0.20
     version: 0.0.20
   '@c-forge/polkahat-chai-matchers':
-    specifier: ^0.0.77
-    version: 0.0.77(@polkadot/util-crypto@12.6.2)
+    specifier: ^0.0.78
+    version: 0.0.78(@polkadot/util-crypto@12.6.2)
   '@c-forge/polkahat-network-helpers':
-    specifier: ^0.0.77
-    version: 0.0.77
+    specifier: ^0.0.78
+    version: 0.0.78
   '@c-forge/typechain-compiler':
-    specifier: 0.0.60-experimental3
-    version: 0.0.60-experimental3(@types/node@20.12.12)(typescript@5.4.2)
+    specifier: ^0.2.4
+    version: 0.2.4
   '@c-forge/typechain-polkadot':
-    specifier: 0.0.60-experimental3
-    version: 0.0.60-experimental3(@polkadot/util-crypto@12.6.2)
+    specifier: 0.2.4
+    version: 0.2.4(@polkadot/util-crypto@12.6.2)(ts-node@10.9.2)
   '@c-forge/typechain-types':
-    specifier: 0.0.60-experimental3
-    version: 0.0.60-experimental3(@polkadot/util-crypto@12.6.2)
+    specifier: 0.2.4
+    version: 0.2.4(@polkadot/util-crypto@12.6.2)
   '@polkadot/api':
     specifier: ^10.12.4
     version: 10.13.1
@@ -50,6 +50,9 @@ dependencies:
   '@polkadot/types':
     specifier: ^10.12.4
     version: 10.13.1
+  '@polkadot/util':
+    specifier: ^12.6.2
+    version: 12.6.2
   '@polkadot/util-crypto':
     specifier: ^12.6.2
     version: 12.6.2(@polkadot/util@12.6.2)
@@ -1472,8 +1475,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /@c-forge/polkahat-chai-matchers@0.0.77(@polkadot/util-crypto@12.6.2):
-    resolution: {integrity: sha512-pr9JALjmRQl1/xj/yAm08NOXRYGWYMxrr+DurRV6LTZtUUPaEm3fYWYxqsDcVyoLra4BkNQHwlq9GDATZO3Erg==}
+  /@c-forge/polkahat-chai-matchers@0.0.78(@polkadot/util-crypto@12.6.2):
+    resolution: {integrity: sha512-NlnXHC6OJyRpx60nMnsyNkeK2adaTI3ZVxG4fqnE0XNY8K3+PNzRVZANwRBbxwYxUbxNaMR1T7IkTbhg+zryew==}
     dependencies:
       '@c-forge/typechain-types': 0.0.55(@polkadot/util-crypto@12.6.2)
       '@polkadot/api': 10.13.1
@@ -1516,8 +1519,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /@c-forge/polkahat-network-helpers@0.0.77:
-    resolution: {integrity: sha512-KzCtCj2rQwbBxaQ9tsdiR9GpDwxREsxhrNYZXhmnyfqBej7rvKGtvmnEqASY9CKNObKAHP2u4BTxGYZSo8EszA==}
+  /@c-forge/polkahat-network-helpers@0.0.78:
+    resolution: {integrity: sha512-Tf+MO+0yl2Vr4yVwBxoG3G92XI2R5GJ9S+LyOO5bkOX2FAFT1TH9A/3FwFflf2wzUNVeiJSPIGlpOcE18K+Etg==}
     dependencies:
       '@c-forge/typechain-types': 0.0.55(@polkadot/util-crypto@12.6.2)
       '@polkadot/api': 10.13.1
@@ -1535,8 +1538,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /@c-forge/typechain-compiler@0.0.60-experimental3(@types/node@20.12.12)(typescript@5.4.2):
-    resolution: {integrity: sha512-sKGG0Or287uqbGz3WpFmZhdwuFy7EANq/x3ElBIzYI2qSLei52GC5cJL5oAmmN3zUWIZALUZv1cfrs24ehgYdQ==}
+  /@c-forge/typechain-compiler@0.2.4:
+    resolution: {integrity: sha512-ypm++wqb2SbOMu7q3hemWt0RDjZpRfN43sZEZHvheH4oeyiY8wTzUiSIddg88RBZZizwT1pobKEBk+MdCS5mYA==}
     engines: {node: '>=18.0.0', npm: '>=9.0.0'}
     hasBin: true
     dependencies:
@@ -1549,19 +1552,15 @@ packages:
       globby: 11.0.2
       minimatch: 5.1.6
       toml: 3.0.0
-      ts-node: 10.9.2(@types/node@20.12.12)(typescript@5.4.2)
       tslib: 2.6.2
       tsx: 4.7.1
       yargs: 17.7.2
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@swc/wasm'
-      - '@types/node'
-      - typescript
     dev: false
 
-  /@c-forge/typechain-polkadot-parser@0.0.60-experimental3:
-    resolution: {integrity: sha512-jTbCb029gBQ59cLlTR4AfKFY91jF7S5+1k9EKzK0yssW2VTkJkv0PLLURtR0hYEGsGnoGry8pF+1Qf+An8R2Tw==}
+  /@c-forge/typechain-polkadot-parser@0.2.4(ts-node@10.9.2):
+    resolution: {integrity: sha512-n4ZQqgg3opXAmova36wAhYY2+6c5x9ekJD+p5fPeHWTt9Kk4me5XFrVuk2BQa+xpf3D59fk+xpCTsMhWTLU6dw==}
+    peerDependencies:
+      ts-node: ^10.9.2
     dependencies:
       '@polkadot/api': 10.13.1
       '@polkadot/api-contract': 10.13.1
@@ -1570,6 +1569,7 @@ packages:
       '@polkadot/util': 12.6.2
       '@types/bn.js': 5.1.5
       '@types/node': 18.19.26
+      ts-node: 10.9.2(@types/node@20.12.12)(typescript@5.4.2)
       tslib: 2.6.2
     transitivePeerDependencies:
       - bufferutil
@@ -1577,13 +1577,13 @@ packages:
       - utf-8-validate
     dev: false
 
-  /@c-forge/typechain-polkadot@0.0.60-experimental3(@polkadot/util-crypto@12.6.2):
-    resolution: {integrity: sha512-Qak5LM4yCZNJ5fHU3ZXNtv5VZSZQy8dwPzA61K4qpgG68UGV3M22AQno5hGQEl0irZFuSK+XEqBQgCTWULwJVQ==}
+  /@c-forge/typechain-polkadot@0.2.4(@polkadot/util-crypto@12.6.2)(ts-node@10.9.2):
+    resolution: {integrity: sha512-yZXME3jDw3UvyJaVxYBfjXx1GMEQKEol7ntMjBf3G3EpPEEGfuXeJhtwxTAV3ijT2ZdSNCFc4P/qceurhaZU7Q==}
     engines: {node: '>=18.0.0', npm: '>=9.0.0'}
     hasBin: true
     dependencies:
-      '@c-forge/typechain-polkadot-parser': 0.0.60-experimental3
-      '@c-forge/typechain-types': 0.0.60-experimental3(@polkadot/util-crypto@12.6.2)
+      '@c-forge/typechain-polkadot-parser': 0.2.4(ts-node@10.9.2)
+      '@c-forge/typechain-types': 0.2.4(@polkadot/util-crypto@12.6.2)
       '@polkadot/api': 10.13.1
       '@polkadot/api-contract': 10.13.1
       '@polkadot/keyring': 12.6.2(@polkadot/util-crypto@12.6.2)(@polkadot/util@12.6.2)
@@ -1593,6 +1593,7 @@ packages:
       '@types/yargs': 17.0.32
       eslint: 8.57.0
       fs-extra: 9.1.0
+      globby: 11.0.2
       handlebars: 4.7.8
       prettier: 2.8.8
       tslib: 2.6.2
@@ -1602,6 +1603,7 @@ packages:
       - '@polkadot/util-crypto'
       - bufferutil
       - supports-color
+      - ts-node
       - utf-8-validate
     dev: false
 
@@ -1624,8 +1626,8 @@ packages:
       - utf-8-validate
     dev: false
 
-  /@c-forge/typechain-types@0.0.60-experimental3(@polkadot/util-crypto@12.6.2):
-    resolution: {integrity: sha512-zBo1kQP9RaZ9SCaf6WYT+ayM9pE6hHn77Ear3tLMHJw/t1ASuu0cB1rGV1Sc439Vwmj74lj9HMLKUl/PQ2ntMA==}
+  /@c-forge/typechain-types@0.2.4(@polkadot/util-crypto@12.6.2):
+    resolution: {integrity: sha512-EpB2E+Oey45xEa6sWqSbyAzs71ESzSPbgb8yn9I8OO2CD4gpKKscf+wehea7xOgO32ffsRiwIR19hGzquScTEA==}
     dependencies:
       '@polkadot/api': 10.13.1
       '@polkadot/api-contract': 10.13.1
@@ -2651,8 +2653,8 @@ packages:
     resolution: {integrity: sha512-rBvWnlrBeFTd5LVG7oX3rOHzR16yqyffOFHKmUiVcblpXI3D89CXOvAljW9tWlA1H/2/FegaZnHPhdObPsvi+w==}
     dev: false
 
-  /@tsconfig/node10@1.0.9:
-    resolution: {integrity: sha512-jNsYVVxU8v5g43Erja32laIDHXeoNvFEpX33OK4d6hljo3jDhCBDhx5dhCCTMWUojscpAagGiRkBKxpdl9fxqA==}
+  /@tsconfig/node10@1.0.11:
+    resolution: {integrity: sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw==}
     dev: false
 
   /@tsconfig/node12@1.0.11:
@@ -3040,9 +3042,11 @@ packages:
       acorn: 8.11.3
     dev: false
 
-  /acorn-walk@8.3.2:
-    resolution: {integrity: sha512-cjkyv4OtNCIeqhHrfS81QWXoCBPExR/J62oyEqepVw8WaQeSqpW2uhuLPh1m9eWhDuOo/jUXVTlifvesOWp/4A==}
+  /acorn-walk@8.3.3:
+    resolution: {integrity: sha512-MxXdReSRhGO7VlFe1bRG/oI7/mdLV9B9JJT0N8vZOhF7gFRR5l3M8W9G8JxmKV+JC5mGqJ0QvqfSOLsCPa4nUw==}
     engines: {node: '>=0.4.0'}
+    dependencies:
+      acorn: 8.11.3
     dev: false
 
   /acorn@8.11.3:
@@ -5755,13 +5759,13 @@ packages:
         optional: true
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
-      '@tsconfig/node10': 1.0.9
+      '@tsconfig/node10': 1.0.11
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
       '@types/node': 20.12.12
       acorn: 8.11.3
-      acorn-walk: 8.3.2
+      acorn-walk: 8.3.3
       arg: 4.1.3
       create-require: 1.1.1
       diff: 4.0.2

@@ -41,7 +41,7 @@ pub mod abax_tge_contract {
     /// A role type for access to stakedrop functions - 4_193_574_647_u32.
     pub const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN");
 
-    pub const MINIMUM_AMOUNT: Balance = 40_000_000_000_000; // 10 WAZERO in phase one
+    pub const MINIMUM_AMOUNT: Balance = 25_000_000_000_000; // 1 USDC in phase one
 
     pub enum Generate {
         // used to generate for referrers
@@ -65,7 +65,7 @@ pub mod abax_tge_contract {
             start_time: Timestamp,
             phase_two_duration: Timestamp,
             generated_token_address: AccountId,
-            wazero_address: AccountId,
+            contribution_token_address: AccountId,
             vester_address: AccountId,
             founders_address: AccountId,
             foundation_address: AccountId,
@@ -80,7 +80,7 @@ pub mod abax_tge_contract {
                     start_time,
                     phase_two_duration,
                     generated_token_address,
-                    wazero_address,
+                    contribution_token_address,
                     vester_address,
                     founders_address,
                     foundation_address,
@@ -153,7 +153,7 @@ pub mod abax_tge_contract {
             let cost = self.calculate_cost(to_create)?;
 
             self.tge
-                .wazero
+                .contribution_token
                 .call_mut()
                 .transfer_from(
                     contributor,
@@ -178,9 +178,9 @@ pub mod abax_tge_contract {
                 Generate::Distribute,
             )?;
 
-            if referrer.is_some() {
+            if let Some(r) = referrer {
                 let referer_reward = mul_denom_e3(to_create, REWARD_FOR_REFERER_E3 as u128)?;
-                self.generate_tokens(referrer.unwrap(), referer_reward, Generate::Reserve)?;
+                self.generate_tokens(r, referer_reward, Generate::Reserve)?;
             }
 
             self.env().emit_event(Contribution {
@@ -290,7 +290,7 @@ pub mod abax_tge_contract {
                 self.tge.phase_two_start_time,
                 self.tge.phase_two_duration,
                 self.tge.generated_token_address,
-                self.tge.wazero.to_account_id(),
+                self.tge.contribution_token.to_account_id(),
                 self.tge.vester.to_account_id(),
                 self.tge.founders_address,
                 self.tge.foundation_address,
@@ -337,6 +337,11 @@ pub mod abax_tge_contract {
         #[ink(message)]
         fn generated_bonus_amount_by(&self, account: AccountId) -> Balance {
             self.tge.bonus_amount_created(&account)
+        }
+
+        #[ink(message)]
+        fn calculate_cost(&self, to_create: Balance) -> Balance {
+            self.calculate_cost(to_create).unwrap_or(0)
         }
     }
 
@@ -425,29 +430,49 @@ pub mod abax_tge_contract {
                 .exp_bonus_multiplier_of_e3(&contributor)
                 .checked_add(self.get_contribution_bonus_multiplier_e3(contributor))
                 .ok_or(MathError::Overflow)?;
+            ink::env::debug_println!(
+                "self.exp_bonus_multiplier_of_e3(contributor): {}",
+                self.tge.exp_bonus_multiplier_of_e3(&contributor)
+            );
+            ink::env::debug_println!(
+                "self.get_contribution_bonus_multiplier_e3(contributor): {}",
+                self.get_contribution_bonus_multiplier_e3(contributor)
+            );
+            ink::env::debug_println!("bonus_multiplier_e3: {}", bonus_multiplier_e3);
 
             if referrer.is_some() {
+                ink::env::debug_println!("Adding bonus for referrer");
                 bonus_multiplier_e3 = bonus_multiplier_e3
                     .checked_add(BONUS_FOR_REFERRER_USE_E3)
                     .ok_or(MathError::Overflow)?;
             }
 
+            ink::env::debug_println!("bonus_multiplier_e3 2: {}", bonus_multiplier_e3);
+
             if bonus_multiplier_e3 > BONUS_MAX_E3 {
                 bonus_multiplier_e3 = BONUS_MAX_E3;
             }
 
+            ink::env::debug_println!("to_create: {}", to_create);
             self.tge
                 .increase_base_amount_created(&contributor, to_create)?;
             let received_base = self.tge.base_amount_created(&contributor);
+            ink::env::debug_println!("received_base: {}", received_base);
 
             let eligible_bonus = mul_denom_e3(received_base, bonus_multiplier_e3 as u128)?;
             let bonus_already_received = self.tge.bonus_amount_created(&contributor);
-
+            ink::env::debug_println!(
+                "eligible_bonus: {} bonus_already_received: {}",
+                eligible_bonus,
+                bonus_already_received
+            );
             // it may happen that the previously one used refferers code and now one is not using one.
             // This may result in a bonus_already_received being greater than eligible_bonus
             let bonus = eligible_bonus.saturating_sub(bonus_already_received);
             self.tge
                 .increase_bonus_amount_created(&contributor, bonus)?;
+
+            ink::env::debug_println!("[final] bonus: {}", bonus);
             Ok(bonus)
         }
 
@@ -484,7 +509,12 @@ pub mod abax_tge_contract {
             }
 
             let cost_phase1: Balance =
-                mul_denom_e6(amount_phase1, self.tge.cost_to_mint_milion_tokens)?;
+                mul_denom_e12(amount_phase1, self.tge.cost_to_mint_milion_tokens)?;
+
+            ink::env::debug_println!(
+                "self.tge.cost_to_mint_milion_tokens: {}",
+                self.tge.cost_to_mint_milion_tokens
+            );
 
             let cost_phase2: Balance = {
                 if amount_phase2 == 0 {
@@ -512,7 +542,15 @@ pub mod abax_tge_contract {
                             .checked_div(E8_U128) // from the formula
                             .unwrap().checked_add(1).ok_or(MathError::Overflow)?;
 
-                    mul_denom_e6(amount_phase2, effective_cost_per_million)?
+                    ink::env::debug_println!("averaged_amount: {}", averaged_amount);
+                    ink::env::debug_println!("effective_tokens: {}", effective_tokens);
+
+                    ink::env::debug_println!(
+                        "effective_cost_per_million: {}",
+                        effective_cost_per_million
+                    );
+
+                    mul_denom_e12(amount_phase2, effective_cost_per_million)?
                 }
             };
 
@@ -567,6 +605,20 @@ pub mod abax_tge_contract {
             let amount_to_mint = amount_phase1
                 .checked_add(amount_to_mint_phase2)
                 .ok_or(MathError::Overflow)?;
+            //log every variable
+            ink::env::debug_println!("amount_phase1: {}", amount_phase1);
+            ink::env::debug_println!("amount_phase2: {}", amount_phase2);
+            ink::env::debug_println!("amount_to_mint_phase2: {}", amount_to_mint_phase2);
+            ink::env::debug_println!("amount_to_mint: {}", amount_to_mint);
+            ink::env::debug_println!("total_amount_minted: {}", total_amount_minted);
+            ink::env::debug_println!(
+                "total_amount_minted_plus_amount: {}",
+                total_amount_minted_plus_amount
+            );
+            ink::env::debug_println!(
+                "self.tge.phase_one_token_cap: {}",
+                self.tge.phase_one_token_cap
+            );
 
             self.generate_to_self(amount_to_mint)?;
 
@@ -631,6 +683,10 @@ pub mod abax_tge_contract {
             let amount_to_vest = amount
                 .checked_sub(amount_to_transfer)
                 .ok_or(MathError::Underflow)?;
+
+            ink::env::debug_println!("amount: {}", amount);
+            ink::env::debug_println!("amount_to_transfer: {}", amount_to_transfer);
+            ink::env::debug_println!("amount_to_vest: {}", amount_to_vest);
 
             let mut psp22: PSP22Ref = self.tge.generated_token_address.into();
             psp22

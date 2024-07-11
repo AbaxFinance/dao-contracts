@@ -6,11 +6,19 @@ pub trait AbaxGovern {
     ///
     /// On success emits `ProposalCreated` event.
     ///
+    /// # Returns
+    ///
+    /// Returns `ProposalId` of the created proposal.
+    ///
     /// # Errors
     /// Returns `ProposalAlreadyExists` if `propsal` with the same `proposal_description` exists,
     /// Returns `InsuficientVotes` if `caller` has insufficient amount of votes to create a proposal.
     #[ink(message)]
-    fn propose(&mut self, proposal: Proposal, description: String) -> Result<(), GovernError>;
+    fn propose(
+        &mut self,
+        proposal: Proposal,
+        description: String,
+    ) -> Result<ProposalId, GovernError>;
 
     /// Finilize `proposal_id` if the finalization conditions are met.  
     ///

@@ -37,7 +37,8 @@ const VOTING_RULES: VotingRules = {
   finalPeriod: ONE_DAY.muln(4),
 };
 
-async function proposeAndCheck(
+const descriptionUrl = 'https://someurl.com/proposal/21iuhsa837iuhsa218312sajdiuhsad';
+export async function proposeAndCheck(
   governor: Governor,
   proposer: KeyringPair,
   transactions: Transaction[],
@@ -47,12 +48,12 @@ async function proposeAndCheck(
 ) {
   let proposalId = new BN(-1);
   const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
-  const query = governor.withSigner(proposer).query.propose({ descriptionHash, transactions, earliestExecution }, description);
+  const query = governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
   if (expectedError) {
     await expect(query).to.be.revertedWithError(expectedError);
   } else {
     await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(proposer).tx.propose({ descriptionHash, transactions, earliestExecution }, description);
+    const tx = governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
     await expect(tx).to.emitEvent(governor, 'ProposalCreated', (event: ProposalCreated) => {
       proposalId = new BN(event.proposalId.toString());
       return (
@@ -766,7 +767,7 @@ describe('Governor', () => {
             governor,
             executor,
             proposalId,
-            { descriptionHash: '', transactions: [], earliestExecution: null },
+            { descriptionUrl, descriptionHash: '', transactions: [], earliestExecution: null },
             GovernErrorBuilder.ProposalDoesntExist(),
           );
         });
@@ -775,7 +776,7 @@ describe('Governor', () => {
             governor,
             executor,
             proposalId,
-            { descriptionHash, transactions: [], earliestExecution: null },
+            { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null },
             GovernErrorBuilder.WrongStatus(),
           );
         });
@@ -793,7 +794,7 @@ describe('Governor', () => {
               governor,
               executor,
               proposalId,
-              { descriptionHash, transactions: [], earliestExecution: null },
+              { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null },
               GovernErrorBuilder.WrongStatus(),
             );
           });
@@ -812,7 +813,7 @@ describe('Governor', () => {
               governor,
               executor,
               proposalId,
-              { descriptionHash, transactions: [], earliestExecution: null },
+              { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null },
               GovernErrorBuilder.WrongStatus(),
             );
           });
@@ -827,7 +828,7 @@ describe('Governor', () => {
             await governor.tx.finalize(proposalId);
           });
           it('user0 executes Succeded proposal with no Tx', async () => {
-            await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution: null });
+            await executeAndCheck(governor, executor, proposalId, { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null });
           });
         });
       });
@@ -856,7 +857,7 @@ describe('Governor', () => {
                 governor,
                 executor,
                 proposalId,
-                { descriptionHash, transactions: [], earliestExecution },
+                { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                 GovernErrorBuilder.TooEarlyToExecuteProposal(),
               );
             });
@@ -869,7 +870,7 @@ describe('Governor', () => {
                   governor,
                   executor,
                   proposalId,
-                  { descriptionHash, transactions: [], earliestExecution },
+                  { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                   GovernErrorBuilder.TooEarlyToExecuteProposal(),
                 );
               });
@@ -878,7 +879,7 @@ describe('Governor', () => {
                   await time.increase(1);
                 });
                 it('user0 executes proposal', async () => {
-                  await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution });
+                  await executeAndCheck(governor, executor, proposalId, { descriptionUrl, descriptionHash, transactions: [], earliestExecution });
                 });
               });
             });
@@ -909,7 +910,7 @@ describe('Governor', () => {
                 governor,
                 executor,
                 proposalId,
-                { descriptionHash, transactions: [], earliestExecution },
+                { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                 GovernErrorBuilder.TooEarlyToExecuteProposal(),
               );
             });
@@ -922,7 +923,7 @@ describe('Governor', () => {
                   governor,
                   executor,
                   proposalId,
-                  { descriptionHash, transactions: [], earliestExecution },
+                  { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                   GovernErrorBuilder.TooEarlyToExecuteProposal(),
                 );
               });
@@ -931,7 +932,7 @@ describe('Governor', () => {
                   await time.increase(1);
                 });
                 it('user0 executes proposal', async () => {
-                  await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution });
+                  await executeAndCheck(governor, executor, proposalId, { descriptionUrl, descriptionHash, transactions: [], earliestExecution });
                 });
               });
             });
@@ -976,7 +977,7 @@ describe('Governor', () => {
               },
             ];
             [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-            proposal = { descriptionHash, transactions, earliestExecution: null };
+            proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
           });
 
           it('user0 executes proposal succesfully', async () => {
@@ -1021,7 +1022,7 @@ describe('Governor', () => {
             ];
 
             [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-            proposal = { descriptionHash, transactions, earliestExecution: null };
+            proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
           });
           it('user0 executes proposal succesfully', async () => {
             await finalize();
@@ -1064,7 +1065,7 @@ describe('Governor', () => {
               ];
 
               [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-              proposal = { descriptionHash, transactions, earliestExecution: null };
+              proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
             });
           });
           describe('handles panics properly', () => {
@@ -1093,7 +1094,7 @@ describe('Governor', () => {
               ];
 
               [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-              proposal = { descriptionHash, transactions, earliestExecution: null };
+              proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
             });
 
             it('user0 executes Succeded proposal with Tx but it fails due to the contract called via proposal tx panicking', async () => {

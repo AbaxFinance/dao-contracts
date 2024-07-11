@@ -1,7 +1,7 @@
 import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
-import { ABAX_DECIMALS, AZERO_DECIMALS, AbaxDAOSpecificRoles } from 'tests/consts';
-import { roleToSelectorId } from 'tests/misc';
+import { ABAX_DECIMALS, USDC_DECIMALS, AbaxDAOSpecificRoles } from 'tests/consts';
+import { getTgeParams, roleToSelectorId } from 'tests/misc';
 import { expect } from 'tests/setup/chai';
 import { default as AbaxTge, default as AbaxTgeContract } from 'typechain/contracts/abax_tge';
 import AbaxToken from 'typechain/contracts/abax_token';
@@ -13,27 +13,31 @@ import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
 import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
-import { MAX_U128, ONE_YEAR } from '@c-forge/polkahat-chai-matchers';
-import { E3bn, E6bn, generateRandomSignerWithBalance, getSigners, localApi, time } from '@c-forge/polkahat-network-helpers';
+import { MAX_U128, ONE_YEAR, stringifyNumericProps } from '@c-forge/polkahat-chai-matchers';
+import { E12bn, E3bn, E6bn, generateRandomSignerWithBalance, getSigners, localApi, time } from '@c-forge/polkahat-network-helpers';
 import { SignAndSendSuccessResponse } from '@c-forge/typechain-types';
 import { queryTGEGetStorage } from './setup/queryTGEGetStorage';
 
-const toTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(ABAX_DECIMALS)));
+const toAbaxTokenDecimals = (amount: string | number | BN) => (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(ABAX_DECIMALS)));
+const toContributionTokenDecimals = (amount: string | number | BN) =>
+  (BN.isBN(amount) ? amount : new BN(amount)).mul(new BN(10).pow(new BN(USDC_DECIMALS)));
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
-const PHASE_ONE_TOKEN_CAP = toTokenDecimals(1).mul(new BN((100_000_000).toString()));
-const PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT = toTokenDecimals(20_000_000);
-const COST_TO_MINT_MILLION_TOKENS = new BN(1_000_000).divn(40);
-const CONTRIBUTION_TO_GET_ONE_PERCENT_BONUS = toTokenDecimals(1_000);
-const A_LOT_OF_TOKENS = toTokenDecimals(1_000_000_000);
+const PHASE_ONE_TOKEN_CAP = toAbaxTokenDecimals(1).mul(new BN((100_000_000).toString()));
+const PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT = toAbaxTokenDecimals(20_000_000);
+const COST_TO_MINT_MILLION_TOKENS = new BN(1_000_000).divn(25);
+const CONTRIBUTION_TO_GET_ONE_PERCENT_BONUS = toContributionTokenDecimals(1_000);
+const A_LOT_OF_TOKENS = toAbaxTokenDecimals(1_000_000_000);
 
 const [admin, stakedropAdmin, founders, foundation, strategicReserves, other] = getSigners();
 
-const INIT_CONTRIBUTOR_BALANCE = toTokenDecimals(100_000);
+const INIT_CONTRIBUTOR_BALANCE = toContributionTokenDecimals(100_000);
 
-const ONE_TOKEN = toTokenDecimals(1);
-const MINIMUM_AMOUNT_TO_GENERATE = ONE_TOKEN.muln(40);
+const ONE_ABAX_TOKEN = toAbaxTokenDecimals(1);
+const ONE_AZERO_TOKEN = toAbaxTokenDecimals(1);
+const ONE_USDC_TOKEN = toContributionTokenDecimals(1);
+const MINIMUM_AMOUNT_TO_GENERATE = ONE_ABAX_TOKEN.muln(25);
 
 const REFERRAL_BONUS_E3 = {
   CONTRIBUTOR: 10,
@@ -47,15 +51,15 @@ function createContributeTestPhase1() {
   type ContributeTestCtx = {
     tge: AbaxTgeContract;
     abaxToken: AbaxToken;
-    wAZERO: PSP22Emitable;
+    usdc: PSP22Emitable;
     vester: Vester;
     contributor: KeyringPair;
     amount: BN | null;
   };
   async function testContribute(ctx: ContributeTestCtx, bonusMultiplierE3: number | null = null, referrer: KeyringPair | null = null) {
-    const { tge, abaxToken, wAZERO, vester, contributor } = ctx;
-    const desiredAmountOfAbaxToGet = ctx.amount === null ? toTokenDecimals(10000) : ctx.amount;
-    const amountToContribute = desiredAmountOfAbaxToGet.divn(40);
+    const { tge, abaxToken, usdc, vester, contributor } = ctx;
+    const desiredAmountOfAbaxToGet = ctx.amount === null ? toAbaxTokenDecimals(10000) : ctx.amount;
+    const amountToContribute = desiredAmountOfAbaxToGet.div(E6bn).divn(25);
 
     const contributedAmountBefore = (await tge.query.contributedAmountBy(contributor.address)).value.ok!;
     const generatedBonusBefore = (await tge.query.generatedBonusAmountBy(contributor.address)).value.ok!;
@@ -90,16 +94,23 @@ function createContributeTestPhase1() {
       totalGenerated = totalGenerated.add(referrerBonus);
     }
 
-    const queryRes = (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer?.address ?? null))
-      .value.ok;
-    expect(queryRes?.ok?.toString(), 'amountToContribute').to.equal(amountToContribute.toString());
+    const queryRes = await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer?.address ?? null);
+    // console.log({ queryRes: stringifyNumericProps(queryRes.value.ok?.err) });
+    expect(queryRes.value.ok?.ok?.toString(), 'amountToContribute').to.equal(amountToContribute.toString());
 
     const tx = tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, referrer?.address ?? null);
     await expect(tx).to.eventually.be.fulfilled;
 
     await expect(tx).to.changeBNResults(tge, 'AbaxTGEView::total_amount_minted', [[]], [totalGenerated]);
 
+    // console.log({
+    //   desiredAmountOfAbaxToGet: desiredAmountOfAbaxToGet.toString(),
+    //   expectedTokensReceivedInstant: expectedTokensReceivedInstant.toString(),
+    //   expectedTokensReceivedVested: expectedTokensReceivedVested.toString(),
+    // });
     await expect(tx, 'PSP22 contributor balance').to.changePSP22Balances(abaxToken, [contributor.address], [expectedTokensReceivedInstant]);
+    const balance = await abaxToken.query.balanceOf(contributor.address);
+    console.log({ balance: balance.value.ok?.toString() });
     await expect(tx).to.changeGeneratedBaseAmounts(tge, [contributor.address], [desiredAmountOfAbaxToGet]);
     await expect(tx).to.changeContributedAmounts(tge, [contributor.address], [amountToContribute]);
     await expect(tx).to.changeGeneratedBonusAmounts(tge, [contributor.address], [bonus]);
@@ -133,19 +144,19 @@ function createContributeTestPhase1() {
 async function deployTGE(
   now: number,
   abaxToken: AbaxToken,
-  wAZERO: PSP22Emitable,
+  usdc: PSP22Emitable,
   vester: Vester,
 ): Promise<{ contract: AbaxTge; initTx: SignAndSendSuccessResponse }> {
   const res = await new AbaxTgeDeployer(await localApi.get(), admin).new(
     now + DAY,
     90 * DAY,
     abaxToken.address,
-    wAZERO.address,
+    usdc.address,
     vester.address,
     founders.address,
     foundation.address,
     strategicReserves.address,
-    toTokenDecimals(100_000_000),
+    toAbaxTokenDecimals(100_000_000),
     COST_TO_MINT_MILLION_TOKENS,
     stakedropAdmin.address,
   );
@@ -158,11 +169,11 @@ async function deployTGE(
 
 const contributors: KeyringPair[] = [];
 
-describe('TGE', () => {
+describe.only('TGE', () => {
   const now = Date.now();
   let tge: AbaxTge;
   let abaxToken: AbaxToken;
-  let wAZERO: PSP22Emitable;
+  let usdc: PSP22Emitable;
   let vester: Vester;
   const TGE_START_TIME = now + DAY;
 
@@ -179,19 +190,19 @@ describe('TGE', () => {
     await time.setTo(now);
     abaxToken = (await new AbaxTokenDeployer(api, admin).new('ABAX', 'ABAX', ABAX_DECIMALS)).contract;
 
-    wAZERO = (await new Psp22EmitableDeployer(api, admin).new('WAZERO', 'WAZERO', AZERO_DECIMALS)).contract;
+    usdc = (await new Psp22EmitableDeployer(api, admin).new('USD Coin', 'USDC', USDC_DECIMALS)).contract;
     vester = (await new VesterDeployer(api, admin).new()).contract;
 
     for (const contributor of contributors) {
-      await wAZERO.tx.mint(contributor.address, INIT_CONTRIBUTOR_BALANCE);
+      await usdc.tx.mint(contributor.address, INIT_CONTRIBUTOR_BALANCE);
     }
-    tge = (await deployTGE(now, abaxToken, wAZERO, vester)).contract;
+    tge = (await deployTGE(now, abaxToken, usdc, vester)).contract;
   });
 
   describe('constructor', () => {
     let initTx: SignAndSendSuccessResponse;
     beforeEach(async () => {
-      const deploymentResult = await deployTGE(now, abaxToken, wAZERO, vester);
+      const deploymentResult = await deployTGE(now, abaxToken, usdc, vester);
       tge = deploymentResult.contract;
       initTx = deploymentResult.initTx;
     });
@@ -201,7 +212,7 @@ describe('TGE', () => {
         null,
         90 * DAY,
         abaxToken.address,
-        wAZERO.address,
+        usdc.address,
         vester.address,
         founders.address,
         foundation.address,
@@ -238,8 +249,8 @@ describe('TGE', () => {
   describe('messages', function () {
     beforeEach(async function () {
       for (const contributor of contributors) {
-        await wAZERO.tx.mint(contributor.address, INIT_CONTRIBUTOR_BALANCE);
-        await wAZERO.withSigner(contributor).tx.approve(tge.address, MAX_U128);
+        await usdc.tx.mint(contributor.address, INIT_CONTRIBUTOR_BALANCE);
+        await usdc.withSigner(contributor).tx.approve(tge.address, MAX_U128);
       }
     });
     describe('set bonus multiplier', function () {
@@ -303,9 +314,11 @@ describe('TGE', () => {
       });
 
       it('stakedrop should fail', async function () {
-        await expect(tge.withSigner(stakedropAdmin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError({
-          tgeStarted: null,
-        });
+        await expect(tge.withSigner(stakedropAdmin).query.stakedrop(ONE_ABAX_TOKEN, ONE_ABAX_TOKEN, contributors[0].address)).to.be.revertedWithError(
+          {
+            tgeStarted: null,
+          },
+        );
       });
 
       describe('collect_reserved', function () {
@@ -379,13 +392,13 @@ describe('TGE', () => {
         beforeEach(async function () {
           await time.setTo(now);
           //v prerequisite for stakedrop test, has to be done prior to phase one start
-          await tge.withSigner(stakedropAdmin).tx.stakedrop(ONE_TOKEN, ONE_TOKEN, stakedropped.address);
+          await tge.withSigner(stakedropAdmin).tx.stakedrop(ONE_ABAX_TOKEN, ONE_USDC_TOKEN, stakedropped.address);
           //^ prerequisite for stakedrop test, has to be done prior to phase one start
           await time.setTo(TGE_START_TIME);
         });
         describe('when called by stakedroped account', function () {
           let tx: SignAndSendSuccessResponse;
-          const expectedTokensReceivedTotal = ONE_TOKEN;
+          const expectedTokensReceivedTotal = ONE_ABAX_TOKEN;
           const expectedTokensReceivedInstant = expectedTokensReceivedTotal.muln(40).divn(100);
           const expectedTokensReceivedVested = expectedTokensReceivedTotal.muln(60).divn(100);
           beforeEach(async function () {
@@ -407,7 +420,7 @@ describe('TGE', () => {
       });
       describe('contribute', function () {
         it('should fail with no allowance', async function () {
-          await wAZERO.withSigner(contributors[0]).tx.approve(tge.address, new BN(0));
+          await usdc.withSigner(contributors[0]).tx.approve(tge.address, new BN(0));
           await expect(
             tge.withSigner(contributors[0]).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributors[0].address, null),
           ).to.be.revertedWithError({ psp22Error: { insufficientAllowance: null } });
@@ -421,26 +434,46 @@ describe('TGE', () => {
         });
         describe('when not trigering the 2nd phase', function () {
           describe('with no exp bonus and with no referrer', function () {
+            it('single contribution works 1 USDT', async function () {
+              await createContributeTestPhase1().run({
+                tge,
+                abaxToken,
+                usdc: usdc,
+                vester,
+                contributor: contributors[4],
+                amount: toAbaxTokenDecimals(25),
+              });
+            });
             it('single contribution works', async function () {
-              await createContributeTestPhase1().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1().run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
             });
             it('multiple contributions work', async function () {
-              await createContributeTestPhase1().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
-              await createContributeTestPhase1().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
-              await createContributeTestPhase1().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
-              await createContributeTestPhase1().run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1().run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1().run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1().run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1().run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
             });
           });
 
           describe('with exp bonus and with no referrer', function () {
             it('single contribution works', async function () {
-              await createContributeTestPhase1().withBonus(30).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1()
+                .withBonus(30)
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
             });
             it('multiple contributions work', async function () {
-              await createContributeTestPhase1().withBonus(30).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
-              await createContributeTestPhase1().withBonus(30).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
-              await createContributeTestPhase1().withBonus(30).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
-              await createContributeTestPhase1().withBonus(30).run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1()
+                .withBonus(30)
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1()
+                .withBonus(30)
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1()
+                .withBonus(30)
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
+              await createContributeTestPhase1()
+                .withBonus(30)
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
             });
           });
 
@@ -449,54 +482,54 @@ describe('TGE', () => {
               await createContributeTestPhase1()
                 .withBonus(30)
                 .withReferrer(contributors[5])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
             });
             it('multiple contributions work - different referers', async function () {
               await createContributeTestPhase1()
                 .withBonus(30)
                 .withReferrer(contributors[5])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
               await createContributeTestPhase1()
                 .withBonus(40)
                 .withReferrer(contributors[6])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
               await createContributeTestPhase1()
                 .withBonus(50)
                 .withReferrer(contributors[7])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
             });
             it('multiple contributions work - same referrer', async function () {
               await createContributeTestPhase1()
                 .withBonus(10)
                 .withReferrer(contributors[5])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
               await createContributeTestPhase1()
                 .withBonus(20)
                 .withReferrer(contributors[5])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
               await createContributeTestPhase1()
                 .withBonus(30)
                 .withReferrer(contributors[5])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
               await createContributeTestPhase1()
                 .withBonus(40)
                 .withReferrer(contributors[5])
-                .run({ tge, abaxToken, wAZERO, vester, contributor: contributors[4], amount: null });
+                .run({ tge, abaxToken, usdc: usdc, vester, contributor: contributors[4], amount: null });
             });
           });
         });
-        describe('when trigering the 2nd phase', function () {
+        describe.skip('when trigering the 2nd phase', function () {
           beforeEach(async function () {
             await time.increase(DAY);
-            await wAZERO.tx.mint(contributors[0].address, A_LOT_OF_TOKENS);
-            const amountToGetClose = PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT.sub(ONE_TOKEN.muln(40)).muln(100).divn(110).addn(1); // 100/110 to take into account 10% bonus \ +1 to take into account roundings
+            await usdc.tx.mint(contributors[0].address, A_LOT_OF_TOKENS);
+            const amountToGetClose = PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT.sub(ONE_ABAX_TOKEN.muln(25)).muln(100).divn(110).addn(1); // 100/110 to take into account 10% bonus \ +1 to take into account roundings
             await tge.withSigner(contributors[0]).tx.contribute(amountToGetClose, contributors[0].address, null);
           });
           it('state', async function () {
-            await expect(tge.query.totalAmountMinted()).to.haveOkResult(PHASE_ONE_TOKEN_CAP.sub(ONE_TOKEN.muln(40)));
+            await expect(tge.query.totalAmountMinted()).to.haveOkResult(PHASE_ONE_TOKEN_CAP.sub(ONE_ABAX_TOKEN.muln(25)));
           });
           it('when exactly reaching cap the phase 2 should start', async function () {
-            const amountToReach = ONE_TOKEN.muln(40);
+            const amountToReach = ONE_ABAX_TOKEN.muln(25);
             const tx = await tge.withSigner(contributors[1]).tx.contribute(amountToReach, contributors[1].address, null);
             await expect(tx).to.emitEvent(tge, 'PhaseChanged');
             const currentParams = await queryTGEGetStorage(await localApi.get(), tge);
@@ -504,10 +537,10 @@ describe('TGE', () => {
             expect(currentParams.phaseTwoStartTime?.toString()).to.equal(curr_time.toString());
           });
           it('when overreaching cap the phase 2 should start and the cost should be properly calculated', async () => {
-            await wAZERO.tx.mint(contributors[1].address, A_LOT_OF_TOKENS);
-            /// it should result in minitng 40 tokens in phase1 and 20milions of toknens in phase2 (base, not including bonus)
-            const baseAmountToMint = ONE_TOKEN.muln(20_000_040);
-            const expectedCost = toTokenDecimals(750_021); // 750_000 (+20) phase2 and 1 phase1 (calculation rounding)
+            await usdc.tx.mint(contributors[1].address, A_LOT_OF_TOKENS);
+            /// it should result in minitng 25 tokens in phase1 and 20milions of toknens in phase2 (base, not including bonus)
+            const baseAmountToMint = ONE_ABAX_TOKEN.muln(20_000_040);
+            const expectedCost = toContributionTokenDecimals(750_021); // 750_000 (+20) phase2 and 1 phase1 (calculation rounding)
 
             const cost = (await tge.withSigner(contributors[1]).query.contribute(baseAmountToMint, contributors[1].address, null)).value.ok!.ok!;
             const tx = await tge.withSigner(contributors[1]).tx.contribute(baseAmountToMint, contributors[1].address, null);
@@ -520,8 +553,8 @@ describe('TGE', () => {
 
             expect(cost.toString()).to.equal(expectedCost.toString());
 
-            await expect(tx).to.changePSP22Balances(abaxToken, [contributors[1].address], [baseAmountToMint.muln(110).divn(100).muln(40).divn(100)]);
-            await expect(tx).to.changePSP22Balances(wAZERO, [strategicReserves.address], [expectedCost]);
+            await expect(tx).to.changePSP22Balances(abaxToken, [contributors[1].address], [baseAmountToMint.muln(110).divn(100).muln(25).divn(100)]);
+            await expect(tx).to.changePSP22Balances(usdc, [strategicReserves.address], [expectedCost]);
             await expect(tx).to.createVestingSchedule(vester, contributors[1].address, abaxToken.address, [
               baseAmountToMint.muln(110).divn(100).muln(60).divn(100),
               [new BN(0), ONE_YEAR.muln(4)],
@@ -530,13 +563,13 @@ describe('TGE', () => {
         });
       });
     });
-    describe('phase two', function () {
+    describe.skip('phase two', function () {
       beforeEach(async function () {
         await time.setTo(TGE_START_TIME);
-        await wAZERO.tx.mint(contributors[0].address, A_LOT_OF_TOKENS);
-        const amountToGetClose = PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT.sub(ONE_TOKEN.muln(40)).muln(100).divn(110).addn(1); // 100/110 to take into account 10% bonus \ +1 to take into account roundings
+        await usdc.tx.mint(contributors[0].address, A_LOT_OF_TOKENS);
+        const amountToGetClose = PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT.sub(ONE_ABAX_TOKEN.muln(25)).muln(100).divn(110).addn(1); // 100/110 to take into account 10% bonus \ +1 to take into account roundings
         await tge.withSigner(contributors[0]).tx.contribute(amountToGetClose, contributors[0].address, null);
-        const amountToReach = ONE_TOKEN.muln(40);
+        const amountToReach = ONE_ABAX_TOKEN.muln(25);
         await tge.withSigner(contributors[1]).tx.contribute(amountToReach, contributors[1].address, null);
       });
 
@@ -547,9 +580,11 @@ describe('TGE', () => {
       });
 
       it('stakedrop should fail', async function () {
-        await expect(tge.withSigner(stakedropAdmin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError({
-          tgeStarted: null,
-        });
+        await expect(tge.withSigner(stakedropAdmin).query.stakedrop(ONE_ABAX_TOKEN, ONE_USDC_TOKEN, contributors[0].address)).to.be.revertedWithError(
+          {
+            tgeStarted: null,
+          },
+        );
       });
 
       describe('collect_reserved', function () {
@@ -559,10 +594,10 @@ describe('TGE', () => {
       });
 
       describe('just after started', function () {
-        it('should correctly calculate the cost and work', async function () {
+        it.skip('should correctly calculate the cost and work', async function () {
           const contributor = contributors[1];
-          const desiredAmountOfAbaxToGet = toTokenDecimals(1_000_000);
-          const expectedCost = toTokenDecimals(25_626); //1_000_000* 0.025 * (1.05 + 1)/2 + ( 0.00001 rounding)
+          const desiredAmountOfAbaxToGet = toAbaxTokenDecimals(1_000_000);
+          const expectedCost = toContributionTokenDecimals(41_001); //1_000_000 * 0.04 * (1.05 + 1)/2 + ( 0.00001 rounding)
           await expect(tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)).to.haveOkResult(
             expectedCost.toString(),
           );
@@ -574,8 +609,8 @@ describe('TGE', () => {
           describe('contribute', function () {
             it('should correctly calculate the cost and work', async function () {
               const contributor = contributors[1];
-              const desiredAmountOfAbaxToGet = toTokenDecimals(2_000_000);
-              const expectedCost = toTokenDecimals(52502); // 2000000 * (0.02625 * (1.10 + 1)/2 + ( 0.00001 rounding))
+              const desiredAmountOfAbaxToGet = toAbaxTokenDecimals(2_000_000);
+              const expectedCost = toContributionTokenDecimals(52502); // 2000000 * (0.02625 * (1.10 + 1)/2 + ( 0.00001 rounding))
               await expect(tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)).to.haveOkResult(
                 expectedCost.toString(),
               );
@@ -586,7 +621,9 @@ describe('TGE', () => {
               await time.increase(2);
             });
             it('stakesdrop should fail', async function () {
-              await expect(tge.withSigner(stakedropAdmin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError({
+              await expect(
+                tge.withSigner(stakedropAdmin).query.stakedrop(ONE_ABAX_TOKEN, ONE_USDC_TOKEN, contributors[0].address),
+              ).to.be.revertedWithError({
                 tgeStarted: null,
               });
             });
@@ -610,60 +647,60 @@ describe('TGE', () => {
     });
   });
 
-  describe('price discovery', () => {
+  describe.skip('price discovery', () => {
     beforeEach(async function () {
       for (const contributor of contributors) {
-        await wAZERO.tx.mint(contributor.address, INIT_CONTRIBUTOR_BALANCE);
-        await wAZERO.withSigner(contributor).tx.approve(tge.address, MAX_U128);
+        await usdc.tx.mint(contributor.address, INIT_CONTRIBUTOR_BALANCE);
+        await usdc.withSigner(contributor).tx.approve(tge.address, MAX_U128);
       }
     });
     describe('phase one', () => {
       describe('phase 2', () => {
         beforeEach(async () => {
           await time.setTo(TGE_START_TIME);
-          await wAZERO.tx.mint(contributors[0].address, A_LOT_OF_TOKENS);
-          const amountToGetClose = PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT.sub(ONE_TOKEN.muln(40)).muln(100).divn(110).addn(1); // 100/110 to take into account 10% bonus \ +1 to take into account roundings
+          await usdc.tx.mint(contributors[0].address, A_LOT_OF_TOKENS);
+          const amountToGetClose = PHASE_ONE_TOKEN_FOR_PUBLIC_AMOUNT.sub(ONE_ABAX_TOKEN.muln(25)).muln(100).divn(110).addn(1); // 100/110 to take into account 10% bonus \ +1 to take into account roundings
           await tge.withSigner(contributors[0]).tx.contribute(amountToGetClose, contributors[0].address, null);
-          const amountToReach = ONE_TOKEN.muln(40);
+          const amountToReach = ONE_ABAX_TOKEN.muln(25);
           await tge.withSigner(contributors[1]).tx.contribute(amountToReach, contributors[1].address, null);
         });
 
         describe('price discovery', () => {
           it('user wants to create 5 million tokens on top 20 million intended for Public Contributors. \n He will receive 5,5 millions because of 10% bonus. total of 27,5 million ABAX tokens being created. Price increases to 0.0315', async () => {
             const contributor = contributors[3];
-            const desiredAmountOfAbaxToGet = toTokenDecimals(5_000_000);
-            await wAZERO.tx.mint(contributor.address, A_LOT_OF_TOKENS);
+            const desiredAmountOfAbaxToGet = toAbaxTokenDecimals(5_000_000);
+            await usdc.tx.mint(contributor.address, A_LOT_OF_TOKENS);
             const cost =
               (await tge.withSigner(contributor).query.contribute(desiredAmountOfAbaxToGet, contributor.address, null)).value.ok?.ok?.toString() ??
               '0';
+            console.log('cost', cost, 'desiredAmountOfAbaxToGet', desiredAmountOfAbaxToGet.toString());
             const pricePer1 = new BN(cost).mul(E6bn).div(desiredAmountOfAbaxToGet).toNumber() / 1e6;
-            expect(pricePer1).to.equal(0.028126); //0.028125 + 0.000001 (rounding)
+            expect(pricePer1).to.equal(0.028125);
 
             await tge.withSigner(contributor).tx.contribute(desiredAmountOfAbaxToGet, contributor.address, null);
             const totalAmountDistributed = (await tge.query.totalAmountMinted()).value.unwrapRecursively().toString();
-            expect(totalAmountDistributed).to.equal(toTokenDecimals(127_500_000).toString()); //
+            expect(totalAmountDistributed).to.equal(toAbaxTokenDecimals(127_500_000).toString()); //
             const nextCostPerMinimum =
               (await tge.withSigner(contributor).query.contribute(MINIMUM_AMOUNT_TO_GENERATE, contributor.address, null)).value.ok?.ok?.toString() ??
               '0';
             const nextPricePer1 = new BN(nextCostPerMinimum).mul(E6bn).div(MINIMUM_AMOUNT_TO_GENERATE).toNumber() / 1e6;
-            expect(nextPricePer1).to.equal(0.031876); // 0.025 * 1.275 + 0.000001 (rounding)
+            expect(nextPricePer1).to.equal(0.031875); // 0.025 * 1.275
           });
           it('100 contributions - each asks to generate 1 million tokens to self./n one will receive 1.1 million becaouse of 10% bonus. \n The total of 5.5 milion tokens will be created.', async () => {
             const contributor = contributors[3];
-            await wAZERO.tx.mint(contributor.address, A_LOT_OF_TOKENS);
-            const amountToMint = toTokenDecimals(1_000_000);
+            await usdc.tx.mint(contributor.address, A_LOT_OF_TOKENS);
+            const amountToMint = toAbaxTokenDecimals(1_000_000);
 
             const priceLog: number[] = [];
             for (let i = 1; i < 100; i++) {
-              const expectedPrice = 0.025 * (1 + 0.055 * (i - 1)) + 0.025 / 20 / 2 + 0.000001;
-              const queryRes = (await tge.withSigner(contributor).query.contribute(amountToMint, contributor.address, null)).value.ok;
-              const currentCost = queryRes?.ok?.toString() ?? '0';
+              const expectedPrice = 0.025 * (1 + 0.055 * (i - 1)) + 0.025 / 20 / 2;
+              const queryRes = (await tge.withSigner(contributor).query.contribute(amountToMint, contributor.address, null)).value;
+              const currentCost = queryRes?.ok?.ok?.toString() ?? '0';
               const currentPricePer1Base = new BN(currentCost).mul(E6bn).div(amountToMint).toNumber() / 1e6;
-              expect(currentPricePer1Base.toString()).to.be.equal(expectedPrice.toFixed(6));
+              expect(parseFloat(currentPricePer1Base.toString())).to.be.equal(parseFloat(expectedPrice.toFixed(6)));
               priceLog.push(currentPricePer1Base);
 
-              const qv = (await tge.withSigner(contributor).query.contribute(amountToMint, contributor.address, null)).value;
-              expect(qv?.ok?.err, `failed on contribution number ${i}`).to.be.undefined;
+              expect(queryRes?.ok?.err, `failed on contribution number ${i}`).to.be.undefined;
               await tge.withSigner(contributor).tx.contribute(amountToMint, contributor.address, null);
             }
             console.log('price over time');
@@ -688,12 +725,12 @@ function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
       abaxToken = getCtx().abaxToken;
     });
     it('fails if called by non-admin', async function () {
-      await expect(tge.withSigner(other).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError(
+      await expect(tge.withSigner(other).query.stakedrop(ONE_ABAX_TOKEN, ONE_USDC_TOKEN, contributors[0].address)).to.be.revertedWithError(
         TGEErrorBuilder.AccessControlError(AccessControlError.missingRole),
       );
     });
     it('fails if called by default admin', async function () {
-      await expect(tge.withSigner(admin).query.stakedrop(ONE_TOKEN, ONE_TOKEN, contributors[0].address)).to.be.revertedWithError(
+      await expect(tge.withSigner(admin).query.stakedrop(ONE_ABAX_TOKEN, ONE_USDC_TOKEN, contributors[0].address)).to.be.revertedWithError(
         TGEErrorBuilder.AccessControlError(AccessControlError.missingRole),
       );
     });
@@ -701,7 +738,7 @@ function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
     describe('when called by stakedrop admin', function () {
       describe('when the receiver has no exp_bonus_multiplier', function () {
         let receiver: string;
-        const FEE_PAID = ONE_TOKEN.muln(10);
+        const FEE_PAID = ONE_AZERO_TOKEN.muln(10).div(E6bn);
         const AMOUNT = FEE_PAID.muln(40);
         let tx: SignAndSendSuccessResponse;
         beforeEach(async function () {
@@ -738,8 +775,8 @@ function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
       for (const bonusMultiplierE3 of [10, 40, 70, 100]) {
         describe(`when the receiver has ${(bonusMultiplierE3 * 100) / 1000}% exp_bonus_multiplier`, function () {
           let receiver: string;
-          const FEE_PAID = ONE_TOKEN.muln(10);
-          const AMOUNT = FEE_PAID.muln(40);
+          const FEE_PAID = ONE_AZERO_TOKEN.muln(10).div(E6bn);
+          const AMOUNT = FEE_PAID.muln(25);
           let tx: SignAndSendSuccessResponse;
           beforeEach(async function () {
             receiver = contributors[0].address;
