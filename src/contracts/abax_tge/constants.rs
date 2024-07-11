@@ -29,7 +29,7 @@ pub const PART_OD_FOUNDATION_E3: u16 = 20;
 // ALLOCATION - instant release parts of 1000
 /// A part of founders allocation that is instantly released - 20%
 pub const INSTANT_FOUNDERS_RELEASE_E3: u16 = 200;
-/// A part of contributors allocation that is instantly released - 40
+/// A part of contributors allocation that is instantly released - 40%
 pub const INSTANT_CONTRIBUTOR_RELEASE_E3: u16 = 400;
 
 /// A ratio of all allocation to contributors allocation; contributors have 20% resulating in ratio 5
@@ -41,7 +41,7 @@ pub const BONUS_FOR_REFERRER_USE_E3: u16 = 10;
 /// A maximal additional part received as bonus - 10%.
 pub const BONUS_MAX_E3: u16 = 100;
 /// An amount of tokens that must be contributed to get a 1% contribution bonus. 1000 Tokens
-pub const BONUS_DENOMINATOR: u128 = 1000 * 10_u128.pow(12);
+pub const BONUS_DENOMINATOR: u128 = 1000 * 10_u128.pow(6);
 
 /// A part of the contribution that is additionally reserved for referrer.
 pub const REWARD_FOR_REFERER_E3: u16 = 20;

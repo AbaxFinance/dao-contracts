@@ -114,6 +114,9 @@ pub trait AbaxTGEView {
 
     #[ink(message)]
     fn generated_bonus_amount_by(&self, account: AccountId) -> Balance;
+
+    #[ink(message)]
+    fn calculate_cost(&self, to_create: Balance) -> Balance;
 }
 
 use ink::{contract_ref, env::DefaultEnvironment};

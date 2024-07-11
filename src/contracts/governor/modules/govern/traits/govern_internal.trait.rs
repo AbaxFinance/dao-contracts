@@ -3,9 +3,17 @@ pub trait AbaxGovernInternal {
     ///
     /// On success emits `ProposalCreated` event.
     ///
+    /// # Returns
+    ///
+    /// Returns `ProposalId` of the created proposal.
+    ///
     /// # Errors
     /// Returns `ProposalAlreadyExists` if `propsal` with the same `proposal_description` exists,
-    fn _propose(&mut self, proposer: &AccountId, proposal: &Proposal) -> Result<(), GovernError>;
+    fn _propose(
+        &mut self,
+        proposer: &AccountId,
+        proposal: &Proposal,
+    ) -> Result<ProposalId, GovernError>;
 
     fn _cast_vote(
         &mut self,
