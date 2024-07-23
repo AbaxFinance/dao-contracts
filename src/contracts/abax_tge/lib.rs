@@ -28,7 +28,10 @@ pub mod abax_tge_contract {
         prelude::{vec, vec::Vec},
         ToAccountId,
     };
-    use pendzl::math::errors::MathError;
+    use pendzl::math::{
+        errors::MathError,
+        operations::{mul_div, Rounding},
+    };
     pub use pendzl::{
         contracts::{
             general_vest::{GeneralVest, GeneralVestRef, VestingSchedule},
@@ -71,7 +74,7 @@ pub mod abax_tge_contract {
             foundation_address: AccountId,
             strategic_reserves_address: AccountId,
             phase_one_token_cap: u128,
-            cost_to_mint_milion_tokens: u128,
+            cost_to_mint_milliard_tokens: u128,
             stakedrop_admin: AccountId,
         ) -> Self {
             let mut instance = Self {
@@ -86,7 +89,7 @@ pub mod abax_tge_contract {
                     foundation_address,
                     strategic_reserves_address,
                     phase_one_token_cap,
-                    cost_to_mint_milion_tokens,
+                    cost_to_mint_milliard_tokens,
                 ),
             };
             // set admin to caller
@@ -296,7 +299,7 @@ pub mod abax_tge_contract {
                 self.tge.foundation_address,
                 self.tge.strategic_reserves_address,
                 self.tge.phase_one_token_cap,
-                self.tge.cost_to_mint_milion_tokens,
+                self.tge.cost_to_mint_milliard_tokens,
             )
         }
 
@@ -478,12 +481,12 @@ pub mod abax_tge_contract {
 
         // Calculates the cost of creating tokens (doesn't include bonuses)
         // During phase 1
-        // The cost is amount_to_create * phase_one_cost_per_milllion_tokens / 100_000_000
+        // The cost is amount_to_create * phase_one_cost_per_milliard_tokens / 10^12
         // During phase 2
         // The cost is
-        // amount_to_create * effective_cost_per_million / 1_000_000
-        // where effective cost is equal to the cost  before and price after the minting
-        // the cost is given by COST_TO_MINT_MILLION_TOKENS * total_amount_minted * phase_one_cost_per_milllion_tokens / 100_000_000
+        // amount_to_create * effective_cost_per_milliard / 10^12
+        // where effective cost per milliard tokens is equal to the cost  before and cost after the minting
+        // the cost is given by phase_one_cost_per_milliard_tokens * (total_amount_minted * phase_one_token_cap)
         fn calculate_cost(&self, to_create: Balance) -> Result<u128, TGEError> {
             let mut amount_phase1 = 0;
             let mut amount_phase2 = 0;
@@ -509,11 +512,11 @@ pub mod abax_tge_contract {
             }
 
             let cost_phase1: Balance =
-                mul_denom_e12(amount_phase1, self.tge.cost_to_mint_milion_tokens)?;
+                mul_denom_e12(amount_phase1, self.tge.cost_to_mint_milliard_tokens)?;
 
             ink::env::debug_println!(
-                "self.tge.cost_to_mint_milion_tokens: {}",
-                self.tge.cost_to_mint_milion_tokens
+                "self.tge.cost_to_mint_milliard_tokens: {}",
+                self.tge.cost_to_mint_milliard_tokens
             );
 
             let cost_phase2: Balance = {
@@ -521,7 +524,7 @@ pub mod abax_tge_contract {
                     0
                 } else {
                     // take into account that during 2nd phase contributor also generates tokens to founders foundation and strategic reserves to keep 20/20/2/58 ratio.
-                    let effective_tokens = to_create
+                    let effective_tokens = amount_phase2
                         .checked_mul(ALL_TO_PUBLIC_RATIO)
                         .ok_or(MathError::Overflow)?;
 
@@ -538,19 +541,22 @@ pub mod abax_tge_contract {
                                 .ok_or(MathError::Overflow)?
                         };
 
-                    let effective_cost_per_million = mul_denom_e12(self.tge.cost_to_mint_milion_tokens, averaged_amount)?  // denom avaradged amount to get human number of tokens 
-                            .checked_div(E8_U128) // from the formula
-                            .unwrap().checked_add(1).ok_or(MathError::Overflow)?;
+                    let effective_cost_per_milliard = mul_div(
+                        self.tge.cost_to_mint_milliard_tokens,
+                        averaged_amount,
+                        self.tge.phase_one_token_cap,
+                        Rounding::Up,
+                    )?;
 
                     ink::env::debug_println!("averaged_amount: {}", averaged_amount);
                     ink::env::debug_println!("effective_tokens: {}", effective_tokens);
 
                     ink::env::debug_println!(
-                        "effective_cost_per_million: {}",
-                        effective_cost_per_million
+                        "effective_cost_per_milliard: {}",
+                        effective_cost_per_milliard
                     );
 
-                    mul_denom_e12(amount_phase2, effective_cost_per_million)?
+                    mul_denom_e12(amount_phase2, effective_cost_per_milliard)?
                 }
             };
 
