@@ -31,8 +31,8 @@ pub struct PublicContributionStorage {
 
     // total amount of tokens created in phase one and stakedrop.
     pub phase_one_token_cap: Balance,
-    // cost to mint 1 million tokens [ in contribution_token]
-    pub cost_to_mint_milion_tokens: u128,
+    // cost to mint 1 milliard tokens (in absolute units) [ in contribution_token]
+    pub cost_to_mint_milliard_tokens: u128,
     // total amount of distributed tokens.
     total_amount_minted: Balance,
     // bonus multiplier based on the Zealy EXP.
@@ -60,7 +60,7 @@ impl PublicContributionStorage {
         foundation_address: AccountId,
         strategic_reserves_address: AccountId,
         phase_one_token_cap: u128,
-        cost_to_mint_milion_tokens: u128,
+        cost_to_mint_milliard_tokens: u128,
     ) -> Self {
         Self {
             start_time,
@@ -73,7 +73,7 @@ impl PublicContributionStorage {
             founders_address,
             foundation_address,
             strategic_reserves_address,
-            cost_to_mint_milion_tokens,
+            cost_to_mint_milliard_tokens,
             total_amount_minted: 0,
             exp_bonus_multiplier_e3_by_address: Default::default(),
             contributed_amount_by_account: Default::default(),
