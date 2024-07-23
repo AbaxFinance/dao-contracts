@@ -433,49 +433,29 @@ pub mod abax_tge_contract {
                 .exp_bonus_multiplier_of_e3(&contributor)
                 .checked_add(self.get_contribution_bonus_multiplier_e3(contributor))
                 .ok_or(MathError::Overflow)?;
-            ink::env::debug_println!(
-                "self.exp_bonus_multiplier_of_e3(contributor): {}",
-                self.tge.exp_bonus_multiplier_of_e3(&contributor)
-            );
-            ink::env::debug_println!(
-                "self.get_contribution_bonus_multiplier_e3(contributor): {}",
-                self.get_contribution_bonus_multiplier_e3(contributor)
-            );
-            ink::env::debug_println!("bonus_multiplier_e3: {}", bonus_multiplier_e3);
 
             if referrer.is_some() {
-                ink::env::debug_println!("Adding bonus for referrer");
                 bonus_multiplier_e3 = bonus_multiplier_e3
                     .checked_add(BONUS_FOR_REFERRER_USE_E3)
                     .ok_or(MathError::Overflow)?;
             }
 
-            ink::env::debug_println!("bonus_multiplier_e3 2: {}", bonus_multiplier_e3);
-
             if bonus_multiplier_e3 > BONUS_MAX_E3 {
                 bonus_multiplier_e3 = BONUS_MAX_E3;
             }
 
-            ink::env::debug_println!("to_create: {}", to_create);
             self.tge
                 .increase_base_amount_created(&contributor, to_create)?;
             let received_base = self.tge.base_amount_created(&contributor);
-            ink::env::debug_println!("received_base: {}", received_base);
 
             let eligible_bonus = mul_denom_e3(received_base, bonus_multiplier_e3 as u128)?;
             let bonus_already_received = self.tge.bonus_amount_created(&contributor);
-            ink::env::debug_println!(
-                "eligible_bonus: {} bonus_already_received: {}",
-                eligible_bonus,
-                bonus_already_received
-            );
             // it may happen that the previously one used refferers code and now one is not using one.
             // This may result in a bonus_already_received being greater than eligible_bonus
             let bonus = eligible_bonus.saturating_sub(bonus_already_received);
             self.tge
                 .increase_bonus_amount_created(&contributor, bonus)?;
 
-            ink::env::debug_println!("[final] bonus: {}", bonus);
             Ok(bonus)
         }
 
@@ -514,11 +494,6 @@ pub mod abax_tge_contract {
             let cost_phase1: Balance =
                 mul_denom_e12(amount_phase1, self.tge.cost_to_mint_milliard_tokens)?;
 
-            ink::env::debug_println!(
-                "self.tge.cost_to_mint_milliard_tokens: {}",
-                self.tge.cost_to_mint_milliard_tokens
-            );
-
             let cost_phase2: Balance = {
                 if amount_phase2 == 0 {
                     0
@@ -547,14 +522,6 @@ pub mod abax_tge_contract {
                         self.tge.phase_one_token_cap,
                         Rounding::Up,
                     )?;
-
-                    ink::env::debug_println!("averaged_amount: {}", averaged_amount);
-                    ink::env::debug_println!("effective_tokens: {}", effective_tokens);
-
-                    ink::env::debug_println!(
-                        "effective_cost_per_milliard: {}",
-                        effective_cost_per_milliard
-                    );
 
                     mul_denom_e12(amount_phase2, effective_cost_per_milliard)?
                 }
@@ -611,20 +578,6 @@ pub mod abax_tge_contract {
             let amount_to_mint = amount_phase1
                 .checked_add(amount_to_mint_phase2)
                 .ok_or(MathError::Overflow)?;
-            //log every variable
-            ink::env::debug_println!("amount_phase1: {}", amount_phase1);
-            ink::env::debug_println!("amount_phase2: {}", amount_phase2);
-            ink::env::debug_println!("amount_to_mint_phase2: {}", amount_to_mint_phase2);
-            ink::env::debug_println!("amount_to_mint: {}", amount_to_mint);
-            ink::env::debug_println!("total_amount_minted: {}", total_amount_minted);
-            ink::env::debug_println!(
-                "total_amount_minted_plus_amount: {}",
-                total_amount_minted_plus_amount
-            );
-            ink::env::debug_println!(
-                "self.tge.phase_one_token_cap: {}",
-                self.tge.phase_one_token_cap
-            );
 
             self.generate_to_self(amount_to_mint)?;
 
@@ -689,10 +642,6 @@ pub mod abax_tge_contract {
             let amount_to_vest = amount
                 .checked_sub(amount_to_transfer)
                 .ok_or(MathError::Underflow)?;
-
-            ink::env::debug_println!("amount: {}", amount);
-            ink::env::debug_println!("amount_to_transfer: {}", amount_to_transfer);
-            ink::env::debug_println!("amount_to_vest: {}", amount_to_vest);
 
             let mut psp22: PSP22Ref = self.tge.generated_token_address.into();
             psp22
