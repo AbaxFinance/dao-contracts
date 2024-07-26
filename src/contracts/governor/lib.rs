@@ -345,6 +345,34 @@ mod governor {
         fn last_stake_timestamp(&self, account: AccountId) -> Option<Timestamp> {
             self.govern.last_stake_timestamp(&account)
         }
+
+        #[ink(message)]
+        fn active_proposals(&self) -> u32 {
+            self.govern.active_proposals()
+        }
+
+        #[ink(message)]
+        fn finalized_proposals(&self) -> u32 {
+            self.govern.finalized_proposals()
+        }
+
+        #[ink(message)]
+        fn executed_proposals(&self) -> u32 {
+            self.govern.executed_proposals()
+        }
+
+        #[ink(message)]
+        fn next_proposal_id(&self) -> ProposalId {
+            self.govern.next_proposal_id()
+        }
+        #[ink(message)]
+        fn description_url_by_proposal_id(&self, proposal_id: ProposalId) -> Option<String> {
+            self.govern.proposal_id_to_description_url(&proposal_id)
+        }
+        #[ink(message)]
+        fn description_hash_by_proposal_id(&self, proposal_id: ProposalId) -> Option<Hash> {
+            self.govern.proposal_id_to_description_hash(&proposal_id)
+        }
     }
 
     impl AbaxGovernInternal for Governor {
@@ -380,6 +408,8 @@ mod governor {
                 proposer,
                 &proposal_hash,
                 proposal.earliest_execution,
+                &proposal.description_url,
+                &proposal.description_hash,
                 total_votes,
                 self.counter.counter(),
             )?;
