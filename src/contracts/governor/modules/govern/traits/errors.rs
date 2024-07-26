@@ -16,7 +16,6 @@ pub enum GovernError {
     TooEarlyToExecuteProposal,
     FinalizeCondition,
     UnderlyingTransactionReverted(String),
-    WrongDescriptionHash,
     CantForceUnstake,
     AccessControlError(AccessControlError),
     UnstakeShorterThanVotingPeriod,

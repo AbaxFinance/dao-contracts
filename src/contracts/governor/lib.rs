@@ -208,15 +208,7 @@ mod governor {
 
     impl AbaxGovern for Governor {
         #[ink(message)]
-        fn propose(
-            &mut self,
-            proposal: Proposal,
-            description: String,
-        ) -> Result<ProposalId, GovernError> {
-            let description_hash = hash_description(&description);
-            if description_hash != proposal.description_hash {
-                return Err(GovernError::WrongDescriptionHash);
-            }
+        fn propose(&mut self, proposal: Proposal) -> Result<ProposalId, GovernError> {
             self._propose(&self.env().caller(), &proposal)
         }
 
