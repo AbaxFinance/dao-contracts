@@ -3,6 +3,5 @@
   "isRelease": false,
   "skipLinting": false,
   "artifactsPath": "./artifacts",
-  "typechainGeneratedPath": "./typechain",
-  "verifiable": true
+  "typechainGeneratedPath": "./typechain"
 }

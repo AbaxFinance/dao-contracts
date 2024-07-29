@@ -30,7 +30,7 @@ const COST_TO_MINT_MILLIARD_TOKENS = new BN(1_000_000).divn(25);
 const CONTRIBUTION_TO_GET_ONE_PERCENT_BONUS = toContributionTokenDecimals(1_000);
 const A_LOT_OF_TOKENS = toAbaxTokenDecimals(1_000_000_000);
 
-const [admin, stakedropAdmin, founders, foundation, strategicReserves, other] = getSigners();
+const [admin, stakedropAdmin, bonusAdmin, referrerAdmin, founders, foundation, strategicReserves, other] = getSigners();
 
 const INIT_CONTRIBUTOR_BALANCE = toContributionTokenDecimals(100_000);
 
@@ -46,7 +46,7 @@ const REFERRAL_BONUS_E3 = {
 
 const contributors: KeyringPair[] = [];
 
-describe('TGE', () => {
+describe.only('TGE', () => {
   const now = Date.now();
   let tge: AbaxTge;
   let abaxToken: AbaxToken;
@@ -137,8 +137,8 @@ describe('TGE', () => {
           accessControlError: 'MissingRole',
         });
       });
-      it('should work if called by admin', async function () {
-        const tx = tge.withSigner(admin).tx.setExpBonusMultiplierE3(contributors[0].address, bonusMultiplierE3);
+      it('should work if called by bonusAdmin', async function () {
+        const tx = tge.withSigner(bonusAdmin).tx.setExpBonusMultiplierE3(contributors[0].address, bonusMultiplierE3);
         await expect(tx).to.be.fulfilled;
         await expect(tx).to.emitEvent(tge, 'BonusMultiplierSet', {
           account: contributors[0].address,
@@ -624,6 +624,7 @@ function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
         let tx: SignAndSendSuccessResponse;
         beforeEach(async function () {
           receiver = contributors[0].address;
+          const q = await tge.withSigner(stakedropAdmin).query.stakedrop(AMOUNT, FEE_PAID, receiver);
           tx = await tge.withSigner(stakedropAdmin).tx.stakedrop(AMOUNT, FEE_PAID, receiver);
         });
         it('should mint tokens to apropariate amount to self', async function () {
@@ -661,7 +662,7 @@ function testStakedrop(getCtx: () => { tge: AbaxTge; abaxToken: AbaxToken }) {
           let tx: SignAndSendSuccessResponse;
           beforeEach(async function () {
             receiver = contributors[0].address;
-            await tge.withSigner(admin).tx.setExpBonusMultiplierE3(receiver, bonusMultiplierE3);
+            await tge.withSigner(bonusAdmin).tx.setExpBonusMultiplierE3(receiver, bonusMultiplierE3);
             tx = await tge.withSigner(stakedropAdmin).tx.stakedrop(AMOUNT, FEE_PAID, receiver);
           });
           it('should mint tokens to apropariate amount to self', async function () {
@@ -735,12 +736,12 @@ function createContributeTestPhase1() {
     const expectedTokensReceivedVested = totalGenerated.muln(6).divn(10);
 
     if (bonusMultiplierE3) {
-      await tge.withSigner(admin).tx.setExpBonusMultiplierE3(contributor.address, bonusMultiplierE3);
+      await tge.withSigner(bonusAdmin).tx.setExpBonusMultiplierE3(contributor.address, bonusMultiplierE3);
     }
 
     let referrerBonus = new BN(0);
     if (referrer) {
-      await tge.withSigner(admin).tx.registerReferrer(referrer.address);
+      await tge.withSigner(referrerAdmin).tx.registerReferrer(referrer.address);
       referrerBonus = desiredAmountOfAbaxToGet.muln(REFERRAL_BONUS_E3.REFERRER).div(E3bn);
       totalGenerated = totalGenerated.add(referrerBonus);
     }
@@ -809,11 +810,14 @@ async function deployTGE(
     strategicReserves.address,
     toAbaxTokenDecimals(100_000_000),
     COST_TO_MINT_MILLIARD_TOKENS,
-    stakedropAdmin.address,
   );
 
   await abaxToken.withSigner(admin).tx.grantRole(roleToSelectorId('GENERATOR'), res.contract.address);
   const initTx = await res.contract.withSigner(admin).tx.init();
+
+  await res.contract.withSigner(admin).tx.grantRole(roleToSelectorId('STAKEDROP_ADMIN'), stakedropAdmin.address);
+  await res.contract.withSigner(admin).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), referrerAdmin.address);
+  await res.contract.withSigner(admin).tx.grantRole(roleToSelectorId('BONUS_ADMIN'), bonusAdmin.address);
 
   return { contract: res.contract, initTx: initTx };
 }
