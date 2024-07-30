@@ -21,6 +21,7 @@ import {
   USDC_ADDRESS,
   VOTING_RULES,
 } from './00_constants';
+import AbaxInflatorDeployer from 'typechain/deployers/abax_inflator';
 
 export interface StoredContractInfo {
   name: string;
@@ -95,6 +96,15 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
     COST_TO_MINT_MILLIARD_TOKENS,
   );
 
+  //inflator is deployed
+  const { result: inflatorResult, contract: inflator } = await new AbaxInflatorDeployer(api, deployer).new(governor.address, abaxToken.address, [
+    [FOUNDATION_ADDRESS, 1],
+    [governor.address, 1],
+  ]);
+
+  //Give inflator MINTER role
+  const res0 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('MINTER'), inflator.address);
+
   //} Give TGE GENERATOR role
   const res1 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('GENERATOR'), abaxTge.address);
   // Give Governor RoleAdmin role
@@ -163,11 +173,17 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
       txHash: abaxTgeResult.txHash!,
       blockHash: abaxTgeResult.blockHash!,
     },
+    {
+      name: inflator.name,
+      address: inflator.address,
+      txHash: inflatorResult.txHash!,
+      blockHash: inflatorResult.blockHash!,
+    },
   ]);
 
   await writeJSON(
     EXECUTED_TX_RESULTS_PATH,
-    [res1, res2, res3, res4, res5, res6, res7, res8, res9].map((r) => ({
+    [res0, res1, res2, res3, res4, res5, res6, res7, res8, res9].map((r) => ({
       txHash: r.txHash!,
       blockHash: r.blockHash!,
     })),

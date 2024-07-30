@@ -11,7 +11,7 @@ pub mod abax_treasury {
         storage_fields::inflator::InflatorStorage,
         traits::{AbaxInflator, AbaxInflatorManage, AbaxInflatorView},
     };
-    use ink::env::DefaultEnvironment;
+    use ink::{codegen::TraitCallBuilder, env::DefaultEnvironment};
     pub use ink::{prelude::vec::Vec, ToAccountId};
     pub use pendzl::contracts::psp22::{PSP22Ref, PSP22};
     use pendzl::{
@@ -67,7 +67,11 @@ pub mod abax_treasury {
 
             for (account_id, part) in distribution.iter() {
                 let amount = mul_div(amount, *part as u128, total_parts as u128, Rounding::Down)?;
-                abax_token_mintable.mint(*account_id, amount)?;
+                abax_token_mintable
+                    .call_mut()
+                    .mint(*account_id, amount)
+                    .call_v1()
+                    .invoke()?;
             }
 
             ink::env::emit_event::<DefaultEnvironment, InflationDistributed>(
