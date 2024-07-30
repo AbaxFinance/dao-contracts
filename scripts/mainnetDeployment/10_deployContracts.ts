@@ -104,16 +104,12 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
 
   //Give inflator MINTER role
   const res0 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('MINTER'), inflator.address);
-
   //} Give TGE GENERATOR role
   const res1 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('GENERATOR'), abaxTge.address);
   // Give Governor RoleAdmin role
   const res2 = await abaxToken.withSigner(deployer).tx.grantRole(0, governor.address);
   // deployer renounces RoleAdmin role
   const res3 = await abaxToken.withSigner(deployer).tx.renounceRole(0, deployer.address);
-
-  // Give Governor RoleAdmin role
-  const res4 = await abaxTge.withSigner(deployer).tx.grantRole(0, governor.address);
 
   // Give Deployer Stakedrop admin role
   const res5 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('STAKEDROP_ADMIN'), deployer.address);
@@ -123,7 +119,8 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
   const res7 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), deployer.address);
   // Give FOUNDATION Referrer admin role
   const res8 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), FOUNDATION_ADDRESS);
-
+  // Give Governor RoleAdmin role
+  const res4 = await abaxTge.withSigner(deployer).tx.grantRole(0, governor.address);
   // deployer renounces RoleAdmin role
   const res9 = await abaxTge.withSigner(deployer).tx.renounceRole(0, deployer.address);
 
