@@ -14,7 +14,7 @@ import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import VesterDeployer from 'typechain/deployers/vester';
 import { ProposalCreated } from 'typechain/event-types/governor';
 import { Proposal, Transaction, VotingRules } from 'typechain/types-arguments/governor';
-import { GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
+import { AccessControlError, GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
 import { ONE_DAY } from '@c-forge/polkahat-chai-matchers';
 import { E12bn, duration, generateRandomSignerWithBalance, getSigners, localApi, time } from '@c-forge/polkahat-network-helpers';
 import { numbersToHex, paramsToInputNumbers } from './paramsHexConversionUtils';
@@ -37,106 +37,15 @@ const VOTING_RULES: VotingRules = {
   finalPeriod: ONE_DAY.muln(4),
 };
 
-async function proposeAndCheck(
-  governor: Governor,
-  proposer: KeyringPair,
-  transactions: Transaction[],
-  description: string,
-  earliestExecution: number | null = null,
-  expectedError?: GovernError,
-) {
-  let proposalId = new BN(-1);
-  const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
-  const query = governor.withSigner(proposer).query.propose({ descriptionHash, transactions, earliestExecution }, description);
-  if (expectedError) {
-    await expect(query).to.be.revertedWithError(expectedError);
-  } else {
-    await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(proposer).tx.propose({ descriptionHash, transactions, earliestExecution }, description);
-    await expect(tx).to.emitEvent(governor, 'ProposalCreated', (event: ProposalCreated) => {
-      proposalId = new BN(event.proposalId.toString());
-      return (
-        event.proposal.earliestExecution?.toString() === earliestExecution?.toString() &&
-        event.proposal.descriptionHash === descriptionHash &&
-        isEqual(
-          event.proposal.transactions.map((t) => ({
-            ...t,
-            callee: t.callee.toString(),
-            transferredValue: t.transferredValue.toString(),
-            input: t.input.toString(),
-            selector: t.selector.toString(),
-          })),
-          transactions.map((t) => ({
-            ...t,
-            callee: t.callee.toString(),
-            transferredValue: t.transferredValue.toString(),
-            input: '0x' + numbersToHex(t.input),
-            selector: '0x' + numbersToHex(t.selector),
-          })),
-        )
-      );
-    });
-
-    //votes for should be initiated to proposer deposit
-    // TODO ideally checks that won't check state 1v1
-  }
-
-  return [proposalId, descriptionHash.toString()] as const;
-}
-
-async function voteAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, vote: Vote, expectedError?: GovernError) {
-  const query = governor.withSigner(voter).query.vote(proposalId, vote, []);
-  if (expectedError) {
-    await expect(query).to.be.revertedWithError(expectedError);
-  } else {
-    await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(voter).tx.vote(proposalId, vote, []);
-    await expect(tx).to.emitEvent(governor, 'VoteCasted', {
-      account: voter.address,
-      proposalId,
-      vote,
-    });
-
-    //proposal's state updated ? ideally checks that won't check state 1v1
-  }
-}
-
-async function finalizeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, expectedOutcome: ProposalStatus | GovernError) {
-  const isErrorExpected = typeof expectedOutcome !== 'string';
-  const query = governor.withSigner(voter).query.finalize(proposalId);
-  if (isErrorExpected) {
-    await expect(query).to.be.revertedWithError(expectedOutcome);
-  } else {
-    await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(voter).tx.finalize(proposalId);
-    if (expectedOutcome) {
-      await expect(tx).to.emitEvent(governor, 'ProposalFinalized', {
-        proposalId,
-        status: expectedOutcome,
-      });
-    }
-    // TODO ideally checks that won't check state 1v1
-  }
-}
-
-async function executeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, proposal: Proposal, expectedError?: GovernError) {
-  const query = governor.withSigner(voter).query.execute(proposal);
-  if (expectedError) {
-    await expect(query).to.be.revertedWithError(expectedError);
-  } else {
-    await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(voter).tx.execute(proposal);
-    await expect(tx).to.emitEvent(governor, 'ProposalExecuted', {
-      proposalId: proposalId,
-    });
-  }
-}
+const descriptionUrl = 'https://someurl.com/proposal/21iuhsa837iuhsa218312sajdiuhsad';
 
 describe('Governor', () => {
   let governor: Governor;
   let token: PSP22Emitable;
   let vester: Vester;
   const voters: KeyringPair[] = [];
+  let foundation: KeyringPair;
+  let parametersAdmin: KeyringPair;
 
   before(async () => {
     const api = await localApi.get();
@@ -144,6 +53,8 @@ describe('Governor', () => {
       const voter = await generateRandomSignerWithBalance(api);
       voters.push(voter);
     }
+    foundation = await generateRandomSignerWithBalance(api);
+    parametersAdmin = await generateRandomSignerWithBalance(api);
     const now = Date.now();
     await time.setTo(now);
   });
@@ -152,8 +63,113 @@ describe('Governor', () => {
     const api = await localApi.get();
     token = (await new Psp22EmitableDeployer(api, deployer).new('Token', 'TOK', ABAX_DECIMALS)).contract;
     vester = (await new VesterDeployer(api, deployer).new()).contract;
-    governor = (await new GovernorDeployer(api, deployer).new(token.address, vester.address, UNSTAKE_PERIOD, 'Governor Votes', 'VOTE', VOTING_RULES))
-      .contract;
+    governor = (
+      await new GovernorDeployer(api, deployer).new(
+        token.address,
+        vester.address,
+        foundation.address,
+        parametersAdmin.address,
+        UNSTAKE_PERIOD,
+        'Governor Votes',
+        'VOTE',
+        VOTING_RULES,
+      )
+    ).contract;
+  });
+
+  describe('deployment', async () => {
+    it('should fail when unstake period is shorter than sum of voting periods', async () => {
+      const rules: VotingRules = {
+        minimumStakePartE3: 10,
+        proposerDepositPartE3: 100,
+        initialPeriod: ONE_DAY.muln(3),
+        flatPeriod: ONE_DAY.muln(7),
+        finalPeriod: ONE_DAY.muln(4),
+      };
+      await expect(
+        new GovernorDeployer(await localApi.get(), deployer).new(
+          token.address,
+          vester.address,
+          foundation.address,
+          parametersAdmin.address,
+          ONE_DAY.muln(10),
+          'Governor Votes',
+          'VOTE',
+          rules,
+        ),
+      ).to.be.rejected;
+    });
+  });
+
+  //
+  describe('Manage', () => {
+    describe('changeVotingRules', () => {
+      it('should fail when trying to change voting rules without proper role', async () => {
+        await expect(governor.withSigner(voters[0]).query.changeVotingRules(VOTING_RULES)).to.be.revertedWithError(
+          GovernErrorBuilder.AccessControlError(AccessControlError.missingRole),
+        );
+      });
+
+      it('should fail when unstake period is shorter than sum of voting periods', async () => {
+        const newVotingRules = {
+          minimumStakePartE3: 20,
+          proposerDepositPartE3: 200,
+          initialPeriod: ONE_DAY.muln(50),
+          flatPeriod: ONE_DAY.muln(100),
+          finalPeriod: ONE_DAY.muln(50),
+        };
+        await expect(governor.withSigner(parametersAdmin).query.changeVotingRules(newVotingRules)).to.be.revertedWithError(
+          GovernErrorBuilder.UnstakeShorterThanVotingPeriod(),
+        );
+      });
+      it('should change voting rules', async () => {
+        const newVotingRules = {
+          minimumStakePartE3: 20,
+          proposerDepositPartE3: 200,
+          initialPeriod: ONE_DAY.muln(5),
+          flatPeriod: ONE_DAY.muln(10),
+          finalPeriod: ONE_DAY.muln(5),
+        };
+
+        const tx = governor.withSigner(parametersAdmin).tx.changeVotingRules(newVotingRules);
+        await expect(tx).to.emitEvent(governor, 'VotingRulesChanged', {
+          rules: {
+            minimumStakePartE3: newVotingRules.minimumStakePartE3,
+            proposerDepositPartE3: newVotingRules.proposerDepositPartE3,
+            initialPeriod: newVotingRules.initialPeriod,
+            flatPeriod: newVotingRules.flatPeriod,
+            finalPeriod: newVotingRules.finalPeriod,
+          },
+        });
+      });
+    });
+
+    describe('changeUnstakePeriod', () => {
+      it('should fail when trying to change unstake period without proper role', async () => {
+        await expect(governor.withSigner(voters[0]).query.changeUnstakePeriod(UNSTAKE_PERIOD)).to.be.revertedWithError(
+          GovernErrorBuilder.AccessControlError(AccessControlError.missingRole),
+        );
+      });
+
+      it('should fail when unstake period is shorter than sum of voting periods', async () => {
+        const newUnstakePeriod = ONE_DAY.muln(5);
+        await expect(governor.withSigner(parametersAdmin).query.changeUnstakePeriod(newUnstakePeriod)).to.be.revertedWithError(
+          GovernErrorBuilder.UnstakeShorterThanVotingPeriod(),
+        );
+      });
+
+      it('should change unstake period', async () => {
+        const newUnstakePeriod = ONE_DAY.muln(100);
+
+        await expect(governor.withSigner(parametersAdmin).query.changeUnstakePeriod(newUnstakePeriod)).to.haveOkResult();
+        const tx = governor.withSigner(parametersAdmin).tx.changeUnstakePeriod(newUnstakePeriod);
+        await expect(tx).to.emitEvent(governor, 'UnstakePeriodChanged', {
+          unstakePeriod: newUnstakePeriod,
+        });
+
+        await expect(governor.query.getWaitingAndVestingDurations()).to.haveOkResult([newUnstakePeriod, 0]);
+      });
+    });
   });
 
   describe('after deployment', () => {
@@ -173,7 +189,7 @@ describe('Governor', () => {
       await expect(governor.query.vester()).to.haveOkResult(vester.address);
     });
     it('should provide correct vesting schedule info', async () => {
-      await expect(governor.query.getWaitingAndVestingDurations()).to.haveOkResult([0, UNSTAKE_PERIOD]);
+      await expect(governor.query.getWaitingAndVestingDurations()).to.haveOkResult([UNSTAKE_PERIOD, 0]);
     });
     it('should have correct voting rules', async () => {
       await expect(governor.query.rules()).to.haveOkResult(VOTING_RULES);
@@ -667,8 +683,7 @@ describe('Governor', () => {
       let descriptionHash: string;
       let executor: KeyringPair;
       beforeEach(async () => {
-        executor = voters[9];
-        await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), executor.address);
+        executor = foundation;
       });
       describe(`earliestExecution is not set`, () => {
         beforeEach(async () => {
@@ -679,7 +694,7 @@ describe('Governor', () => {
             governor,
             executor,
             proposalId,
-            { descriptionHash: '', transactions: [], earliestExecution: null },
+            { descriptionUrl, descriptionHash: '', transactions: [], earliestExecution: null },
             GovernErrorBuilder.ProposalDoesntExist(),
           );
         });
@@ -688,7 +703,7 @@ describe('Governor', () => {
             governor,
             executor,
             proposalId,
-            { descriptionHash, transactions: [], earliestExecution: null },
+            { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null },
             GovernErrorBuilder.WrongStatus(),
           );
         });
@@ -706,7 +721,7 @@ describe('Governor', () => {
               governor,
               executor,
               proposalId,
-              { descriptionHash, transactions: [], earliestExecution: null },
+              { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null },
               GovernErrorBuilder.WrongStatus(),
             );
           });
@@ -725,7 +740,7 @@ describe('Governor', () => {
               governor,
               executor,
               proposalId,
-              { descriptionHash, transactions: [], earliestExecution: null },
+              { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null },
               GovernErrorBuilder.WrongStatus(),
             );
           });
@@ -740,7 +755,7 @@ describe('Governor', () => {
             await governor.tx.finalize(proposalId);
           });
           it('user0 executes Succeded proposal with no Tx', async () => {
-            await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution: null });
+            await executeAndCheck(governor, executor, proposalId, { descriptionUrl, descriptionHash, transactions: [], earliestExecution: null });
           });
         });
       });
@@ -769,7 +784,7 @@ describe('Governor', () => {
                 governor,
                 executor,
                 proposalId,
-                { descriptionHash, transactions: [], earliestExecution },
+                { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                 GovernErrorBuilder.TooEarlyToExecuteProposal(),
               );
             });
@@ -782,7 +797,7 @@ describe('Governor', () => {
                   governor,
                   executor,
                   proposalId,
-                  { descriptionHash, transactions: [], earliestExecution },
+                  { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                   GovernErrorBuilder.TooEarlyToExecuteProposal(),
                 );
               });
@@ -791,7 +806,7 @@ describe('Governor', () => {
                   await time.increase(1);
                 });
                 it('user0 executes proposal', async () => {
-                  await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution });
+                  await executeAndCheck(governor, executor, proposalId, { descriptionUrl, descriptionHash, transactions: [], earliestExecution });
                 });
               });
             });
@@ -822,7 +837,7 @@ describe('Governor', () => {
                 governor,
                 executor,
                 proposalId,
-                { descriptionHash, transactions: [], earliestExecution },
+                { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                 GovernErrorBuilder.TooEarlyToExecuteProposal(),
               );
             });
@@ -835,7 +850,7 @@ describe('Governor', () => {
                   governor,
                   executor,
                   proposalId,
-                  { descriptionHash, transactions: [], earliestExecution },
+                  { descriptionUrl, descriptionHash, transactions: [], earliestExecution },
                   GovernErrorBuilder.TooEarlyToExecuteProposal(),
                 );
               });
@@ -844,7 +859,7 @@ describe('Governor', () => {
                   await time.increase(1);
                 });
                 it('user0 executes proposal', async () => {
-                  await executeAndCheck(governor, executor, proposalId, { descriptionHash, transactions: [], earliestExecution });
+                  await executeAndCheck(governor, executor, proposalId, { descriptionUrl, descriptionHash, transactions: [], earliestExecution });
                 });
               });
             });
@@ -862,6 +877,36 @@ describe('Governor', () => {
           await time.increase(9 * duration.days(1));
           await governor.withSigner(voters[0]).tx.finalize(proposalId);
         };
+        describe('that grants role with index 1 to voter[0]', () => {
+          beforeEach(async () => {
+            const message = governor.abi.findMessage('AccessControl::grant_role');
+            const params1 = paramsToInputNumbers(message.toU8a([1, voters[0].address]));
+
+            transactions = [
+              {
+                callee: governor.address,
+                selector: params1.selector,
+                input: params1.data,
+                transferredValue: 0,
+              },
+            ];
+            [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
+            proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
+          });
+
+          it('foundation executes proposal succesfully', async () => {
+            await finalize();
+            await expect(await governor.query.hasRole(1, voters[0].address)).to.haveOkResult(false);
+
+            const query = governor.withSigner(foundation).query.execute(proposal);
+            const tx = governor.withSigner(foundation).tx.execute(proposal);
+            await expect(query).to.haveOkResult();
+            await tx;
+
+            await expect(await governor.query.hasRole(1, voters[0].address)).to.haveOkResult(true);
+          });
+        });
+
         describe('that have params', () => {
           beforeEach(async () => {
             const message = token.abi.findMessage('PSP22::increase_allowance');
@@ -889,14 +934,13 @@ describe('Governor', () => {
               },
             ];
             [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-            proposal = { descriptionHash, transactions, earliestExecution: null };
+            proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
           });
 
-          it('user0 executes proposal succesfully', async () => {
+          it('foundation executes proposal succesfully', async () => {
             await finalize();
-            await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
-            const query = governor.withSigner(voters[0]).query.execute(proposal);
-            const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+            const query = governor.withSigner(foundation).query.execute(proposal);
+            const tx = governor.withSigner(foundation).tx.execute(proposal);
             await expect(query).to.haveOkResult();
             await tx;
 
@@ -934,18 +978,17 @@ describe('Governor', () => {
             ];
 
             [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-            proposal = { descriptionHash, transactions, earliestExecution: null };
+            proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
           });
-          it('user0 executes proposal succesfully', async () => {
+          it('foundation executes proposal succesfully', async () => {
             await finalize();
             let eventsCounter = 0;
             flipper.events.subscribeOnFlippedEvent(() => {
               eventsCounter++;
             });
 
-            await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
-            const query = governor.withSigner(voters[0]).query.execute(proposal);
-            const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+            const query = governor.withSigner(foundation).query.execute(proposal);
+            const tx = governor.withSigner(foundation).tx.execute(proposal);
             await expect(query).to.haveOkResult();
             await expect(tx).to.eventually.be.fulfilled;
             expect(eventsCounter).to.be.equal(3);
@@ -977,7 +1020,7 @@ describe('Governor', () => {
               ];
 
               [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-              proposal = { descriptionHash, transactions, earliestExecution: null };
+              proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
             });
           });
           describe('handles panics properly', () => {
@@ -1006,7 +1049,7 @@ describe('Governor', () => {
               ];
 
               [proposalId, descriptionHash] = await proposeAndCheck(governor, voters[0], transactions, description);
-              proposal = { descriptionHash, transactions, earliestExecution: null };
+              proposal = { descriptionUrl, descriptionHash, transactions, earliestExecution: null };
             });
 
             it('user0 executes Succeded proposal with Tx but it fails due to the contract called via proposal tx panicking', async () => {
@@ -1016,9 +1059,8 @@ describe('Governor', () => {
                 eventsCounter++;
               });
 
-              await governor.withSigner(deployer).tx.grantRole(roleToSelectorId('EXECUTOR'), voters[0].address);
-              const query = governor.withSigner(voters[0]).query.execute(proposal);
-              const tx = governor.withSigner(voters[0]).tx.execute(proposal);
+              const query = governor.withSigner(foundation).query.execute(proposal);
+              const tx = governor.withSigner(foundation).tx.execute(proposal);
               await expect(query).to.be.revertedWithError(GovernErrorBuilder.UnderlyingTransactionReverted('ReturnError(CalleeTrapped)'));
               await expect(tx).to.eventually.be.rejected;
               expect(eventsCounter).to.equal(0);
@@ -1091,4 +1133,97 @@ function testFinalizationOverTime(
       });
     });
   });
+}
+
+export async function proposeAndCheck(
+  governor: Governor,
+  proposer: KeyringPair,
+  transactions: Transaction[],
+  description: string,
+  earliestExecution: number | null = null,
+  expectedError?: GovernError,
+) {
+  let proposalId = new BN(-1);
+  const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
+  const query = governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+  if (expectedError) {
+    await expect(query).to.be.revertedWithError(expectedError);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+    await expect(tx).to.emitEvent(governor, 'ProposalCreated', (event: ProposalCreated) => {
+      proposalId = new BN(event.proposalId.toString());
+      return (
+        event.proposal.earliestExecution?.toString() === earliestExecution?.toString() &&
+        event.proposal.descriptionHash === descriptionHash &&
+        isEqual(
+          event.proposal.transactions.map((t) => ({
+            ...t,
+            callee: t.callee.toString(),
+            transferredValue: t.transferredValue.toString(),
+            input: t.input.toString(),
+            selector: t.selector.toString(),
+          })),
+          transactions.map((t) => ({
+            ...t,
+            callee: t.callee.toString(),
+            transferredValue: t.transferredValue.toString(),
+            input: '0x' + numbersToHex(t.input),
+            selector: '0x' + numbersToHex(t.selector),
+          })),
+        )
+      );
+    });
+  }
+
+  return [proposalId, descriptionHash.toString()] as const;
+}
+
+async function voteAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, vote: Vote, expectedError?: GovernError) {
+  const query = governor.withSigner(voter).query.vote(proposalId, vote, []);
+  if (expectedError) {
+    await expect(query).to.be.revertedWithError(expectedError);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(voter).tx.vote(proposalId, vote, []);
+    await expect(tx).to.emitEvent(governor, 'VoteCasted', {
+      account: voter.address,
+      proposalId,
+      vote,
+    });
+
+    //proposal's state updated ? ideally checks that won't check state 1v1
+  }
+}
+
+async function finalizeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, expectedOutcome: ProposalStatus | GovernError) {
+  const isErrorExpected = typeof expectedOutcome !== 'string';
+  const query = governor.withSigner(voter).query.finalize(proposalId);
+  if (isErrorExpected) {
+    await expect(query).to.be.revertedWithError(expectedOutcome);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(voter).tx.finalize(proposalId);
+    if (expectedOutcome) {
+      await expect(tx).to.emitEvent(governor, 'ProposalFinalized', {
+        proposalId,
+        status: expectedOutcome,
+      });
+    }
+  }
+}
+
+async function executeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, proposal: Proposal, expectedError?: GovernError) {
+  const query = governor.withSigner(voter).query.execute(proposal);
+
+  const res = await query;
+  if (expectedError) {
+    await expect(query).to.be.revertedWithError(expectedError);
+  } else {
+    await expect(query).to.haveOkResult();
+    const tx = governor.withSigner(voter).tx.execute(proposal);
+    await expect(tx).to.emitEvent(governor, 'ProposalExecuted', {
+      proposalId: proposalId,
+    });
+  }
 }

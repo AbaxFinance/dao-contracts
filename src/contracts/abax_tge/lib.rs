@@ -28,7 +28,10 @@ pub mod abax_tge_contract {
         prelude::{vec, vec::Vec},
         ToAccountId,
     };
-    use pendzl::math::errors::MathError;
+    use pendzl::math::{
+        errors::MathError,
+        operations::{mul_div, Rounding},
+    };
     pub use pendzl::{
         contracts::{
             general_vest::{GeneralVest, GeneralVestRef, VestingSchedule},
@@ -41,7 +44,7 @@ pub mod abax_tge_contract {
     /// A role type for access to stakedrop functions - 4_193_574_647_u32.
     pub const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN");
 
-    pub const MINIMUM_AMOUNT: Balance = 40_000_000_000_000; // 10 WAZERO in phase one
+    pub const MINIMUM_AMOUNT: Balance = 25_000_000_000_000; // 1 USDC in phase one
 
     pub enum Generate {
         // used to generate for referrers
@@ -65,13 +68,13 @@ pub mod abax_tge_contract {
             start_time: Timestamp,
             phase_two_duration: Timestamp,
             generated_token_address: AccountId,
-            wazero_address: AccountId,
+            contribution_token_address: AccountId,
             vester_address: AccountId,
             founders_address: AccountId,
             foundation_address: AccountId,
             strategic_reserves_address: AccountId,
             phase_one_token_cap: u128,
-            cost_to_mint_milion_tokens: u128,
+            cost_to_mint_milliard_tokens: u128,
             stakedrop_admin: AccountId,
         ) -> Self {
             let mut instance = Self {
@@ -80,13 +83,13 @@ pub mod abax_tge_contract {
                     start_time,
                     phase_two_duration,
                     generated_token_address,
-                    wazero_address,
+                    contribution_token_address,
                     vester_address,
                     founders_address,
                     foundation_address,
                     strategic_reserves_address,
                     phase_one_token_cap,
-                    cost_to_mint_milion_tokens,
+                    cost_to_mint_milliard_tokens,
                 ),
             };
             // set admin to caller
@@ -142,8 +145,6 @@ pub mod abax_tge_contract {
             receiver: AccountId,
             referrer: Option<AccountId>,
         ) -> Result<u128, TGEError> {
-            ink::env::debug_println!("");
-            ink::env::debug_println!("=======contribute start=======");
             self._ensure_has_started()?;
             self._ensure_is_not_finished()?;
             _ensure_minimum_amount(to_create)?;
@@ -153,9 +154,9 @@ pub mod abax_tge_contract {
             let contributor = self.env().caller();
 
             let cost = self.calculate_cost(to_create)?;
-            ink::env::debug_println!("cost {:?}", cost);
+
             self.tge
-                .wazero
+                .contribution_token
                 .call_mut()
                 .transfer_from(
                     contributor,
@@ -165,7 +166,6 @@ pub mod abax_tge_contract {
                 )
                 .call_v1()
                 .invoke()?;
-            ink::env::debug_println!("post transfer");
             self.tge.increase_contributed_amount(contributor, cost)?;
 
             let bonus = self.calculate_bonus_and_update_created_base_and_bonus(
@@ -174,18 +174,15 @@ pub mod abax_tge_contract {
                 referrer,
             )?;
 
-            ink::env::debug_println!("bonus {:?}", bonus);
-            ink::env::debug_println!("to_create {:?}", to_create);
-
             self.generate_tokens(
                 receiver,
                 to_create.checked_add(bonus).ok_or(MathError::Overflow)?,
                 Generate::Distribute,
             )?;
 
-            if referrer.is_some() {
+            if let Some(r) = referrer {
                 let referer_reward = mul_denom_e3(to_create, REWARD_FOR_REFERER_E3 as u128)?;
-                self.generate_tokens(referrer.unwrap(), referer_reward, Generate::Reserve)?;
+                self.generate_tokens(r, referer_reward, Generate::Reserve)?;
             }
 
             self.env().emit_event(Contribution {
@@ -194,7 +191,7 @@ pub mod abax_tge_contract {
                 to_create,
                 referrer,
             });
-            ink::env::debug_println!("=======contribute end=======");
+
             Ok(cost)
         }
 
@@ -214,7 +211,7 @@ pub mod abax_tge_contract {
 
             let bonus =
                 self.calculate_bonus_and_update_created_base_and_bonus(receiver, amount, None)?;
-            ink::env::debug_println!("bonus {:?}", bonus);
+
             let amount_plus_bonus = amount.checked_add(bonus).ok_or(MathError::Overflow)?;
             self.generate_to_self(amount_plus_bonus)?;
             self.tge.reserve_tokens(receiver, amount_plus_bonus)?;
@@ -295,13 +292,13 @@ pub mod abax_tge_contract {
                 self.tge.phase_two_start_time,
                 self.tge.phase_two_duration,
                 self.tge.generated_token_address,
-                self.tge.wazero.to_account_id(),
+                self.tge.contribution_token.to_account_id(),
                 self.tge.vester.to_account_id(),
                 self.tge.founders_address,
                 self.tge.foundation_address,
                 self.tge.strategic_reserves_address,
                 self.tge.phase_one_token_cap,
-                self.tge.cost_to_mint_milion_tokens,
+                self.tge.cost_to_mint_milliard_tokens,
             )
         }
 
@@ -343,6 +340,11 @@ pub mod abax_tge_contract {
         fn generated_bonus_amount_by(&self, account: AccountId) -> Balance {
             self.tge.bonus_amount_created(&account)
         }
+
+        #[ink(message)]
+        fn calculate_cost(&self, to_create: Balance) -> Balance {
+            self.calculate_cost(to_create).unwrap_or(0)
+        }
     }
 
     fn _ensure_minimum_amount(to_create: u128) -> Result<(), TGEError> {
@@ -354,8 +356,6 @@ pub mod abax_tge_contract {
 
     impl TGEContract {
         fn _ensure_has_started(&self) -> Result<(), TGEError> {
-            ink::env::debug_println!("block_timestamp {:?}", self.env().block_timestamp());
-            ink::env::debug_println!("start_time      {:?}", self.tge.start_time);
             if self.env().block_timestamp() < self.tge.start_time {
                 return Err(TGEError::TGENotStarted);
             }
@@ -427,9 +427,6 @@ pub mod abax_tge_contract {
             to_create: u128,
             referrer: Option<AccountId>,
         ) -> Result<u128, TGEError> {
-            ink::env::debug_println!(
-                "=======calculate_bonus_and_update_created_base_and_bonus start======="
-            );
             let mut bonus_multiplier_e3 = self
                 .tge
                 .exp_bonus_multiplier_of_e3(&contributor)
@@ -452,26 +449,23 @@ pub mod abax_tge_contract {
 
             let eligible_bonus = mul_denom_e3(received_base, bonus_multiplier_e3 as u128)?;
             let bonus_already_received = self.tge.bonus_amount_created(&contributor);
-
             // it may happen that the previously one used refferers code and now one is not using one.
             // This may result in a bonus_already_received being greater than eligible_bonus
             let bonus = eligible_bonus.saturating_sub(bonus_already_received);
             self.tge
                 .increase_bonus_amount_created(&contributor, bonus)?;
-            ink::env::debug_println!(
-                "=======calculate_bonus_and_update_created_base_and_bonus end======="
-            );
+
             Ok(bonus)
         }
 
         // Calculates the cost of creating tokens (doesn't include bonuses)
         // During phase 1
-        // The cost is amount_to_create * phase_one_cost_per_milllion_tokens / 100_000_000
+        // The cost is amount_to_create * phase_one_cost_per_milliard_tokens / 10^12
         // During phase 2
         // The cost is
-        // amount_to_create * effective_cost_per_million / 1_000_000
-        // where effective cost is equal to the cost  before and price after the minting
-        // the cost is given by COST_TO_MINT_MILLION_TOKENS * total_amount_minted * phase_one_cost_per_milllion_tokens / 100_000_000
+        // amount_to_create * effective_cost_per_milliard / 10^12
+        // where effective cost per milliard tokens is equal to the cost  before and cost after the minting
+        // the cost is given by phase_one_cost_per_milliard_tokens * (total_amount_minted * phase_one_token_cap)
         fn calculate_cost(&self, to_create: Balance) -> Result<u128, TGEError> {
             let mut amount_phase1 = 0;
             let mut amount_phase2 = 0;
@@ -497,17 +491,16 @@ pub mod abax_tge_contract {
             }
 
             let cost_phase1: Balance =
-                mul_denom_e6(amount_phase1, self.tge.cost_to_mint_milion_tokens)?;
+                mul_denom_e12(amount_phase1, self.tge.cost_to_mint_milliard_tokens)?;
 
             let cost_phase2: Balance = {
                 if amount_phase2 == 0 {
                     0
                 } else {
                     // take into account that during 2nd phase contributor also generates tokens to founders foundation and strategic reserves to keep 20/20/2/58 ratio.
-                    let effective_tokens = to_create
+                    let effective_tokens = amount_phase2
                         .checked_mul(ALL_TO_PUBLIC_RATIO)
                         .ok_or(MathError::Overflow)?;
-                    ink::env::debug_println!("effective_tokens: {:?}", effective_tokens);
 
                     let averaged_amount =
                         if self.tge.total_amount_minted() <= self.tge.phase_one_token_cap {
@@ -521,22 +514,17 @@ pub mod abax_tge_contract {
                                 .checked_add(effective_tokens / 2)
                                 .ok_or(MathError::Overflow)?
                         };
-                    ink::env::debug_println!("averaged_amount: {:?}", averaged_amount);
 
-                    let effective_cost_per_million = mul_denom_e12(self.tge.cost_to_mint_milion_tokens, averaged_amount)?  // denom avaradged amount to get human number of tokens 
-                            .checked_div(E8_U128) // from the formula
-                            .unwrap().checked_add(1).ok_or(MathError::Overflow)?;
-                    ink::env::debug_println!(
-                        "effective_cost_per_million: {:?}",
-                        effective_cost_per_million
-                    );
+                    let effective_cost_per_milliard = mul_div(
+                        self.tge.cost_to_mint_milliard_tokens,
+                        averaged_amount,
+                        self.tge.phase_one_token_cap,
+                        Rounding::Up,
+                    )?;
 
-                    mul_denom_e6(amount_phase2, effective_cost_per_million)?
+                    mul_denom_e12(amount_phase2, effective_cost_per_milliard)?
                 }
             };
-
-            ink::env::debug_println!("cost_phase1: {:?}", cost_phase1);
-            ink::env::debug_println!("cost_phase2: {:?}", cost_phase2);
 
             Ok(cost_phase1
                 .checked_add(cost_phase2)
@@ -552,8 +540,6 @@ pub mod abax_tge_contract {
             amount: Balance,
             gen: Generate,
         ) -> Result<(), TGEError> {
-            ink::env::debug_println!("=======generate_tokens start=======");
-            ink::env::debug_println!("amount: {:?}", amount);
             let total_amount_minted = self.tge.total_amount_minted();
             let total_amount_minted_plus_amount = total_amount_minted
                 .checked_add(amount)
@@ -562,7 +548,6 @@ pub mod abax_tge_contract {
             if total_amount_minted < self.tge.phase_one_token_cap
                 && total_amount_minted_plus_amount >= self.tge.phase_one_token_cap
             {
-                ink::env::debug_println!("phase changed");
                 self.tge.phase_two_start_time = Some(self.env().block_timestamp());
                 self.env().emit_event(PhaseChanged {});
             }
@@ -592,16 +577,6 @@ pub mod abax_tge_contract {
             let amount_to_mint = amount_phase1
                 .checked_add(amount_to_mint_phase2)
                 .ok_or(MathError::Overflow)?;
-
-            ink::env::debug_println!("total_amount_minted: {:?}", total_amount_minted);
-            ink::env::debug_println!(
-                "total_amount_minted_plus_amount: {:?}",
-                total_amount_minted_plus_amount
-            );
-            ink::env::debug_println!("amount_phase1: {:?}", amount_phase1);
-            ink::env::debug_println!("amount_phase2: {:?}", amount_phase2);
-            ink::env::debug_println!("amount_to_mint_phase2: {:?}", amount_to_mint_phase2);
-            ink::env::debug_println!("amount_to_mint: {:?}", amount_to_mint);
 
             self.generate_to_self(amount_to_mint)?;
 
@@ -637,7 +612,7 @@ pub mod abax_tge_contract {
                     strategic_reserves_amount,
                 )?;
             }
-            ink::env::debug_println!("=======generate_tokens end=======");
+
             Ok(())
         }
 
@@ -648,7 +623,6 @@ pub mod abax_tge_contract {
                 .generate(self.env().account_id(), amount)
                 .call_v1()
                 .invoke()?;
-            ink::env::debug_println!("increase total amount minted by: {:?}", amount);
             self.tge.increase_total_amount_minted(amount)?;
             Ok(())
         }
@@ -662,15 +636,11 @@ pub mod abax_tge_contract {
             amount: Balance,
             instant_e3: u16,
         ) -> Result<(), TGEError> {
-            ink::env::debug_println!("=======distribute start=======");
             let amount_to_transfer = mul_denom_e3(amount, instant_e3 as u128)?;
             let amount_to_vest = amount
                 .checked_sub(amount_to_transfer)
                 .ok_or(MathError::Underflow)?;
 
-            ink::env::debug_println!("amount_to_transfer: {:?}", amount_to_transfer);
-            ink::env::debug_println!("amount_to_vest: {:?}", amount_to_vest);
-            ink::env::debug_println!("amount: {:?}", amount);
             let mut psp22: PSP22Ref = self.tge.generated_token_address.into();
             psp22
                 .call_mut()
@@ -678,13 +648,10 @@ pub mod abax_tge_contract {
                 .call_v1()
                 .invoke()?;
 
-            ink::env::debug_println!("post transfer");
-
             if amount_to_vest > 0 {
                 self.schedule_vest(to, amount_to_vest)?;
             }
 
-            ink::env::debug_println!("=======distribute end=======");
             Ok(())
         }
 

@@ -66,9 +66,7 @@ async function createVestingSchedule(
     const [waitingTime, vestingTime] = expectedSchedule;
     this.assert(
       postVestingScheduleOf?.schedule?.constant?.[0]?.toString() === waitingTime.toString(),
-      `expected constant[0] of ${account} vesting schedule to be ${new BN(
-        0,
-      ).toString()} but got ${postVestingScheduleOf?.schedule?.constant?.[0]?.toString()}`,
+      `expected constant[0] of ${account} vesting schedule to be ${waitingTime.toString()} but got ${postVestingScheduleOf?.schedule?.constant?.[0]?.toString()}`,
       `expected constant[0] of ${account} vesting schedule not to be ${new BN(
         0,
       ).toString()} but got ${postVestingScheduleOf?.schedule?.constant?.[0]?.toString()}`,

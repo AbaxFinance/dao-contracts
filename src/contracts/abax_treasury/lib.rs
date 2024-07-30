@@ -145,7 +145,6 @@ pub mod abax_treasury {
                                 .call_v1()
                                 .invoke()?;
                         } else {
-                            //TODO create a tx with value transfer
                             vester
                                 .call_mut()
                                 .create_vest(

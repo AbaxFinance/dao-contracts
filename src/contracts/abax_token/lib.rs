@@ -83,7 +83,6 @@ pub mod abax_token {
         // increases the inflation rate  by the 10% of the `amount` per year
         #[ink(message)]
         fn generate(&mut self, to: AccountId, amount: Balance) -> Result<(), PSP22Error> {
-            ink::env::debug_println!("GENERATOR {:?}", GENERATOR);
             self._ensure_has_role(GENERATOR, Some(self.env().caller()))?;
             self._inflate_cap()?;
             let delta_inflation = amount.checked_div(TEN_YEARS).ok_or(MathError::DivByZero)?;

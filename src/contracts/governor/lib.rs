@@ -30,8 +30,8 @@ mod governor {
         traits::{
             AbaxGovern, AbaxGovernInternal, AbaxGovernManage, AbaxGovernView, GovernError,
             OpaqueTypes, Proposal, ProposalCreated, ProposalExecuted, ProposalFinalized,
-            ProposalHash, ProposalId, ProposalState, ProposalStatus, UserVote, Vote, VoteCasted,
-            VotingRules,
+            ProposalHash, ProposalId, ProposalState, ProposalStatus, UnstakePeriodChanged,
+            UserVote, Vote, VoteCasted, VotingRules, VotingRulesChanged,
         },
     };
     use ink::codegen::TraitCallBuilder;
@@ -88,11 +88,10 @@ mod governor {
         assets: &Balance,
         shares: &Balance,
     ) -> Result<(), PSP22Error> {
-        ink::env::debug_println!("total supply pre {:?}", self._total_supply());
         self.counter.increase_counter(*shares);
         self.govern.set_last_stake_timestamp(receiver);
         self._deposit_default_impl(caller, receiver, assets, shares)?;
-        ink::env::debug_println!("total supply post {:?}", self._total_supply());
+
         Ok(())
     }
 
@@ -178,13 +177,17 @@ mod governor {
         pub fn new(
             asset: AccountId,
             vester: AccountId,
+            foundation: AccountId,
+            parameters_admin: Option<AccountId>,
             unstake_period: Timestamp,
             name: String,
             symbol: String,
             rules: VotingRules,
-        ) -> Self {
-            let instance = Self {
-                access_control: AccessControlData::new(Some(Self::env().caller())),
+        ) -> Result<Self, GovernError> {
+            _ensure_voting_rules_and_unstake_period_are_valid(&rules, unstake_period)?;
+
+            let mut instance = Self {
+                access_control: AccessControlData::new(Some(Self::env().account_id())),
                 psp22: PSP22Data::default(),
                 vault: PSP22VaultData::new(asset, None),
                 metadata: PSP22MetadataData::new(Some(name), Some(symbol)),
@@ -193,13 +196,23 @@ mod governor {
                 lock: LockedSharesData::default(),
                 unstake: UnstakeData::new(vester, unstake_period),
             };
-            instance
+
+            if let Some(admin) = parameters_admin {
+                instance._grant_role(PARAMETERS_ADMIN, Some(admin))?;
+            }
+
+            instance._grant_role(EXECUTOR, Some(foundation))?;
+            Ok(instance)
         }
     }
 
     impl AbaxGovern for Governor {
         #[ink(message)]
-        fn propose(&mut self, proposal: Proposal, description: String) -> Result<(), GovernError> {
+        fn propose(
+            &mut self,
+            proposal: Proposal,
+            description: String,
+        ) -> Result<ProposalId, GovernError> {
             let description_hash = hash_description(&description);
             if description_hash != proposal.description_hash {
                 return Err(GovernError::WrongDescriptionHash);
@@ -242,8 +255,28 @@ mod governor {
     impl AbaxGovernManage for Governor {
         #[ink(message)]
         fn change_voting_rules(&mut self, rules: VotingRules) -> Result<(), GovernError> {
+            _ensure_voting_rules_and_unstake_period_are_valid(
+                &rules,
+                self.unstake.unstake_period(),
+            )?;
             self._ensure_has_role(PARAMETERS_ADMIN, Some(self.env().caller()))?;
             self.govern.change_rule(&rules);
+            ink::env::emit_event::<DefaultEnvironment, VotingRulesChanged>(VotingRulesChanged {
+                rules,
+            });
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn change_unstake_period(&mut self, period: Timestamp) -> Result<(), GovernError> {
+            _ensure_voting_rules_and_unstake_period_are_valid(&self.rules(), period)?;
+            self._ensure_has_role(PARAMETERS_ADMIN, Some(self.env().caller()))?;
+            self.unstake.set_unstake_period(period);
+            ink::env::emit_event::<DefaultEnvironment, UnstakePeriodChanged>(
+                UnstakePeriodChanged {
+                    unstake_period: period,
+                },
+            );
             Ok(())
         }
     }
@@ -327,7 +360,7 @@ mod governor {
             &mut self,
             proposer: &AccountId,
             proposal: &Proposal,
-        ) -> Result<(), GovernError> {
+        ) -> Result<ProposalId, GovernError> {
             //check if the proposer has enough votes to create a proposal
             let total_votes = self._total_supply();
             let minimum_votes_to_propose = mul_div(
@@ -360,10 +393,7 @@ mod governor {
             )?;
 
             self.lock.lock(&proposal_id, proposer_deposit)?;
-            let proposer_balance = self._balance_of(proposer);
-            ink::env::debug_println!("total supply {:?}", total_votes);
-            ink::env::debug_println!("proposer balance {:?}", proposer_balance);
-            ink::env::debug_println!("proposer deposit {:?}", proposer_deposit);
+
             self._transfer(proposer, &self.env().account_id(), &proposer_deposit)?;
 
             ink::env::emit_event::<DefaultEnvironment, ProposalCreated>(ProposalCreated {
@@ -371,7 +401,7 @@ mod governor {
                 proposal_hash,
                 proposal: proposal.clone(),
             });
-            Ok(())
+            Ok(proposal_id)
         }
 
         fn _cast_vote(
@@ -442,9 +472,6 @@ mod governor {
             for tx in &proposal.transactions {
                 self.flush();
 
-                ink::env::debug_println!("{:?}", tx.callee);
-                ink::env::debug_println!("{:?}", tx.selector);
-                ink::env::debug_println!("{:?}", tx.input);
                 // let call = tx.clone().build_call();
                 let call = ink::env::call::build_call::<DefaultEnvironment>()
                     .call_v1(tx.callee)
@@ -507,7 +534,24 @@ mod governor {
     impl ProvideVestScheduleInfo for Governor {
         #[ink(message)]
         fn get_waiting_and_vesting_durations(&self) -> (Timestamp, Timestamp) {
-            (0, self.unstake.unstake_period())
+            (self.unstake.unstake_period(), 0)
         }
+    }
+
+    fn _ensure_voting_rules_and_unstake_period_are_valid(
+        rules: &VotingRules,
+        unstake_period: Timestamp,
+    ) -> Result<(), GovernError> {
+        if rules
+            .initial_period
+            .checked_add(rules.flat_period)
+            .ok_or(MathError::Overflow)?
+            .checked_add(rules.final_period)
+            .ok_or(MathError::Overflow)?
+            > unstake_period
+        {
+            return Err(GovernError::UnstakeShorterThanVotingPeriod);
+        }
+        Ok(())
     }
 }
