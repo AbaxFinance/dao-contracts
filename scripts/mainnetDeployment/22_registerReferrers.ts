@@ -1,21 +1,16 @@
+import { getApiProviderWrapper } from '@c-forge/polkahat-network-helpers';
 import Keyring from '@polkadot/keyring';
 import chalk from 'chalk';
-import path from 'path';
-import { getApiProviderWrapper, time, toE } from '@c-forge/polkahat-network-helpers';
-import { getArgvObj } from '@abaxfinance/utils';
 
 import AbaxTgeContract from 'typechain/contracts/abax_tge';
 
 import { expect } from 'chai';
+import { ABAX_TGE_ADDRESS } from 'scripts/mainnetDeployment/utils';
 import { roleToSelectorId } from 'tests/misc';
 import { REFERRER_LIST } from './03_referrerList';
 
-export const DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH = `${path.join(__dirname, 'deployedContracts.json')}`;
-
-(async (args: Record<string, unknown>) => {
+(async () => {
   if (require.main !== module) return;
-  const outputJsonFolder = (args['path'] as string) ?? process.argv[2] ?? process.env.PWD;
-  if (!outputJsonFolder) throw 'could not determine path';
   const wsEndpoint = process.env.WS_ENDPOINT;
   if (!wsEndpoint) throw 'could not determine wsEndpoint';
   const seed = process.env.SEED;
@@ -29,12 +24,10 @@ export const DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH = `${path.join(__dirname, 'dep
   const keyring = new Keyring();
   const referrer_admin = keyring.createFromUri(seed, {}, 'sr25519'); // getSigners()[0];
 
-  const ABAX_TGE_ADDRESS = '';
-
   const abaxTge = new AbaxTgeContract(ABAX_TGE_ADDRESS, referrer_admin, api);
 
   const hasRole = await abaxTge.query.hasRole(roleToSelectorId('REFERRER_ADMIN'), referrer_admin.address);
-  expect(hasRole).to.be.equal(true);
+  expect(hasRole.value.ok).to.be.equal(true);
 
   for (const referrer of REFERRER_LIST) {
     await abaxTge.tx.registerReferrer(referrer);
@@ -50,7 +43,7 @@ export const DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH = `${path.join(__dirname, 'dep
 
   await api.disconnect();
   process.exit(0);
-})(getArgvObj()).catch((e) => {
+})().catch((e) => {
   console.log(e);
   console.error(chalk.red(JSON.stringify(e, null, 2)));
   process.exit(1);
