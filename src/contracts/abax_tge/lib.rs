@@ -159,7 +159,6 @@ pub mod abax_tge_contract {
                 )
                 .call_v1()
                 .invoke()?;
-
             self.tge.increase_contributed_amount(contributor, cost)?;
 
             let bonus = self.calculate_bonus_and_update_created_base_and_bonus(
@@ -617,7 +616,6 @@ pub mod abax_tge_contract {
                 .generate(self.env().account_id(), amount)
                 .call_v1()
                 .invoke()?;
-
             self.tge.increase_total_amount_minted(amount)?;
             Ok(())
         }

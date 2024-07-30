@@ -146,7 +146,6 @@ const NUMBER_OF_DEPLOYMENTS = 6;
         treasury.address,
         PHASE_ONE_TOKEN_CAP,
         COST_TO_MINT_MILLION_TOKENS_E6,
-        ABAX_TGE_STAKEDROP_ADMIN,
       )
     ).contract;
 
