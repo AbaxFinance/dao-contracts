@@ -39,7 +39,7 @@ const VOTING_RULES: VotingRules = {
 
 const descriptionUrl = 'https://someurl.com/proposal/21iuhsa837iuhsa218312sajdiuhsad';
 
-describe('Governor', () => {
+describe.only('Governor', () => {
   let governor: Governor;
   let token: PSP22Emitable;
   let vester: Vester;
@@ -1145,12 +1145,12 @@ export async function proposeAndCheck(
 ) {
   let proposalId = new BN(-1);
   const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
-  const query = governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+  const query = governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution });
   if (expectedError) {
     await expect(query).to.be.revertedWithError(expectedError);
   } else {
     await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+    const tx = governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution });
     await expect(tx).to.emitEvent(governor, 'ProposalCreated', (event: ProposalCreated) => {
       proposalId = new BN(event.proposalId.toString());
       return (

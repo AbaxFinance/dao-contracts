@@ -2,7 +2,7 @@ pub type ProposalHash = Hash;
 
 #[ink::trait_definition]
 pub trait AbaxGovern {
-    /// Propose `proposal` with `description`.
+    /// Propose a `proposal`.
     ///
     /// On success emits `ProposalCreated` event.
     ///
@@ -14,11 +14,7 @@ pub trait AbaxGovern {
     /// Returns `ProposalAlreadyExists` if `propsal` with the same `proposal_description` exists,
     /// Returns `InsuficientVotes` if `caller` has insufficient amount of votes to create a proposal.
     #[ink(message)]
-    fn propose(
-        &mut self,
-        proposal: Proposal,
-        description: String,
-    ) -> Result<ProposalId, GovernError>;
+    fn propose(&mut self, proposal: Proposal) -> Result<ProposalId, GovernError>;
 
     /// Finilize `proposal_id` if the finalization conditions are met.  
     ///
