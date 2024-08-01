@@ -46,7 +46,7 @@ const REFERRAL_BONUS_E3 = {
 
 const contributors: KeyringPair[] = [];
 
-describe.only('TGE', () => {
+describe('TGE', () => {
   const now = Date.now();
   let tge: AbaxTge;
   let abaxToken: AbaxToken;

@@ -2,7 +2,7 @@ import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
 import { isEqual } from 'lodash';
 import { ABAX_DECIMALS } from 'tests/consts';
-import { testStaking } from 'tests/governor.stake.test';
+import { testStaking } from 'tests/governor.stake.util';
 import { expect } from 'tests/setup/chai';
 import FlipperContract from 'typechain/contracts/flipper';
 import Governor from 'typechain/contracts/governor';
@@ -39,7 +39,7 @@ const VOTING_RULES: VotingRules = {
 
 const descriptionUrl = 'https://someurl.com/proposal/21iuhsa837iuhsa218312sajdiuhsad';
 
-describe.only('Governor', () => {
+describe('Governor', () => {
   let governor: Governor;
   let token: PSP22Emitable;
   let vester: Vester;

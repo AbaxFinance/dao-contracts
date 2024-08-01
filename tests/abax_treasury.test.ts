@@ -34,26 +34,26 @@ describe('Abax Treasury tests', () => {
 
   describe('after deployment', () => {
     it('governor should have DEFAULT_ADMIN role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), governor.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), governor.address)).to.haveOkResult(true);
     });
     it('governor should have SPENDER role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), governor.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), governor.address)).to.haveOkResult(true);
     });
     it('foundation should have EXECUTOR role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), foundation.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), foundation.address)).to.haveOkResult(true);
     });
     it('foundation should have CANCELLER role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), foundation.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), foundation.address)).to.haveOkResult(true);
     });
     it('foundation should not have SPENDER  and DEFAULT_ADMIN role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), foundation.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), foundation.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), foundation.address)).to.haveOkResult(false);
     });
     it('vesting contract should not have any role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), foundation.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), vester.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), vester.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), vester.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), vester.address)).to.haveOkResult(false);
     });
   });
 
