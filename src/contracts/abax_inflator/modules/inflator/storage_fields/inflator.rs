@@ -2,6 +2,7 @@ use ink::{env::DefaultEnvironment, prelude::vec::Vec};
 use pendzl::{math::errors::MathError, traits::AccountId};
 
 use crate::modules::inflator::events::InflationDistributionChanged;
+use ink::prelude::borrow::ToOwned;
 
 #[derive(Debug)]
 #[pendzl::storage_item]
@@ -14,11 +15,11 @@ pub struct InflatorStorage {
 impl InflatorStorage {
     pub fn new(
         abax_token_account_id: &AccountId,
-        inflation_distribution: &Vec<(AccountId, u16)>,
+        inflation_distribution: &[(AccountId, u16)],
     ) -> Result<Self, MathError> {
         let mut instance = InflatorStorage {
-            abax_token_account_id: abax_token_account_id.clone(),
-            inflation_distribution: inflation_distribution.clone(),
+            abax_token_account_id: *abax_token_account_id,
+            inflation_distribution: inflation_distribution.to_owned(),
             total_parts: 0,
         };
         let mut new_total_parts: u16 = 0;
@@ -31,7 +32,7 @@ impl InflatorStorage {
 
         ink::env::emit_event::<DefaultEnvironment, InflationDistributionChanged>(
             InflationDistributionChanged {
-                distribution: inflation_distribution.clone(),
+                distribution: inflation_distribution.to_vec(),
             },
         );
 
@@ -52,9 +53,9 @@ impl InflatorStorage {
 
     pub fn set_inflation_distribution(
         &mut self,
-        inflation_distribution: &Vec<(AccountId, u16)>,
+        inflation_distribution: &[(AccountId, u16)],
     ) -> Result<(), MathError> {
-        self.inflation_distribution = inflation_distribution.clone();
+        self.inflation_distribution = inflation_distribution.to_owned();
         let mut new_total_parts: u16 = 0;
         for (_, part) in inflation_distribution.iter() {
             new_total_parts = new_total_parts
@@ -62,9 +63,11 @@ impl InflatorStorage {
                 .ok_or(MathError::Overflow)?;
         }
 
+        self.total_parts = new_total_parts;
+
         ink::env::emit_event::<DefaultEnvironment, InflationDistributionChanged>(
             InflationDistributionChanged {
-                distribution: inflation_distribution.clone(),
+                distribution: inflation_distribution.to_vec(),
             },
         );
         Ok(())

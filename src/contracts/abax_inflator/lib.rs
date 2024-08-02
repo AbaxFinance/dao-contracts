@@ -65,8 +65,13 @@ pub mod abax_treasury {
             let total_parts = self.inflator.total_parts();
             let distribution = self.inflation_distribution();
 
+            ink::env::debug_println!("total_parts: {:?}", total_parts);
+
             for (account_id, part) in distribution.iter() {
                 let amount = mul_div(amount, *part as u128, total_parts as u128, Rounding::Down)?;
+
+                ink::env::debug_println!("account_id: {:?}, amount: {:?}", account_id, amount);
+
                 abax_token_mintable
                     .call_mut()
                     .mint(*account_id, amount)

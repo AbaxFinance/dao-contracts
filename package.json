@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "cs": "npx tsx ./scripts/compile/compileSingleContract.ts",
+    "cs": "npx @c-forge/typechain-compiler --config typechain.config.json --regex",
     "ts": "tsc --noEmit --incremental --preserveWatchOutput --pretty",
     "build:debug": "npx @c-forge/typechain-compiler --config typechain.config.json",
     "build:release": "npx @c-forge/typechain-compiler --config typechain.config.json -r",

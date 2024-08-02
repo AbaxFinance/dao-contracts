@@ -22,6 +22,7 @@ export const ContractRoleNames = [
   'STAKEDROP_ADMIN',
   'BONUS_ADMIN',
   'REFERRER_ADMIN',
+  'PARAMETERS_ADMIN',
 ] as const;
 
 export const AbaxDAOSpecificRoleNames = ['STAKEDROP_ADMIN'] as const;
