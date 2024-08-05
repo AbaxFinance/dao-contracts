@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "abax_token"
-version = "0.1.1"
+version = "1.0.0"
 dependencies = [
  "ink",
  "parity-scale-codec",
@@ -801,9 +801,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pendzl"
-version = "0.2.4-v1calls3"
+version = "1.0.1-v1calls"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c8914ef9cbcf2cc1bd9c5c417942c6bd26b6f3dd68cae383ed5debdca44a00e"
+checksum = "7c79ba487736e2475e44ec917040cd87dc4ba9f27fddb8c95f4bf130b4ac6a65"
 dependencies = [
  "ink",
  "parity-scale-codec",
@@ -814,9 +814,9 @@ dependencies = [
 
 [[package]]
 name = "pendzl_contracts"
-version = "0.2.4-v1calls2"
+version = "1.0.1-v1calls"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50f6eec9aa722ed5de1604dcbe5708ff3c3908bd29d50aad3453db92c5074031"
+checksum = "ab692839aad45923200968ff94a3c64595f6a17f1059ae3d0e363a80a4837699"
 dependencies = [
  "hex",
  "ink",
@@ -827,9 +827,9 @@ dependencies = [
 
 [[package]]
 name = "pendzl_lang"
-version = "0.2.4-v1calls2"
+version = "1.0.1-v1calls"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "359fc63b2466b17ab534b6971c1f79f84d5c099011d5bebd39454fbdab42436f"
+checksum = "df579ab11b77f1efacff5f4dea408927c264ad903de994b929206f3885832be7"
 dependencies = [
  "const_format",
  "ethnum",
@@ -842,9 +842,9 @@ dependencies = [
 
 [[package]]
 name = "pendzl_lang_codegen"
-version = "0.2.4"
+version = "1.0.1-v1calls"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19a031624046b6bb73ffd1c384b91e798437b52b9821e42e84443d0f7635169d"
+checksum = "3217fddc39db986a85aff5da5448bd2d6c296d93e51a8d267cbe26cb47f8dc5e"
 dependencies = [
  "blake2",
  "cargo_metadata",
@@ -863,9 +863,9 @@ dependencies = [
 
 [[package]]
 name = "pendzl_lang_macro"
-version = "0.2.4"
+version = "1.0.1-v1calls"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "172553c2fd78263c0281e85dfd2859b256458da221045bb162f39d146be78c02"
+checksum = "680746c3225b7b0fadd7aa78a6fca44589ba16591a6a6889488110f5033888eb"
 dependencies = [
  "pendzl_lang_codegen",
  "proc-macro2",

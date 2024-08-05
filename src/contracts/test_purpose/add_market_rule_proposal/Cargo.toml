@@ -14,7 +14,7 @@ scale-info = { version = "2.11", default-features = false, features = [
     "derive",
 ], optional = true }
 
-pendzl = { version = "0.2.4", default-features = false, features = [
+pendzl = { version = "1.0.1-v1calls", default-features = false, features = [
     "psp22",
     "psp22_burnable",
     "psp22_mintable",

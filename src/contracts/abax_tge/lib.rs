@@ -22,22 +22,20 @@ pub mod abax_tge_contract {
             traits::{AbaxTGE, AbaxTGEView, AbaxToken, AbaxTokenRef},
         },
     };
-    use ink::codegen::TraitCallBuilder;
     pub use ink::{
-        codegen::Env,
+        codegen::{Env, TraitCallBuilder},
         prelude::{vec, vec::Vec},
         ToAccountId,
-    };
-    use pendzl::math::{
-        errors::MathError,
-        operations::{mul_div, Rounding},
     };
     pub use pendzl::{
         contracts::{
             general_vest::{GeneralVest, GeneralVestRef, VestingSchedule},
             psp22::{PSP22Ref, PSP22},
         },
-        math::operations::*,
+        math::{
+            errors::MathError,
+            operations::{mul_div, Rounding},
+        },
     };
 
     /// A role type for access to stakedrop function - 4_193_574_647_u32.
@@ -66,6 +64,7 @@ pub mod abax_tge_contract {
     }
 
     impl TGEContract {
+        #[allow(clippy::too_many_arguments)]
         #[ink(constructor)]
         pub fn new(
             start_time: Timestamp,
