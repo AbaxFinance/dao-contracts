@@ -4,7 +4,7 @@ import { expect } from 'tests/setup/chai';
 import AbaxTreasury from 'typechain/contracts/abax_treasury';
 import AbaxTreasuryDeployer from 'typechain/deployers/abax_treasury';
 import Vester from 'typechain/contracts/vester';
-import VesterDeployer from 'typechain/deployers/vester';
+import VesterDeployer from 'typechain/deployers/abax_vester';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import PSP22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import { getSigners, localApi, time, transferNativeFromTo } from '@c-forge/polkahat-network-helpers';

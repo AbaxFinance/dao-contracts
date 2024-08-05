@@ -10,7 +10,7 @@ import Vester from 'typechain/contracts/vester';
 import AbaxTgeDeployer from 'typechain/deployers/abax_tge';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
 import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
-import VesterDeployer from 'typechain/deployers/vester';
+import VesterDeployer from 'typechain/deployers/abax_vester';
 import { AccessControlError } from 'typechain/types-arguments/abax_tge';
 import { TGEErrorBuilder } from 'typechain/types-returns/abax_tge';
 import { MAX_U128, ONE_YEAR, stringifyNumericProps } from '@c-forge/polkahat-chai-matchers';

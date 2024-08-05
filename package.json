@@ -7,7 +7,7 @@
     "ts": "tsc --noEmit --incremental --preserveWatchOutput --pretty",
     "build:debug": "npx @c-forge/typechain-compiler --config typechain.config.json",
     "build:release": "npx @c-forge/typechain-compiler --config typechain.config.json -r",
-    "build:verifiable": "npx @c-forge/typechain-compiler --config typechain.config.json -r --verifiable",
+    "build:verifiable": "npx @c-forge/typechain-compiler --config typechain.config.json -r --verifiable --regex abax",
     "deploy": "npx tsx runWithoutWarnings.ts env DEBUG=1 npx tsx scripts/deploy.ts $*",
     "deployTest": "npx tsx runWithoutWarnings.ts env DEBUG=1 npx tsx scripts/deployTest.ts",
     "localnode": "./substrate-contracts-node --dev --tmp -lerror,runtime::contracts=debug --rpc-max-connections 5000 --pruning=archive",

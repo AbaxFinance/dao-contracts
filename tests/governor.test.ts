@@ -5,13 +5,13 @@ import { ABAX_DECIMALS } from 'tests/consts';
 import { testStaking } from 'tests/governor.stake.util';
 import { expect } from 'tests/setup/chai';
 import FlipperContract from 'typechain/contracts/flipper';
-import Governor from 'typechain/contracts/governor';
+import AbaxGovernor from 'typechain/contracts/governor';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
 import FlipperDeployer from 'typechain/deployers/flipper';
-import GovernorDeployer from 'typechain/deployers/governor';
+import GovernorDeployer from 'typechain/deployers/abax_governor';
 import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
-import VesterDeployer from 'typechain/deployers/vester';
+import VesterDeployer from 'typechain/deployers/abax_vester';
 import { ProposalCreated } from 'typechain/event-types/governor';
 import { Proposal, Transaction, VotingRules } from 'typechain/types-arguments/governor';
 import { AccessControlError, GovernError, GovernErrorBuilder, ProposalStatus, Vote } from 'typechain/types-returns/governor';
@@ -39,8 +39,8 @@ const VOTING_RULES: VotingRules = {
 
 const descriptionUrl = 'https://someurl.com/proposal/21iuhsa837iuhsa218312sajdiuhsad';
 
-describe('Governor', () => {
-  let governor: Governor;
+describe('AbaxGovernor', () => {
+  let governor: AbaxGovernor;
   let token: PSP22Emitable;
   let vester: Vester;
   const voters: KeyringPair[] = [];
@@ -70,7 +70,7 @@ describe('Governor', () => {
         foundation.address,
         parametersAdmin.address,
         UNSTAKE_PERIOD,
-        'Governor Votes',
+        'AbaxGovernor Votes',
         'VOTE',
         VOTING_RULES,
       )
@@ -93,7 +93,7 @@ describe('Governor', () => {
           foundation.address,
           parametersAdmin.address,
           ONE_DAY.muln(10),
-          'Governor Votes',
+          'AbaxGovernor Votes',
           'VOTE',
           rules,
         ),
@@ -174,7 +174,7 @@ describe('Governor', () => {
 
   describe('after deployment', () => {
     it('should have correct name', async () => {
-      await expect(governor.query.tokenName()).to.haveOkResult('Governor Votes');
+      await expect(governor.query.tokenName()).to.haveOkResult('AbaxGovernor Votes');
     });
     it('should have correct symbol', async () => {
       await expect(governor.query.tokenSymbol()).to.haveOkResult('VOTE');
@@ -1082,7 +1082,7 @@ describe('Governor', () => {
 
 function testFinalizationOverTime(
   getCtx: () => {
-    governor: Governor;
+    governor: AbaxGovernor;
     finalizator: KeyringPair;
     proposalId: BN;
     expectedProposalStatus: ProposalStatus | GovernError;
@@ -1136,7 +1136,7 @@ function testFinalizationOverTime(
 }
 
 export async function proposeAndCheck(
-  governor: Governor,
+  governor: AbaxGovernor,
   proposer: KeyringPair,
   transactions: Transaction[],
   description: string,
@@ -1179,7 +1179,7 @@ export async function proposeAndCheck(
   return [proposalId, descriptionHash.toString()] as const;
 }
 
-async function voteAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, vote: Vote, expectedError?: GovernError) {
+async function voteAndCheck(governor: AbaxGovernor, voter: KeyringPair, proposalId: BN, vote: Vote, expectedError?: GovernError) {
   const query = governor.withSigner(voter).query.vote(proposalId, vote, []);
   if (expectedError) {
     await expect(query).to.be.revertedWithError(expectedError);
@@ -1196,7 +1196,7 @@ async function voteAndCheck(governor: Governor, voter: KeyringPair, proposalId: 
   }
 }
 
-async function finalizeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, expectedOutcome: ProposalStatus | GovernError) {
+async function finalizeAndCheck(governor: AbaxGovernor, voter: KeyringPair, proposalId: BN, expectedOutcome: ProposalStatus | GovernError) {
   const isErrorExpected = typeof expectedOutcome !== 'string';
   const query = governor.withSigner(voter).query.finalize(proposalId);
   if (isErrorExpected) {
@@ -1213,7 +1213,7 @@ async function finalizeAndCheck(governor: Governor, voter: KeyringPair, proposal
   }
 }
 
-async function executeAndCheck(governor: Governor, voter: KeyringPair, proposalId: BN, proposal: Proposal, expectedError?: GovernError) {
+async function executeAndCheck(governor: AbaxGovernor, voter: KeyringPair, proposalId: BN, proposal: Proposal, expectedError?: GovernError) {
   const query = governor.withSigner(voter).query.execute(proposal);
 
   const res = await query;
