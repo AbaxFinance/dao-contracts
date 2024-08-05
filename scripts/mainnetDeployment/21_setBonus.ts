@@ -69,7 +69,7 @@ const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 
     }
   }
 
-  // await abaxTge.tx.renounceRole(roleToSelectorId('BONUS_ADMIN'), bonus_admin.address);
+  await abaxTge.tx.renounceRole(roleToSelectorId('BONUS_ADMIN'), bonus_admin.address);
 
   await api.disconnect();
   process.exit(0);

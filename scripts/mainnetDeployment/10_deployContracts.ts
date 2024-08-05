@@ -140,20 +140,24 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
   const res5 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('BONUS_ADMIN'), deployer.address);
   console.log('Granted BONUS_ADMIN role to Deployer');
 
+  // Give FOUNDATION onus admin role
+  const res6 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('BONUS_ADMIN'), FOUNDATION_ADDRESS);
+  console.log('Granted BONUS_ADMIN role to Deployer');
+
   // Give Deployer Referrer admin role
-  const res6 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), deployer.address);
+  const res7 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), deployer.address);
   console.log('Granted REFERRER_ADMIN role to Deployer');
 
   // Give FOUNDATION Referrer admin role
-  const res7 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), FOUNDATION_ADDRESS);
+  const res8 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), FOUNDATION_ADDRESS);
   console.log('Granted REFERRER_ADMIN role to FOUNDATION');
 
   // Give AbaxGovernor RoleAdmin role
-  const res8 = await abaxTge.withSigner(deployer).tx.grantRole(0, governor.address);
+  const res9 = await abaxTge.withSigner(deployer).tx.grantRole(0, governor.address);
   console.log('Granted RoleAdmin role to AbaxGovernor');
 
   // deployer renounces RoleAdmin role
-  const res9 = await abaxTge.withSigner(deployer).tx.renounceRole(0, deployer.address);
+  const res10 = await abaxTge.withSigner(deployer).tx.renounceRole(0, deployer.address);
   console.log('Deployer renounced RoleAdmin role from TGE');
 
   await saveContractInfoToFileAsJson([
@@ -218,7 +222,7 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
 
   await writeJSON(
     EXECUTED_TX_RESULTS_PATH,
-    [res0, res1, res2, res3, res4, res5, res6, res7, res8, res9].map((r) => ({
+    [res0, res1, res2, res3, res4, res5, res6, res7, res8, res9, res10].map((r) => ({
       txHash: r.txHash!,
       blockHash: r.blockHash!,
     })),
