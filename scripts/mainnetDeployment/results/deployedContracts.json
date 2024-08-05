@@ -1,0 +1,59 @@
+[
+  {
+    "name": "usdc",
+    "address": "5FYFojNCJVFR2bBNKfAePZCa72ZcVX5yeTv8K9bzeUo8D83Z",
+    "displayName": "USDC"
+  },
+  {
+    "name": "abax_token",
+    "address": "5DfSpEnVDLgyf4Gkwwgh8JSeNbCGE89Fo9QgtZ4LfTC6Rh95",
+    "txHash": "0x035f73af47283ead918494bfdb03b9a697c776e64baa9b93b8f8a3a9c2285228",
+    "blockHash": "0xe6157c9b912177ce25ece266a63400d8c67ee6412d3e253bae10962a9e7d08aa",
+    "displayName": "ABAX"
+  },
+  {
+    "name": "abax_vester",
+    "address": "5HneVWMHtH9ejQWxxSEAZmcwzM9EyXFATdegUa4fpAHBHeYD",
+    "txHash": "0xf468dcf6aabbed9fd0d5f6cf6e00a8c20a3cdb08d460e18cc93bb514d9fd6fd1",
+    "blockHash": "0x51248373b337de05fcfc79b4e711f95d0847143d33e464e06d509cf93c53def1",
+    "vestingFor": "treasury"
+  },
+  {
+    "name": "abax_vester",
+    "address": "5D7K6sh5yJSoVeo62765KCkqBqpLbL3zS6MFvaZfT9nn5YLC",
+    "txHash": "0xfa621473d188bb29f7c957f4b291221ba8b3d28b915bbb85662cee368980a2a8",
+    "blockHash": "0xdcb573de51d24d240cb06370c1042af9821ab9dada2e3583793f1f314cb51046",
+    "vestingFor": "abax_governor"
+  },
+  {
+    "name": "abax_vester",
+    "address": "5CMYw3jcFJuWdSvaPjheHWnnRx6Q5yCci5UYZkxHsSKMhLCK",
+    "txHash": "0xfaed1c328c359a8b84333cf07c016458c6595017d1a8fefe966902dbfef774c3",
+    "blockHash": "0xdf3114b009619a29877ea9248eb33e87a7cd3a8f85c7396f82359501b69c2755",
+    "vestingFor": "tge"
+  },
+  {
+    "name": "abax_governor",
+    "address": "5DX8nBod3StXN2frYyf6pW3cJhqozcErmTJHiHSeP45WQv5K",
+    "txHash": "0xc0f533824194b9e63bc049a66fc859e735edfa944b05f2c23c20805bec8d99ca",
+    "blockHash": "0x5feb526ebc72521bdbce3c1af6b6d342aefe12d3e79990e0f99a454690b70853"
+  },
+  {
+    "name": "abax_treasury",
+    "address": "5CzYtzUeyyEJjErAXTSPscNcxk5eiNb1UdovoWt4yoUzVJZd",
+    "txHash": "0x26fe3281c336e8aae2d982f045d8b119aa7f5bf740194273719bccba6700626d",
+    "blockHash": "0x584cb1b16ed1086f1171b4393a338faa035a093c3b99ecd37e8c66dc2c1b2e5c"
+  },
+  {
+    "name": "abax_tge",
+    "address": "5H6BtP9CYM4XUWpqqgAaVvha67SMxFqFveu66TKJ81Ljn1b1",
+    "txHash": "0xfcd3651f0d84530f8aa85885cf0d5dcabfcf2dcc9036e2f902bb6958f430491b",
+    "blockHash": "0x36f0734edeede152c431f5b21e97e2ccd9dfe597ad17b7c207147f668eaf1d91"
+  },
+  {
+    "name": "abax_inflator",
+    "address": "5CM2JVfWSmoKejtNkorJrKvJZA8RLWCiebs4BbfEhgQJzMeA",
+    "txHash": "0x99d19d5a91c0f336a81ad00205fdb0a6b8347daf7d6b66008677bc13e747060b",
+    "blockHash": "0xc99573b55a9e11b2a0d787539a40505c6445ab97ca57dc00ba062ef845719d9c"
+  }
+]
