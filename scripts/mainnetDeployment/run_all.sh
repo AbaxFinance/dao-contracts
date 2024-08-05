@@ -16,14 +16,14 @@ echo "WS_ENDPOINT: $WS_ENDPOINT"
 echo "executing 10_deployContracts.ts"
 run_cmd "npx tsx 10_deployContracts.ts"
 
-# echo "executing 20_initTGE.ts"
-# run_cmd "npx tsx 20_initTGE.ts"
+echo "executing 20_initTGE.ts"
+run_cmd "npx tsx 20_initTGE.ts"
 
-# echo "executing 21_setBonus.ts"
-# run_cmd "npx tsx 21_setBonus.ts"
+echo "executing 21_setBonus.ts"
+run_cmd "npx tsx 21_setBonus.ts"
 
-# echo "executing 22_distributeStakedrop.ts"
-# run_cmd "npx tsx 22_distributeStakedrop.ts"
+echo "executing 22_distributeStakedrop.ts"
+run_cmd "npx tsx 22_distributeStakedrop.ts"
 
-# echo "executing 23_registerReferrers.ts"
-# run_cmd "npx tsx 23_registerReferrers.ts"
+echo "executing 23_registerReferrers.ts"
+run_cmd "npx tsx 23_registerReferrers.ts"
