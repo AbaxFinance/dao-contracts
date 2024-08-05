@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 mod modules;
-/// This is Abax Governor Contract implementation.
+/// This is AbaxGovernor Contract implementation.
 /// It allows for staking PSP22 token (Abax token) in exchange for PSP22Vault shares (votes).
 /// The shares are non-transferrable.
 /// Withdrawing assets is possible only after unstake period - unstaking is handled by GeneralVest contract.
@@ -17,7 +17,7 @@ mod modules;
 
 #[pendzl::implementation(PSP22, PSP22Vault, PSP22Metadata, AccessControl, SetCodeHash)]
 #[ink::contract]
-mod governor {
+mod abax_governor {
     pub use crate::modules::govern::{
         helpers::{
             finalization::minimum_to_finalize,
@@ -59,7 +59,7 @@ mod governor {
 
     #[derive(StorageFieldGetter)]
     #[ink(storage)]
-    pub struct Governor {
+    pub struct AbaxGovernor {
         // pendzl storage fields
         #[storage_field]
         access_control: AccessControlData,
@@ -172,7 +172,8 @@ mod governor {
         Err(PSP22Error::Custom("Untransferrable".to_string()))
     }
 
-    impl Governor {
+    impl AbaxGovernor {
+        #[allow(clippy::too_many_arguments)]
         #[ink(constructor)]
         pub fn new(
             asset: AccountId,
@@ -206,7 +207,7 @@ mod governor {
         }
     }
 
-    impl AbaxGovern for Governor {
+    impl AbaxGovern for AbaxGovernor {
         #[ink(message)]
         fn propose(&mut self, proposal: Proposal) -> Result<ProposalId, GovernError> {
             self._propose(&self.env().caller(), &proposal)
@@ -244,7 +245,7 @@ mod governor {
         }
     }
 
-    impl AbaxGovernManage for Governor {
+    impl AbaxGovernManage for AbaxGovernor {
         #[ink(message)]
         fn change_voting_rules(&mut self, rules: VotingRules) -> Result<(), GovernError> {
             _ensure_voting_rules_and_unstake_period_are_valid(
@@ -273,7 +274,7 @@ mod governor {
         }
     }
 
-    impl AbaxGovernView for Governor {
+    impl AbaxGovernView for AbaxGovernor {
         #[ink(message)]
         fn vester(&self) -> AccountId {
             self.unstake.general_vester().to_account_id()
@@ -375,7 +376,7 @@ mod governor {
         }
     }
 
-    impl AbaxGovernInternal for Governor {
+    impl AbaxGovernInternal for AbaxGovernor {
         fn _propose(
             &mut self,
             proposer: &AccountId,
@@ -553,7 +554,7 @@ mod governor {
         }
     }
 
-    impl ProvideVestScheduleInfo for Governor {
+    impl ProvideVestScheduleInfo for AbaxGovernor {
         #[ink(message)]
         fn get_waiting_and_vesting_durations(&self) -> (Timestamp, Timestamp) {
             (self.unstake.unstake_period(), 0)

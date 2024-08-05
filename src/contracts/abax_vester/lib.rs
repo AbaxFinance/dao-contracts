@@ -3,7 +3,7 @@
 
 #[pendzl::implementation(GeneralVest)]
 #[ink::contract]
-pub mod vester {
+pub mod abax_vester {
     #[ink(storage)]
     #[derive(Default, StorageFieldGetter)]
     pub struct Vester {

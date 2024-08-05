@@ -112,6 +112,7 @@ impl GovernData {
         self.proposal_id_to_description_hash.get(proposal_id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn register_new_proposal(
         &mut self,
         proposer: &AccountId,
