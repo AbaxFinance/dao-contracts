@@ -7,7 +7,7 @@ export const USDC_ADDRESS = '5FYFojNCJVFR2bBNKfAePZCa72ZcVX5yeTv8K9bzeUo8D83Z';
 export const FOUNDATION_ADDRESS = '5CYhNzKmENWge5gt52XdwRzj2hWHoYqisQqUPfwafR1ZLySz';
 export const FOUNDERS_ADDRESS = '5CJRP5qYUzLwXksXC7D2RsRPc7R9iprdYDpD6vsh7nMUC2VV';
 
-export const TGE_START_TIME = new Date('2024-08-06T16:00:00Z').getTime();
+export const TGE_START_TIME = new Date('2024-08-06T10:00:00Z').getTime();
 export const PHASE_TWO_DURATION = time.duration.days(90); // 90 days in milliseconds
 const ONE_MILLION = 1_000_000;
 const ONE_HUNDRED_MILLION = 100 * ONE_MILLION;
