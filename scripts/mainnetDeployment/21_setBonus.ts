@@ -34,9 +34,10 @@ const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 
   const hasRole = await abaxTge.query.hasRole(roleToSelectorId('BONUS_ADMIN'), bonus_admin.address);
   expect(hasRole.value.ok).to.be.equal(true);
 
-  let completedElements = 0;
   const totalElements = BONUS_LIST.reduce((acc, element) => acc + element.address.length, 0);
 
+  let completedElements = 0;
+  let lastLoggedProgress = -1;
   for (const element of BONUS_LIST) {
     const { address, xp } = element;
     for (const account of address) {
@@ -44,13 +45,15 @@ const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 
 
       completedElements++;
       const progress = Math.floor((completedElements / totalElements) * 100);
-      if (progress % 5 === 0) {
+      if (progress % 5 === 0 && progress !== lastLoggedProgress) {
         console.log(`Progress: ${progress}%`);
+        lastLoggedProgress = progress;
       }
     }
   }
 
   completedElements = 0;
+  console.log('Checking the set values (xp)');
   for (const element of BONUS_LIST) {
     const { address, xp } = element;
     for (const account of address) {
@@ -59,13 +62,14 @@ const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 
 
       completedElements++;
       const progress = Math.floor((completedElements / totalElements) * 100);
-      if (progress % 5 === 0) {
+      if (progress % 5 === 0 && progress !== lastLoggedProgress) {
         console.log(`Progress: ${progress}%`);
+        lastLoggedProgress = progress;
       }
     }
   }
 
-  await abaxTge.tx.renounceRole(roleToSelectorId('BONUS_ADMIN'), bonus_admin.address);
+  // await abaxTge.tx.renounceRole(roleToSelectorId('BONUS_ADMIN'), bonus_admin.address);
 
   await api.disconnect();
   process.exit(0);

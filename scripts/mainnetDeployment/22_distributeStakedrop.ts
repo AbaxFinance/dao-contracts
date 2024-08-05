@@ -35,18 +35,21 @@ import { STAKEDROP_LIST } from './02_stakedropList';
   const totalElements = allStakedropEntries.length;
 
   let completedElements = 0;
+  let lastLoggedProgress = -1;
   for (const [staker, element] of allStakedropEntries) {
     const { abaxReward, contributedAzero } = element;
     await abaxTge.tx.stakedrop(abaxReward, ((BigInt(contributedAzero) * 4n) / 10n).toString(), staker);
 
     completedElements++;
     const progress = Math.floor((completedElements / totalElements) * 100);
-    if (progress % 5 === 0) {
+    if (progress % 5 === 0 && progress !== lastLoggedProgress) {
       console.log(`Progress: ${progress}%`);
+      lastLoggedProgress = progress;
     }
   }
 
   completedElements = 0;
+  console.log('Checking the set values (abaxReward)');
   for (const [staker, element] of allStakedropEntries) {
     const { abaxReward } = element;
     const query = (await abaxTge.query.reservedFor(staker)).value!.ok!.toString();
@@ -55,12 +58,14 @@ import { STAKEDROP_LIST } from './02_stakedropList';
 
     completedElements++;
     const progress = Math.floor((completedElements / totalElements) * 100);
-    if (progress % 5 === 0) {
-      console.log(`Reserved for Verification Progress: ${progress}%`);
+    if (progress % 5 === 0 && progress !== lastLoggedProgress) {
+      console.log(`Progress: ${progress}%`);
+      lastLoggedProgress = progress;
     }
   }
 
   completedElements = 0;
+  console.log('Checking the set values (contributedAzero)');
   for (const [staker, element] of allStakedropEntries) {
     const { contributedAzero } = element;
     const query = (await abaxTge.query.contributedAmountBy(staker)).value!.ok!.toString();
@@ -69,8 +74,9 @@ import { STAKEDROP_LIST } from './02_stakedropList';
 
     completedElements++;
     const progress = Math.floor((completedElements / totalElements) * 100);
-    if (progress % 5 === 0) {
-      console.log(`Contributed Amount Progress: ${progress}%`);
+    if (progress % 5 === 0 && progress !== lastLoggedProgress) {
+      console.log(`Progress: ${progress}%`);
+      lastLoggedProgress = progress;
     }
   }
 

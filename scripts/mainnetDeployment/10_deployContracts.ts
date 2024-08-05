@@ -1,4 +1,4 @@
-import { getApiProviderWrapper } from '@c-forge/polkahat-network-helpers';
+import { getApiProviderWrapper, toE } from '@c-forge/polkahat-network-helpers';
 import Keyring from '@polkadot/keyring';
 import chalk from 'chalk';
 import { ensureFileSync, writeJSON } from 'fs-extra';
@@ -22,6 +22,9 @@ import {
   VOTING_RULES,
 } from './00_constants';
 import AbaxInflatorDeployer from 'typechain/deployers/abax_inflator';
+import { ApiPromise } from '@polkadot/api';
+import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
+import { KeyringPair } from '@polkadot/keyring/types';
 
 export interface StoredContractInfo {
   name: string;
@@ -35,6 +38,23 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
   ensureFileSync(writePath);
   await writeJSON(writePath, contractInfos);
 };
+
+async function deployUSDCDEBUG(api: ApiPromise, signer: KeyringPair) {
+  const USDC_DECIMALS = 6;
+  const USDC = (await new Psp22EmitableDeployer(api, signer).new('USD Coin', 'USDC', USDC_DECIMALS)).contract;
+
+  await USDC.withSigner(signer).tx.mint(signer.address, toE(USDC_DECIMALS, 1_000_000_000).muln(10_000));
+  await USDC.withSigner(signer).tx.mint('5H6nGQEZTed1Cab7JeJhpuSQ7CeNscXWQcoXqwSJ26saNAUB', toE(USDC_DECIMALS, 1_000_000_000));
+  await USDC.withSigner(signer).tx.mint('5GdrpTpaSsdACTVHXG9iSUmzK8ewz6sPPRsVkqBHPzj8N7Xq', toE(USDC_DECIMALS, 30_000));
+  await USDC.withSigner(signer).tx.mint('5G419JZ4UK9VU4Y29SpVgt3cjBkMhcNX7uJ18d5VTxtDFjwo', toE(USDC_DECIMALS, 1_000_000_000).muln(10_000));
+  await USDC.withSigner(signer).tx.mint('5EbfQJeLXme5DHFaBZjza1FA47D6rZJajMLDahENNk9ArtDj', toE(USDC_DECIMALS, 500_000));
+  await USDC.withSigner(signer).tx.mint('5ERPh1iB4jGkFpHKNExg9wEm5NxxamFF797bG3cf5aYFMh2D', toE(USDC_DECIMALS, 30_000));
+
+  await USDC.withSigner(signer).tx.mint('5FeXodVJgh6hvZs2ZniJyCZhpNjDxsm8bUXhsh3sCw7VzDT3', toE(USDC_DECIMALS, 5_000_000));
+  await USDC.withSigner(signer).tx.mint('5ExyTZgRGxiT7nyD6h8jGsbr6hL88bbm2gvqTquu65qrbSJM', toE(USDC_DECIMALS, 500_000));
+
+  return USDC;
+}
 
 (async () => {
   if (require.main !== module) return;
@@ -82,12 +102,13 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
     treasuryVester.address,
   );
 
+  const usdcAddressToUse = wsEndpoint === 'wss://ws.test.azero.dev' ? (await deployUSDCDEBUG(api, deployer)).address : USDC_ADDRESS;
   // TGE is deployed. deployer is the only RoleAdmin.
   const { result: abaxTgeResult, contract: abaxTge } = await new AbaxTgeDeployer(api, deployer).new(
     TGE_START_TIME,
     PHASE_TWO_DURATION,
     abaxToken.address,
-    USDC_ADDRESS,
+    usdcAddressToUse,
     tgeVester.address,
     FOUNDERS_ADDRESS,
     FOUNDATION_ADDRESS,
@@ -126,10 +147,16 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
 
   await saveContractInfoToFileAsJson([
     {
+      name: 'usdc',
+      address: usdcAddressToUse,
+      displayName: 'USDC',
+    },
+    {
       name: abaxToken.name,
       address: abaxToken.address,
       txHash: abaxTokenResult.txHash!,
       blockHash: abaxTokenResult.blockHash!,
+      displayName: 'ABAX',
     },
     {
       name: treasuryVester.name,

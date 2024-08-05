@@ -2,12 +2,13 @@ import { time, toE } from '@c-forge/polkahat-network-helpers';
 import { nobody } from '@polkadot/keyring/pair/nobody';
 import BN from 'bn.js';
 import { VotingRules } from 'typechain/types-arguments/governor';
-
-export const FOUNDATION_ADDRESS = nobody().address; //TODO;
 export const USDC_ADDRESS = '5FYFojNCJVFR2bBNKfAePZCa72ZcVX5yeTv8K9bzeUo8D83Z';
-export const FOUNDERS_ADDRESS = nobody().address; //TODO;
 
-export const TGE_START_TIME = new Date('2024-08-06T00:00:00Z').getTime();
+export const FOUNDATION_ADDRESS = '5DSsgdUvPHqr9gXHpnVqJ6co2Q42Lc8q9QAeUttMTfru4K1v'; // nobody().address; //TODO;
+export const FOUNDERS_ADDRESS = '5CdAKsbqXWMGTQpGqL9MrwzTCT7dERqGM2C9dSqGPtiw3Yt1'; //nobody().address; //TODO;
+
+export const TGE_START_TIME = new Date('2024-08-06T16:00:00Z').getTime();
+//set to now + 15 min
 export const PHASE_TWO_DURATION = time.duration.days(90); // 90 days in milliseconds
 const ONE_MILLION = 1_000_000;
 const ONE_HUNDRED_MILLION = 100 * ONE_MILLION;

@@ -39,7 +39,7 @@ import { REFERRER_LIST } from './03_referrerList';
     expect(query).to.be.equal(true);
   }
 
-  await abaxTge.tx.renounceRole(roleToSelectorId('REFERRER_ADMIN'), referrer_admin.address);
+  // await abaxTge.tx.renounceRole(roleToSelectorId('REFERRER_ADMIN'), referrer_admin.address);
 
   await api.disconnect();
   process.exit(0);
