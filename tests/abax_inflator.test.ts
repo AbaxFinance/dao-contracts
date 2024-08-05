@@ -13,7 +13,7 @@ const ALL_ROLES = ['PARAMETERS_ADMIN', 'SPENDER', 'EXECUTOR', 'CANCELLER', 'CODE
 const [deployer, governor, parametersAdmin, receiver1, receiver2, receiver3, receiver4] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
 
-describe.only('Abax Treasury tests', () => {
+describe('Abax Treasury tests', () => {
   let inflator: AbaxInflator;
   let token: PSP22Emitable;
   let api;

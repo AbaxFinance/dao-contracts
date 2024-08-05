@@ -18,11 +18,15 @@ pub mod abax_treasury {
         general_vest::{GeneralVest, GeneralVestRef},
         psp22::{PSP22Ref, PSP22},
     };
+    use pendzl::math::errors::MathError;
 
     pub const PARAMETERS_ADMIN: RoleType = ink::selector_id!("PARAMETERS_ADMIN"); // 368_001_360_u32
     pub const SPENDER: RoleType = ink::selector_id!("SPENDER"); // 3_684_413_446_u32
     pub const EXECUTOR: RoleType = ink::selector_id!("EXECUTOR"); // 3_551_554_066_u32
     pub const CANCELLER: RoleType = ink::selector_id!("CANCELLER"); //4_141_332_106_u32
+    pub const RESCUER: RoleType = ink::selector_id!("RESCUER"); //
+
+    const SIXTY_DAYS: Timestamp = 60 * 24 * 60 * 60 * 1000;
 
     #[ink(storage)]
     #[derive(pendzl::traits::StorageFieldGetter)]
@@ -48,6 +52,7 @@ pub mod abax_treasury {
             instance._grant_role(SPENDER, Some(governor))?;
             instance._grant_role(EXECUTOR, Some(foundation))?;
             instance._grant_role(CANCELLER, Some(foundation))?;
+            instance._grant_role(RESCUER, Some(foundation))?;
 
             Ok(instance)
         }
@@ -75,6 +80,39 @@ pub mod abax_treasury {
         ) -> Result<OrderId, AbaxTreasuryError> {
             let caller = self.env().caller();
             self._ensure_has_role(SPENDER, Some(caller))?;
+
+            let order_id =
+                self.orders
+                    .insert_order(earliest_execution, latest_execution, &operations)?;
+            self.env().emit_event::<OrderCreated>(OrderCreated {
+                id: order_id,
+                earliest_execution,
+                latest_execution,
+                operations,
+            });
+
+            Ok(order_id)
+        }
+
+        #[ink(message)]
+        fn rescue_order(
+            &mut self,
+            earliest_execution: Timestamp,
+            latest_execution: Timestamp,
+            operations: Vec<Operation>,
+        ) -> Result<OrderId, AbaxTreasuryError> {
+            let caller = self.env().caller();
+            self._ensure_has_role(RESCUER, Some(caller))?;
+
+            if earliest_execution
+                < self
+                    .env()
+                    .block_timestamp()
+                    .checked_add(SIXTY_DAYS)
+                    .ok_or(MathError::Overflow)?
+            {
+                return Err(AbaxTreasuryError::WrongEarliestExecution);
+            }
 
             let order_id =
                 self.orders
