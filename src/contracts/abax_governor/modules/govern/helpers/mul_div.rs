@@ -10,9 +10,9 @@ pub fn mul_div_r_down(x: u128, y: u128, denominator: u128) -> Result<u128, MathE
         return Ok(0);
     }
 
-    let x_u256 = U256::try_from(x).unwrap();
-    let y_u256 = U256::try_from(y).unwrap();
-    let denominator_u256 = U256::try_from(denominator).unwrap();
+    let x_u256 = U256::from(x);
+    let y_u256 = U256::from(y);
+    let denominator_u256 = U256::from(denominator);
 
     // this can not overflow
     let mul_u256 = x_u256.checked_mul(y_u256).unwrap();

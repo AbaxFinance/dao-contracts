@@ -6,10 +6,10 @@ import { getArgvObj } from '@abaxfinance/utils';
 import { readFileSync, writeJSON } from 'fs-extra';
 import AbaxTgeDeployer from 'typechain/deployers/abax_tge';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
-import VesterDeployer from 'typechain/deployers/vester';
+import VesterDeployer from 'typechain/deployers/abax_vester';
 import WazeroDeployer from 'typechain/deployers/wazero';
 import AbaxTreasuryDeployer from 'typechain/deployers/abax_treasury';
-import GovernorDeployer from 'typechain/deployers/governor';
+import GovernorDeployer from 'typechain/deployers/abax_governor';
 import { VotingRules } from 'typechain/types-arguments/governor';
 import BN from 'bn.js';
 import { roleToSelectorId } from 'tests/misc';
@@ -199,7 +199,7 @@ const NUMBER_OF_DEPLOYMENTS = 6;
       {
         name: governorVester.name,
         address: governorVester.address,
-        vestingFor: 'governor',
+        vestingFor: 'abax_governor',
       },
       {
         name: governor.name,

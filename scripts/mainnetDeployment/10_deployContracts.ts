@@ -7,8 +7,8 @@ import { roleToSelectorId } from 'tests/misc';
 import AbaxTgeDeployer from 'typechain/deployers/abax_tge';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
 import AbaxTreasuryDeployer from 'typechain/deployers/abax_treasury';
-import GovernorDeployer from 'typechain/deployers/governor';
-import VesterDeployer from 'typechain/deployers/vester';
+import GovernorDeployer from 'typechain/deployers/abax_governor';
+import VesterDeployer from 'typechain/deployers/abax_vester';
 import {
   ABAX_DECIMALS,
   COST_TO_MINT_MILLIARD_TOKENS,
@@ -23,7 +23,6 @@ import {
 } from './00_constants';
 import AbaxInflatorDeployer from 'typechain/deployers/abax_inflator';
 import { ApiPromise } from '@polkadot/api';
-import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
 import { KeyringPair } from '@polkadot/keyring/types';
 
 export interface StoredContractInfo {
@@ -38,23 +37,6 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
   ensureFileSync(writePath);
   await writeJSON(writePath, contractInfos);
 };
-
-async function deployUSDCDEBUG(api: ApiPromise, signer: KeyringPair) {
-  const USDC_DECIMALS = 6;
-  const USDC = (await new Psp22EmitableDeployer(api, signer).new('USD Coin', 'USDC', USDC_DECIMALS)).contract;
-
-  await USDC.withSigner(signer).tx.mint(signer.address, toE(USDC_DECIMALS, 1_000_000_000).muln(10_000));
-  await USDC.withSigner(signer).tx.mint('5H6nGQEZTed1Cab7JeJhpuSQ7CeNscXWQcoXqwSJ26saNAUB', toE(USDC_DECIMALS, 1_000_000_000));
-  await USDC.withSigner(signer).tx.mint('5GdrpTpaSsdACTVHXG9iSUmzK8ewz6sPPRsVkqBHPzj8N7Xq', toE(USDC_DECIMALS, 30_000));
-  await USDC.withSigner(signer).tx.mint('5G419JZ4UK9VU4Y29SpVgt3cjBkMhcNX7uJ18d5VTxtDFjwo', toE(USDC_DECIMALS, 1_000_000_000).muln(10_000));
-  await USDC.withSigner(signer).tx.mint('5EbfQJeLXme5DHFaBZjza1FA47D6rZJajMLDahENNk9ArtDj', toE(USDC_DECIMALS, 500_000));
-  await USDC.withSigner(signer).tx.mint('5ERPh1iB4jGkFpHKNExg9wEm5NxxamFF797bG3cf5aYFMh2D', toE(USDC_DECIMALS, 30_000));
-
-  await USDC.withSigner(signer).tx.mint('5FeXodVJgh6hvZs2ZniJyCZhpNjDxsm8bUXhsh3sCw7VzDT3', toE(USDC_DECIMALS, 5_000_000));
-  await USDC.withSigner(signer).tx.mint('5ExyTZgRGxiT7nyD6h8jGsbr6hL88bbm2gvqTquu65qrbSJM', toE(USDC_DECIMALS, 500_000));
-
-  return USDC;
-}
 
 (async () => {
   if (require.main !== module) return;
@@ -71,19 +53,24 @@ async function deployUSDCDEBUG(api: ApiPromise, signer: KeyringPair) {
   const keyring = new Keyring();
   const deployer = keyring.createFromUri(seed, {}, 'sr25519'); // getSigners()[0];
 
+  console.log('Deployer:', deployer.address);
+
   // ABAX TOKEN is deployed with deployer as a RoleAdmin.
   const { result: abaxTokenResult, contract: abaxToken } = await new AbaxTokenDeployer(api, deployer).new('ABAX', 'ABAX', ABAX_DECIMALS);
-
+  console.log(`Deployed ABAX Token at ${abaxToken.address}`);
   // TGE Vester is deployed. it doesn't have any admins.
   const { result: tgeVesterResult, contract: tgeVester } = await new VesterDeployer(api, deployer).new();
+  console.log(`Deployed TGE Vester at ${tgeVester.address}`);
 
-  // Governor Vester is deployed. it doesn't have any admins.
+  // AbaxGovernor Vester is deployed. it doesn't have any admins.
   const { result: governorVesterResult, contract: governorVester } = await new VesterDeployer(api, deployer).new();
+  console.log(`Deployed AbaxGovernor Vester at ${governorVester.address}`);
 
   // Treasury Vester is deployed. it doesn't have any admins.
   const { result: treasuryVesterResult, contract: treasuryVester } = await new VesterDeployer(api, deployer).new();
+  console.log(`Deployed Treasury Vester at ${treasuryVester.address}`);
 
-  // Governor is deployed. Governor is it's own RoleAdmin. Foundation is the only Executor. There is no ParametersAdmin.
+  // AbaxGovernor is deployed. AbaxGovernor is it's own RoleAdmin. Foundation is the only Executor. There is no ParametersAdmin.
   // The AbaxToken is used as an underlying asset of PSP22Vault module.
   const { result: governorResult, contract: governor } = await new GovernorDeployer(api, deployer).new(
     abaxToken.address,
@@ -95,20 +82,23 @@ async function deployUSDCDEBUG(api: ApiPromise, signer: KeyringPair) {
     'vABAX',
     VOTING_RULES,
   );
-  //} Treasury is deployed. Governor is the only RoleAdmin and Spender. Foundation is the only Executor and Canceller.
+  console.log(`Deployed AbaxGovernor at ${governor.address}`);
+
+  //} Treasury is deployed. AbaxGovernor is the only RoleAdmin and Spender. Foundation is the only Executor and Canceller.
   const { result: treasuryResult, contract: treasury } = await new AbaxTreasuryDeployer(api, deployer).new(
     governor.address,
     FOUNDATION_ADDRESS,
     treasuryVester.address,
   );
+  console.log(`Deployed Treasury at ${treasury.address}`);
 
-  const usdcAddressToUse = wsEndpoint === 'wss://ws.test.azero.dev' ? (await deployUSDCDEBUG(api, deployer)).address : USDC_ADDRESS;
+  // const usdcAddressToUse = wsEndpoint === 'wss://ws.test.azero.dev' ? (await deployUSDCDEBUG(api, deployer)).address : USDC_ADDRESS;
   // TGE is deployed. deployer is the only RoleAdmin.
   const { result: abaxTgeResult, contract: abaxTge } = await new AbaxTgeDeployer(api, deployer).new(
     TGE_START_TIME,
     PHASE_TWO_DURATION,
     abaxToken.address,
-    usdcAddressToUse,
+    USDC_ADDRESS,
     tgeVester.address,
     FOUNDERS_ADDRESS,
     FOUNDATION_ADDRESS,
@@ -116,39 +106,59 @@ async function deployUSDCDEBUG(api: ApiPromise, signer: KeyringPair) {
     PHASE_ONE_TOKEN_CAP,
     COST_TO_MINT_MILLIARD_TOKENS,
   );
+  console.log(`Deployed TGE at ${abaxTge.address}`);
 
   //inflator is deployed
   const { result: inflatorResult, contract: inflator } = await new AbaxInflatorDeployer(api, deployer).new(governor.address, abaxToken.address, [
     [FOUNDATION_ADDRESS, 1],
     [governor.address, 1],
   ]);
+  console.log(`Deployed Inflator at ${inflator.address}`);
 
   //Give inflator MINTER role
   const res0 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('MINTER'), inflator.address);
-  //} Give TGE GENERATOR role
+  console.log('Granted MINTER role to Inflator');
+
+  // Give TGE GENERATOR role
   const res1 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('GENERATOR'), abaxTge.address);
-  // Give Governor RoleAdmin role
+  console.log('Granted GENERATOR role to TGE');
+
+  // Give AbaxGovernor RoleAdmin role
   const res2 = await abaxToken.withSigner(deployer).tx.grantRole(0, governor.address);
+  console.log('Granted RoleAdmin role to AbaxGovernor');
+
   // deployer renounces RoleAdmin role
   const res3 = await abaxToken.withSigner(deployer).tx.renounceRole(0, deployer.address);
+  console.log('Deployer eenounced RoleAdmin role from ABAX Token');
 
   // Give Deployer Stakedrop admin role
-  const res5 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('STAKEDROP_ADMIN'), deployer.address);
+  const res4 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('STAKEDROP_ADMIN'), deployer.address);
+  console.log('Granted STAKEDROP_ADMIN role to Deployer');
+
   // Give Deployer Bonus admin role
-  const res6 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('BONUS_ADMIN'), deployer.address);
+  const res5 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('BONUS_ADMIN'), deployer.address);
+  console.log('Granted BONUS_ADMIN role to Deployer');
+
   // Give Deployer Referrer admin role
-  const res7 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), deployer.address);
+  const res6 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), deployer.address);
+  console.log('Granted REFERRER_ADMIN role to Deployer');
+
   // Give FOUNDATION Referrer admin role
-  const res8 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), FOUNDATION_ADDRESS);
-  // Give Governor RoleAdmin role
-  const res4 = await abaxTge.withSigner(deployer).tx.grantRole(0, governor.address);
+  const res7 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), FOUNDATION_ADDRESS);
+  console.log('Granted REFERRER_ADMIN role to FOUNDATION');
+
+  // Give AbaxGovernor RoleAdmin role
+  const res8 = await abaxTge.withSigner(deployer).tx.grantRole(0, governor.address);
+  console.log('Granted RoleAdmin role to AbaxGovernor');
+
   // deployer renounces RoleAdmin role
   const res9 = await abaxTge.withSigner(deployer).tx.renounceRole(0, deployer.address);
+  console.log('Deployer renounced RoleAdmin role from TGE');
 
   await saveContractInfoToFileAsJson([
     {
       name: 'usdc',
-      address: usdcAddressToUse,
+      address: USDC_ADDRESS,
       displayName: 'USDC',
     },
     {
@@ -170,7 +180,7 @@ async function deployUSDCDEBUG(api: ApiPromise, signer: KeyringPair) {
       address: governorVester.address,
       txHash: governorVesterResult.txHash!,
       blockHash: governorVesterResult.blockHash!,
-      vestingFor: 'governor',
+      vestingFor: 'abax_governor',
     },
     {
       name: tgeVester.name,

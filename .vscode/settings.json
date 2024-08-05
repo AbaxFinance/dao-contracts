@@ -3,7 +3,7 @@
   "rust-analyzer.linkedProjects": [
     "./src/contracts/abax_inflator/Cargo.toml",
     "./src/contracts/abax_tge/Cargo.toml",
-    "./src/contracts/governor/Cargo.toml",
+    "./src/contracts/abax_governor/Cargo.toml",
     "./src/contracts/abax_token/Cargo.toml",
     "./src/contracts/abax_treasury/Cargo.toml",
     "./src/contracts/test_purpose/abax_token_v2/Cargo.toml",
