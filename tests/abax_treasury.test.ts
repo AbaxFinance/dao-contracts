@@ -11,7 +11,7 @@ import { getSigners, localApi, time, transferNativeFromTo } from '@c-forge/polka
 import { roleToSelectorId, testAccessControlForMessage } from './misc';
 import { Operation } from './setup/createSpendingOrder';
 
-const ALL_ROLES = ['PARAMETERS_ADMIN', 'SPENDER', 'EXECUTOR', 'CANCELLER', 'CODE_UPDATER'];
+const ALL_ROLES = ['PARAMETERS_ADMIN', 'SPENDER', 'EXECUTOR', 'CANCELLER', 'CODE_UPDATER', 'RESCUER'];
 
 const [deployer, governor, foundation, other, receiver1, receiver2, receiver3, receiver4] = getSigners();
 const ONE_TOKEN = new BN(10).pow(new BN(ABAX_DECIMALS));
@@ -34,26 +34,29 @@ describe('Abax Treasury tests', () => {
 
   describe('after deployment', () => {
     it('governor should have DEFAULT_ADMIN role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), governor.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), governor.address)).to.haveOkResult(true);
     });
     it('governor should have SPENDER role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), governor.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), governor.address)).to.haveOkResult(true);
     });
     it('foundation should have EXECUTOR role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), foundation.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), foundation.address)).to.haveOkResult(true);
+    });
+    it('foundation should have RESCUER role', async () => {
+      await expect(await treasury.query.hasRole(roleToSelectorId('RESCUER'), foundation.address)).to.haveOkResult(true);
     });
     it('foundation should have CANCELLER role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), foundation.address)).to.haveOkResult(true);
+      await expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), foundation.address)).to.haveOkResult(true);
     });
     it('foundation should not have SPENDER  and DEFAULT_ADMIN role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), foundation.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), foundation.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), foundation.address)).to.haveOkResult(false);
     });
     it('vesting contract should not have any role', async () => {
-      expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), foundation.address)).to.haveOkResult(false);
-      expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), foundation.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('DEFAULT_ADMIN'), vester.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('SPENDER'), vester.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('EXECUTOR'), vester.address)).to.haveOkResult(false);
+      await expect(await treasury.query.hasRole(roleToSelectorId('CANCELLER'), vester.address)).to.haveOkResult(false);
     });
   });
 
@@ -77,6 +80,38 @@ describe('Abax Treasury tests', () => {
       await tokenB.tx.mint(treasury.address, ONE_TOKEN.muln(100));
       await tokenC.tx.mint(treasury.address, ONE_TOKEN.muln(100));
       await transferNativeFromTo(api, deployer, { address: treasury.address } as any, ONE_TOKEN.muln(100));
+    });
+    describe('while rescue order is called by the RESCUER', () => {
+      it('should fail if earleist execution is not al teast 60 days in future', async () => {
+        const earliestExecution = (await time.latest()) + ONE_DAY.muln(59).toNumber();
+        const latestExecution = earliestExecution + ONE_YEAR.toNumber();
+        const operations: Operation[] = [
+          {
+            psp22Transfer: { asset: tokenA.address, to: receiver1.address, amount: ONE_TOKEN.muln(10) },
+          },
+        ];
+        await expect(treasury.withSigner(foundation).query.rescueOrder(earliestExecution, latestExecution, operations)).to.be.revertedWithError({
+          wrongEarliestExecution: null,
+        });
+      });
+      it('should create order with one operation ', async () => {
+        const earliestExecution = (await time.latest()) + ONE_DAY.muln(61).toNumber();
+        const latestExecution = earliestExecution + ONE_YEAR.toNumber();
+        const operations: Operation[] = [
+          {
+            psp22Transfer: { asset: tokenA.address, to: receiver1.address, amount: ONE_TOKEN.muln(10) },
+          },
+        ];
+        const tx = treasury.withSigner(foundation).tx.rescueOrder(earliestExecution, latestExecution, operations);
+        await expect(tx).to.createSpendingOrder(treasury, [
+          {
+            earliestExecution,
+            latestExecution,
+            operations,
+          },
+        ]);
+        await expect(tx).to.emitEvent(treasury, 'OrderCreated', { id: 0, earliestExecution, latestExecution, operations });
+      });
     });
     describe('while create order is called by the SPENDER', () => {
       it('should create order with one operation ', async () => {

@@ -1,0 +1,222 @@
+import { getApiProviderWrapper, toE } from '@c-forge/polkahat-network-helpers';
+import Keyring from '@polkadot/keyring';
+import chalk from 'chalk';
+import { ensureFileSync, writeJSON } from 'fs-extra';
+import path from 'path';
+import { roleToSelectorId } from 'tests/misc';
+import AbaxTgeDeployer from 'typechain/deployers/abax_tge';
+import AbaxTokenDeployer from 'typechain/deployers/abax_token';
+import AbaxTreasuryDeployer from 'typechain/deployers/abax_treasury';
+import GovernorDeployer from 'typechain/deployers/governor';
+import VesterDeployer from 'typechain/deployers/vester';
+import {
+  ABAX_DECIMALS,
+  COST_TO_MINT_MILLIARD_TOKENS,
+  FOUNDATION_ADDRESS,
+  FOUNDERS_ADDRESS,
+  PHASE_ONE_TOKEN_CAP,
+  PHASE_TWO_DURATION,
+  TGE_START_TIME,
+  UNSTAKE_PERIOD,
+  USDC_ADDRESS,
+  VOTING_RULES,
+} from './00_constants';
+import AbaxInflatorDeployer from 'typechain/deployers/abax_inflator';
+import { ApiPromise } from '@polkadot/api';
+import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
+import { KeyringPair } from '@polkadot/keyring/types';
+
+export interface StoredContractInfo {
+  name: string;
+  address: string;
+  [key: string]: string;
+}
+
+export const DEPLOYED_CONTRACTS_INFO_PATH = `${path.join(__dirname, 'results', 'deployedContracts.json')}`;
+export const EXECUTED_TX_RESULTS_PATH = `${path.join(__dirname, 'results', '10_executed_tx_results.json')}`;
+export const saveContractInfoToFileAsJson = async (contractInfos: StoredContractInfo[], writePath = DEPLOYED_CONTRACTS_INFO_PATH) => {
+  ensureFileSync(writePath);
+  await writeJSON(writePath, contractInfos);
+};
+
+async function deployUSDCDEBUG(api: ApiPromise, signer: KeyringPair) {
+  const USDC_DECIMALS = 6;
+  const USDC = (await new Psp22EmitableDeployer(api, signer).new('USD Coin', 'USDC', USDC_DECIMALS)).contract;
+
+  await USDC.withSigner(signer).tx.mint(signer.address, toE(USDC_DECIMALS, 1_000_000_000).muln(10_000));
+  await USDC.withSigner(signer).tx.mint('5H6nGQEZTed1Cab7JeJhpuSQ7CeNscXWQcoXqwSJ26saNAUB', toE(USDC_DECIMALS, 1_000_000_000));
+  await USDC.withSigner(signer).tx.mint('5GdrpTpaSsdACTVHXG9iSUmzK8ewz6sPPRsVkqBHPzj8N7Xq', toE(USDC_DECIMALS, 30_000));
+  await USDC.withSigner(signer).tx.mint('5G419JZ4UK9VU4Y29SpVgt3cjBkMhcNX7uJ18d5VTxtDFjwo', toE(USDC_DECIMALS, 1_000_000_000).muln(10_000));
+  await USDC.withSigner(signer).tx.mint('5EbfQJeLXme5DHFaBZjza1FA47D6rZJajMLDahENNk9ArtDj', toE(USDC_DECIMALS, 500_000));
+  await USDC.withSigner(signer).tx.mint('5ERPh1iB4jGkFpHKNExg9wEm5NxxamFF797bG3cf5aYFMh2D', toE(USDC_DECIMALS, 30_000));
+
+  await USDC.withSigner(signer).tx.mint('5FeXodVJgh6hvZs2ZniJyCZhpNjDxsm8bUXhsh3sCw7VzDT3', toE(USDC_DECIMALS, 5_000_000));
+  await USDC.withSigner(signer).tx.mint('5ExyTZgRGxiT7nyD6h8jGsbr6hL88bbm2gvqTquu65qrbSJM', toE(USDC_DECIMALS, 500_000));
+
+  return USDC;
+}
+
+(async () => {
+  if (require.main !== module) return;
+  const wsEndpoint = process.env.WS_ENDPOINT;
+  if (!wsEndpoint) throw 'could not determine wsEndpoint';
+  const seed = process.env.SEED;
+  if (!seed) throw 'could not determine seed';
+
+  const api = await getApiProviderWrapper(wsEndpoint).getAndWaitForReady();
+
+  const timestamp = await api.query.timestamp.now();
+  console.log(new Date(parseInt(timestamp.toString())));
+
+  const keyring = new Keyring();
+  const deployer = keyring.createFromUri(seed, {}, 'sr25519'); // getSigners()[0];
+
+  // ABAX TOKEN is deployed with deployer as a RoleAdmin.
+  const { result: abaxTokenResult, contract: abaxToken } = await new AbaxTokenDeployer(api, deployer).new('ABAX', 'ABAX', ABAX_DECIMALS);
+
+  // TGE Vester is deployed. it doesn't have any admins.
+  const { result: tgeVesterResult, contract: tgeVester } = await new VesterDeployer(api, deployer).new();
+
+  // Governor Vester is deployed. it doesn't have any admins.
+  const { result: governorVesterResult, contract: governorVester } = await new VesterDeployer(api, deployer).new();
+
+  // Treasury Vester is deployed. it doesn't have any admins.
+  const { result: treasuryVesterResult, contract: treasuryVester } = await new VesterDeployer(api, deployer).new();
+
+  // Governor is deployed. Governor is it's own RoleAdmin. Foundation is the only Executor. There is no ParametersAdmin.
+  // The AbaxToken is used as an underlying asset of PSP22Vault module.
+  const { result: governorResult, contract: governor } = await new GovernorDeployer(api, deployer).new(
+    abaxToken.address,
+    governorVester.address,
+    FOUNDATION_ADDRESS,
+    null,
+    UNSTAKE_PERIOD,
+    'ABAX Votes',
+    'vABAX',
+    VOTING_RULES,
+  );
+  //} Treasury is deployed. Governor is the only RoleAdmin and Spender. Foundation is the only Executor and Canceller.
+  const { result: treasuryResult, contract: treasury } = await new AbaxTreasuryDeployer(api, deployer).new(
+    governor.address,
+    FOUNDATION_ADDRESS,
+    treasuryVester.address,
+  );
+
+  const usdcAddressToUse = wsEndpoint === 'wss://ws.test.azero.dev' ? (await deployUSDCDEBUG(api, deployer)).address : USDC_ADDRESS;
+  // TGE is deployed. deployer is the only RoleAdmin.
+  const { result: abaxTgeResult, contract: abaxTge } = await new AbaxTgeDeployer(api, deployer).new(
+    TGE_START_TIME,
+    PHASE_TWO_DURATION,
+    abaxToken.address,
+    usdcAddressToUse,
+    tgeVester.address,
+    FOUNDERS_ADDRESS,
+    FOUNDATION_ADDRESS,
+    treasury.address,
+    PHASE_ONE_TOKEN_CAP,
+    COST_TO_MINT_MILLIARD_TOKENS,
+  );
+
+  //inflator is deployed
+  const { result: inflatorResult, contract: inflator } = await new AbaxInflatorDeployer(api, deployer).new(governor.address, abaxToken.address, [
+    [FOUNDATION_ADDRESS, 1],
+    [governor.address, 1],
+  ]);
+
+  //Give inflator MINTER role
+  const res0 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('MINTER'), inflator.address);
+  //} Give TGE GENERATOR role
+  const res1 = await abaxToken.withSigner(deployer).tx.grantRole(roleToSelectorId('GENERATOR'), abaxTge.address);
+  // Give Governor RoleAdmin role
+  const res2 = await abaxToken.withSigner(deployer).tx.grantRole(0, governor.address);
+  // deployer renounces RoleAdmin role
+  const res3 = await abaxToken.withSigner(deployer).tx.renounceRole(0, deployer.address);
+
+  // Give Deployer Stakedrop admin role
+  const res5 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('STAKEDROP_ADMIN'), deployer.address);
+  // Give Deployer Bonus admin role
+  const res6 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('BONUS_ADMIN'), deployer.address);
+  // Give Deployer Referrer admin role
+  const res7 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), deployer.address);
+  // Give FOUNDATION Referrer admin role
+  const res8 = await abaxTge.withSigner(deployer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), FOUNDATION_ADDRESS);
+  // Give Governor RoleAdmin role
+  const res4 = await abaxTge.withSigner(deployer).tx.grantRole(0, governor.address);
+  // deployer renounces RoleAdmin role
+  const res9 = await abaxTge.withSigner(deployer).tx.renounceRole(0, deployer.address);
+
+  await saveContractInfoToFileAsJson([
+    {
+      name: 'usdc',
+      address: usdcAddressToUse,
+      displayName: 'USDC',
+    },
+    {
+      name: abaxToken.name,
+      address: abaxToken.address,
+      txHash: abaxTokenResult.txHash!,
+      blockHash: abaxTokenResult.blockHash!,
+      displayName: 'ABAX',
+    },
+    {
+      name: treasuryVester.name,
+      address: treasuryVester.address,
+      txHash: treasuryVesterResult.txHash!,
+      blockHash: treasuryVesterResult.blockHash!,
+      vestingFor: 'treasury',
+    },
+    {
+      name: governorVester.name,
+      address: governorVester.address,
+      txHash: governorVesterResult.txHash!,
+      blockHash: governorVesterResult.blockHash!,
+      vestingFor: 'governor',
+    },
+    {
+      name: tgeVester.name,
+      address: tgeVester.address,
+      txHash: tgeVesterResult.txHash!,
+      blockHash: tgeVesterResult.blockHash!,
+      vestingFor: 'tge',
+    },
+    {
+      name: governor.name,
+      address: governor.address,
+      txHash: governorResult.txHash!,
+      blockHash: governorResult.blockHash!,
+    },
+    {
+      name: treasury.name,
+      address: treasury.address,
+      txHash: treasuryResult.txHash!,
+      blockHash: treasuryResult.blockHash!,
+    },
+    {
+      name: abaxTge.name,
+      address: abaxTge.address,
+      txHash: abaxTgeResult.txHash!,
+      blockHash: abaxTgeResult.blockHash!,
+    },
+    {
+      name: inflator.name,
+      address: inflator.address,
+      txHash: inflatorResult.txHash!,
+      blockHash: inflatorResult.blockHash!,
+    },
+  ]);
+
+  await writeJSON(
+    EXECUTED_TX_RESULTS_PATH,
+    [res0, res1, res2, res3, res4, res5, res6, res7, res8, res9].map((r) => ({
+      txHash: r.txHash!,
+      blockHash: r.blockHash!,
+    })),
+  );
+
+  await api.disconnect();
+  process.exit(0);
+})().catch((e) => {
+  console.log(e);
+  console.error(chalk.red(JSON.stringify(e, null, 2)));
+  process.exit(1);
+});

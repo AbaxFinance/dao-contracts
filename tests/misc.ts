@@ -30,16 +30,14 @@ export const createEnumChecker = <T extends string, TEnumValue extends string>(e
   const enumValues = Object.values(enumVariable);
   return (value: string): value is TEnumValue => enumValues.includes(value);
 };
-export type AnyAbaxContractEventEnumLiteral<T extends AnyAbaxContractEvent> = `${T}`;
 export type AnyAbaxContract = AbaxTge | PSP22Emitable;
 
 export function roleToSelectorId(role: AbaxAccessControlRole) {
   return parseInt(stringToSelectorId(role));
 }
 
-//////////////////////////
-
-export function stringToSelectorId(str: string) {
+export function stringToSelectorId(str: string): string {
+  if (str === 'DEFAULT_ADMIN') return '0';
   const strBlake2AsU8a = blake2AsU8a(str);
   const selectorU8Array = strBlake2AsU8a.slice(0, 4);
   const buffer = Buffer.from(selectorU8Array);
@@ -79,14 +77,21 @@ export function testAccessControlForMessage(
     it(`should fail for roles ${rolesWithoutAccess.join(',')}`, async () => {
       for (const role of rolesWithoutAccess) {
         const requiredRoleAsSelector = stringToSelectorId(role);
-        await expect(ctx.contract.withSigner(ctx.roleAdmin).query.grantRole(requiredRoleAsSelector, signer.address)).to.haveOkResult();
-        await ctx.contract.withSigner(ctx.roleAdmin).tx.grantRole(requiredRoleAsSelector, signer.address);
+        const hadRoleAleady = (await ctx.contract.query.hasRole(requiredRoleAsSelector, signer.address)).value!.ok!;
+        if (!hadRoleAleady) {
+          await expect(ctx.contract.withSigner(ctx.roleAdmin).query.grantRole(requiredRoleAsSelector, signer.address)).to.haveOkResult();
+          await ctx.contract.withSigner(ctx.roleAdmin).tx.grantRole(requiredRoleAsSelector, signer.address);
+        }
         if (exactError) {
-          await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError((e) =>
-            isEqual(e, exactError),
-          );
+          await expect(
+            ctx.contract.withSigner(signer).query[ctx.method](...ctx.args),
+            `failed for role ${role} without access`,
+          ).to.be.revertedWithError((e) => isEqual(e, exactError));
         } else {
-          await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role}`).to.be.revertedWithError((e) => {
+          await expect(
+            ctx.contract.withSigner(signer).query[ctx.method](...ctx.args),
+            `failed for role ${role} without access`,
+          ).to.be.revertedWithError((e) => {
             return Object.values(e).some((v) => v === 'AC::MissingRole' || v === 'MissingRole');
           });
         }
@@ -95,8 +100,11 @@ export function testAccessControlForMessage(
     for (const role of rolesWithAccess) {
       it(`should succeed when ${role} role is present`, async () => {
         const requiredRoleAsSelector = stringToSelectorId(role);
-        await ctx.contract.withSigner(ctx.roleAdmin).tx.grantRole(requiredRoleAsSelector, signer.address);
-        await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args)).to.haveOkResult();
+        const hadRoleAleady = (await ctx.contract.query.hasRole(requiredRoleAsSelector, signer.address)).value!.ok!;
+        if (!hadRoleAleady) {
+          await ctx.contract.withSigner(ctx.roleAdmin).tx.grantRole(requiredRoleAsSelector, signer.address);
+        }
+        await expect(ctx.contract.withSigner(signer).query[ctx.method](...ctx.args), `failed for role ${role} with access`).to.haveOkResult();
       });
     }
   });

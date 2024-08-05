@@ -2,7 +2,7 @@ import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
 import { isEqual } from 'lodash';
 import { ABAX_DECIMALS } from 'tests/consts';
-import { testStaking } from 'tests/governor.stake.test';
+import { testStaking } from 'tests/governor.stake.util';
 import { expect } from 'tests/setup/chai';
 import FlipperContract from 'typechain/contracts/flipper';
 import Governor from 'typechain/contracts/governor';
@@ -1145,12 +1145,12 @@ export async function proposeAndCheck(
 ) {
   let proposalId = new BN(-1);
   const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
-  const query = governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+  const query = governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution });
   if (expectedError) {
     await expect(query).to.be.revertedWithError(expectedError);
   } else {
     await expect(query).to.haveOkResult();
-    const tx = governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+    const tx = governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution });
     await expect(tx).to.emitEvent(governor, 'ProposalCreated', (event: ProposalCreated) => {
       proposalId = new BN(event.proposalId.toString());
       return (

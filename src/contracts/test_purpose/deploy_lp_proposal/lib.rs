@@ -27,7 +27,7 @@ pub struct LendingPoolDeployed {
 
 #[ink::contract]
 mod deploy_lp_proposal {
-    use ink::env::call::ExecutionInput;
+    use ink::{codegen::TraitCallBuilder, env::call::ExecutionInput};
     use pendzl::contracts::access_control::{AccessControl, AccessControlRef};
 
     use crate::*;
@@ -70,7 +70,10 @@ mod deploy_lp_proposal {
             });
 
             AccessControlRef::from(contract.to_account_id())
+                .call_mut()
                 .grant_role(0, Some(self.governor_address))
+                .call_v1()
+                .invoke()
                 .unwrap();
         }
     }

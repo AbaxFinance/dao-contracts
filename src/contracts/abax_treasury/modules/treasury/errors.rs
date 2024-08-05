@@ -18,6 +18,7 @@ pub enum AbaxTreasuryError {
     ToEarlyToExecute,
     ToLateToExecute,
     NativeTransferFailed,
+    WrongEarliestExecution,
 }
 
 impl From<PSP22Error> for AbaxTreasuryError {

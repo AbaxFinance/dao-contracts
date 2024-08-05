@@ -34,6 +34,23 @@ pub trait AbaxTreasury {
         operation: Vec<Operation>,
     ) -> Result<OrderId, AbaxTreasuryError>;
 
+    /// Sumbits new order for execution.
+    ///
+    /// On success Emits 'OrderCreated' event.
+    ///
+    /// # Errors
+    ///
+    /// Returns 'AccessControlError' if the caller is not allowed to submit orders.
+    /// Returns 'WrongErliestExecution' if the earliest execution time is earlier than 60 days in future.
+
+    #[ink(message)]
+    fn rescue_order(
+        &mut self,
+        earliest_execution: Timestamp,
+        latest_execution: Timestamp,
+        operation: Vec<Operation>,
+    ) -> Result<OrderId, AbaxTreasuryError>;
+
     /// Executes the order with the given ID.
     ///
     /// On success Emits 'OrderExecuted' event.

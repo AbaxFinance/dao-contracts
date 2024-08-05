@@ -43,4 +43,28 @@ pub trait AbaxGovernView {
     /// Returns last timestamp at which 'account' has staked while having empty stake.
     #[ink(message)]
     fn last_stake_timestamp(&self, account: AccountId) -> Option<Timestamp>;
+
+    /// Returns the number of active proposals.
+    #[ink(message)]
+    fn active_proposals(&self) -> u32;
+
+    /// Returns the number of finalized proposals.
+    #[ink(message)]
+    fn finalized_proposals(&self) -> u32;
+
+    /// Returns the number of executed proposals.
+    #[ink(message)]
+    fn executed_proposals(&self) -> u32;
+
+    /// Returns the next proposal id.
+    #[ink(message)]
+    fn next_proposal_id(&self) -> ProposalId;
+
+    /// Returns the `description_url` of the proposal with `proposal_id`.
+    #[ink(message)]
+    fn description_url_by_proposal_id(&self, proposal_id: ProposalId) -> Option<String>;
+
+    /// Returns the `description_hash` of the proposal with `proposal_id`.
+    #[ink(message)]
+    fn description_hash_by_proposal_id(&self, proposal_id: ProposalId) -> Option<Hash>;
 }

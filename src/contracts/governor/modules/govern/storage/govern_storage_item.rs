@@ -1,7 +1,9 @@
-use ink::{env::DefaultEnvironment, primitives::AccountId, storage::Mapping};
+use ink::{
+    env::DefaultEnvironment, prelude::string::ToString, primitives::AccountId, storage::Mapping,
+};
 use pendzl::{
     math::errors::MathError,
-    traits::{Balance, Hash, Timestamp},
+    traits::{Balance, Hash, String, Timestamp},
 };
 
 use crate::modules::govern::{
@@ -23,6 +25,8 @@ pub struct GovernData {
     #[lazy]
     next_proposal_id: ProposalId,
     proposal_id_to_hash: Mapping<ProposalId, Hash>,
+    proposal_id_to_description_url: Mapping<ProposalId, String>,
+    proposal_id_to_description_hash: Mapping<ProposalId, Hash>,
     proposal_hash_to_id: Mapping<Hash, ProposalId>,
     state: Mapping<ProposalId, ProposalState>,
     votes: Mapping<(AccountId, ProposalId), UserVote>,
@@ -41,6 +45,8 @@ impl GovernData {
             executed_proposals: Default::default(),
             next_proposal_id: Default::default(),
             proposal_id_to_hash: Default::default(),
+            proposal_id_to_description_url: Default::default(),
+            proposal_id_to_description_hash: Default::default(),
             proposal_hash_to_id: Default::default(),
             state: Default::default(),
             votes: Default::default(),
@@ -99,12 +105,20 @@ impl GovernData {
     pub fn proposal_hash_to_id(&self, proposal_hash: &Hash) -> Option<ProposalId> {
         self.proposal_hash_to_id.get(proposal_hash)
     }
+    pub fn proposal_id_to_description_url(&self, proposal_id: &ProposalId) -> Option<String> {
+        self.proposal_id_to_description_url.get(proposal_id)
+    }
+    pub fn proposal_id_to_description_hash(&self, proposal_id: &ProposalId) -> Option<Hash> {
+        self.proposal_id_to_description_hash.get(proposal_id)
+    }
 
     pub fn register_new_proposal(
         &mut self,
         proposer: &AccountId,
         proposal_hash: &Hash,
         earliest_execution: Option<Timestamp>,
+        description_url: &String,
+        description_hash: &Hash,
         votes_at_start: Balance,
         counter_at_start: u128,
     ) -> Result<ProposalId, GovernError> {
@@ -118,6 +132,10 @@ impl GovernData {
 
         self.proposal_id_to_hash.insert(proposal_id, proposal_hash);
         self.proposal_hash_to_id.insert(proposal_hash, &proposal_id);
+        self.proposal_id_to_description_url
+            .insert(proposal_id, &description_url.to_string());
+        self.proposal_id_to_description_hash
+            .insert(proposal_id, description_hash);
 
         self.state.insert(
             proposal_id,

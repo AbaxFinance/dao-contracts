@@ -40,9 +40,12 @@ pub mod abax_tge_contract {
         math::operations::*,
     };
 
-    const ADMIN: RoleType = 0;
-    /// A role type for access to stakedrop functions - 4_193_574_647_u32.
+    /// A role type for access to stakedrop function - 4_193_574_647_u32.
     pub const STAKEDROP_ADMIN: RoleType = ink::selector_id!("STAKEDROP_ADMIN");
+    /// A role type for access to set_exp_bonus_multiplier_e3 function
+    pub const REFERRER_ADMIN: RoleType = ink::selector_id!("REFERRER_ADMIN");
+    /// A role type for access to set_exp_bonus_multiplier_e3 function
+    pub const BONUS_ADMIN: RoleType = ink::selector_id!("BONUS_ADMIN");
 
     pub const MINIMUM_AMOUNT: Balance = 25_000_000_000_000; // 1 USDC in phase one
 
@@ -75,10 +78,9 @@ pub mod abax_tge_contract {
             strategic_reserves_address: AccountId,
             phase_one_token_cap: u128,
             cost_to_mint_milliard_tokens: u128,
-            stakedrop_admin: AccountId,
         ) -> Self {
-            let mut instance = Self {
-                access_control: Default::default(),
+            Self {
+                access_control: AccessControlData::new(Some(Self::env().caller())),
                 tge: PublicContributionStorage::new(
                     start_time,
                     phase_two_duration,
@@ -91,16 +93,7 @@ pub mod abax_tge_contract {
                     phase_one_token_cap,
                     cost_to_mint_milliard_tokens,
                 ),
-            };
-            // set admin to caller
-            instance
-                ._grant_role(ADMIN, Some(Self::env().caller()))
-                .unwrap();
-            // set stakedrop admin to stakedrop_admin
-            instance
-                ._grant_role(STAKEDROP_ADMIN, Some(stakedrop_admin))
-                .unwrap();
-            instance
+            }
         }
     }
 
@@ -166,7 +159,6 @@ pub mod abax_tge_contract {
                 )
                 .call_v1()
                 .invoke()?;
-
             self.tge.increase_contributed_amount(contributor, cost)?;
 
             let bonus = self.calculate_bonus_and_update_created_base_and_bonus(
@@ -252,7 +244,7 @@ pub mod abax_tge_contract {
             contributor: AccountId,
             bonus_multiplier_e3: u16,
         ) -> Result<(), TGEError> {
-            self._ensure_has_role(ADMIN, Some(self.env().caller()))?;
+            self._ensure_has_role(BONUS_ADMIN, Some(self.env().caller()))?;
             self.tge
                 .set_exp_bonus_multiplier_of_e3(&contributor, &bonus_multiplier_e3);
             self.env().emit_event(BonusMultiplierSet {
@@ -264,7 +256,7 @@ pub mod abax_tge_contract {
 
         #[ink(message)]
         fn register_referrer(&mut self, referrer: AccountId) -> Result<(), TGEError> {
-            self._ensure_has_role(ADMIN, Some(self.env().caller()))?;
+            self._ensure_has_role(REFERRER_ADMIN, Some(self.env().caller()))?;
             self.tge.add_referrer(&referrer);
             Ok(())
         }
@@ -624,7 +616,6 @@ pub mod abax_tge_contract {
                 .generate(self.env().account_id(), amount)
                 .call_v1()
                 .invoke()?;
-
             self.tge.increase_total_amount_minted(amount)?;
             Ok(())
         }
@@ -683,9 +674,6 @@ pub mod abax_tge_contract {
     }
     fn mul_denom_e12(a: u128, b: u128) -> Result<u128, MathError> {
         mul_div(a, b, E12_U128, Rounding::Down)
-    }
-    fn mul_denom_e6(a: u128, b: u128) -> Result<u128, MathError> {
-        mul_div(a, b, E6_U128, Rounding::Down)
     }
 
     fn mul_denom_e3(a: u128, b: u128) -> Result<u128, MathError> {

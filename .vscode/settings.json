@@ -1,6 +1,7 @@
 {
   "typescript.tsdk": "node_modules/typescript/lib",
   "rust-analyzer.linkedProjects": [
+    "./src/contracts/abax_inflator/Cargo.toml",
     "./src/contracts/abax_tge/Cargo.toml",
     "./src/contracts/governor/Cargo.toml",
     "./src/contracts/abax_token/Cargo.toml",
