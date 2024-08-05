@@ -1,25 +1,20 @@
-import Keyring from '@polkadot/keyring';
-import chalk from 'chalk';
-import path from 'path';
-import { getApiProviderWrapper, getSigners, time, toE, transferNativeFromTo } from '@c-forge/polkahat-network-helpers';
 import { getArgvObj } from '@abaxfinance/utils';
+import { getApiProviderWrapper, getSigners, time, toE, transferNativeFromTo } from '@c-forge/polkahat-network-helpers';
+import Keyring from '@polkadot/keyring';
+import BN from 'bn.js';
+import chalk from 'chalk';
 import { readFileSync, writeJSON } from 'fs-extra';
+import path from 'path';
+import { USDC_DECIMALS } from 'tests/consts';
+import { roleToSelectorId } from 'tests/misc';
 import AbaxTgeDeployer from 'typechain/deployers/abax_tge';
 import AbaxTokenDeployer from 'typechain/deployers/abax_token';
-import VesterDeployer from 'typechain/deployers/abax_vester';
-import WazeroDeployer from 'typechain/deployers/wazero';
 import AbaxTreasuryDeployer from 'typechain/deployers/abax_treasury';
-import GovernorDeployer from 'typechain/deployers/abax_governor';
-import { VotingRules } from 'typechain/types-arguments/governor';
-import BN from 'bn.js';
-import { roleToSelectorId } from 'tests/misc';
-import { DEFAULT_ADMIN_ROLE } from '@c-forge/pendzl-tests';
+import GovernorDeployer from 'typechain/deployers/governor';
 import Psp22EmitableDeployer from 'typechain/deployers/psp22_emitable';
-import Psp22EmitableContract from 'typechain/contracts/psp22_emitable';
-import WazeroContract from 'typechain/contracts/wazero';
-import { USDC_DECIMALS } from 'tests/consts';
-
-const ALL_ROLES = ['MINTER', 'GENERATOR', 'PARAMETERS_ADMIN', 'SPENDER', 'EXECUTOR', 'CANCELLER', 'CODE_UPDATER'];
+import VesterDeployer from 'typechain/deployers/vester';
+import WazeroDeployer from 'typechain/deployers/wazero';
+import { VotingRules } from 'typechain/types-arguments/governor';
 
 export interface StoredContractInfo {
   name: string;
@@ -27,7 +22,7 @@ export interface StoredContractInfo {
   [key: string]: string;
 }
 export const DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH = `${path.join(__dirname, 'deployedContracts.json')}`;
-export const saveContractInfoToFileAsJson = async (contractInfos: StoredContractInfo[], writePath = DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH) => {
+export const saveContractInfoToFileAsJson = async (contractInfos: any, writePath = DEFAULT_DEPLOYED_CONTRACTS_INFO_PATH) => {
   await writeJSON(writePath, contractInfos);
 };
 export const ABAX_DECIMALS = 12;
@@ -62,7 +57,6 @@ const NUMBER_OF_DEPLOYMENTS = 6;
   if (!wsEndpoint) throw 'could not determine wsEndpoint';
   const seed = process.env.SEED;
   if (!seed) throw 'could not determine seed';
-  console.log(ALL_ROLES.map((role) => [role, roleToSelectorId(role as any)]));
   const api = await getApiProviderWrapper(wsEndpoint).getAndWaitForReady();
 
   const timestamp = await api.query.timestamp.now();
@@ -76,10 +70,10 @@ const NUMBER_OF_DEPLOYMENTS = 6;
 
   for (let i = 0; i < NUMBER_OF_DEPLOYMENTS; i++) {
     //TMP
-    const alice = getSigners()[0];
-    await transferNativeFromTo(api, alice, signer, toABAXTokenDecimals(1_000));
-    await transferNativeFromTo(api, alice, { address: '5H6nGQEZTed1Cab7JeJhpuSQ7CeNscXWQcoXqwSJ26saNAUB' } as any, toABAXTokenDecimals(1_000));
-    await transferNativeFromTo(api, alice, { address: '5GdrpTpaSsdACTVHXG9iSUmzK8ewz6sPPRsVkqBHPzj8N7Xq' } as any, toABAXTokenDecimals(1_000));
+    // const alice = getSigners()[0];
+    // await transferNativeFromTo(api, alice, signer, toABAXTokenDecimals(1_000));
+    // await transferNativeFromTo(api, alice, { address: '5H6nGQEZTed1Cab7JeJhpuSQ7CeNscXWQcoXqwSJ26saNAUB' } as any, toABAXTokenDecimals(1_000));
+    // await transferNativeFromTo(api, alice, { address: '5GdrpTpaSsdACTVHXG9iSUmzK8ewz6sPPRsVkqBHPzj8N7Xq' } as any, toABAXTokenDecimals(1_000));
 
     //TMP
 
@@ -150,12 +144,24 @@ const NUMBER_OF_DEPLOYMENTS = 6;
     ).contract;
 
     await abaxToken.withSigner(signer).tx.grantRole(roleToSelectorId('GENERATOR'), abaxTge.address);
-    await abaxTge.tx.init();
+    await abaxTge.withSigner(signer).tx.grantRole(roleToSelectorId('REFERRER_ADMIN'), signer.address);
 
     await abaxTge.withSigner(signer).tx.registerReferrer(signer.address);
     await abaxTge.withSigner(signer).tx.registerReferrer('5H6nGQEZTed1Cab7JeJhpuSQ7CeNscXWQcoXqwSJ26saNAUB');
     await abaxTge.withSigner(signer).tx.registerReferrer('5ERPh1iB4jGkFpHKNExg9wEm5NxxamFF797bG3cf5aYFMh2D');
     await abaxTge.withSigner(signer).tx.registerReferrer('5FeXodVJgh6hvZs2ZniJyCZhpNjDxsm8bUXhsh3sCw7VzDT3');
+
+    console.log('pre init');
+    const initRes = await abaxTge.withSigner(signer).query.init();
+    const res = initRes.value.unwrapRecursively();
+    await abaxTge.withSigner(signer).tx.init();
+    console.log('post init');
+
+    if (i !== 0) {
+      const crRes = await abaxTge.withSigner(signer).query.collectReserved(signer.address);
+      const cr = crRes.value.unwrapRecursively();
+      await abaxTge.withSigner(signer).tx.collectReserved(signer.address);
+    }
 
     // await governor.withSigner(signer).tx.grantRole(roleToSelectorId('PARAMETERS_ADMIN' as any), auditorAddress);
 
