@@ -2,14 +2,20 @@ import type { KeyringPair } from '@polkadot/keyring/types';
 import BN from 'bn.js';
 import { UNSTAKE_PERIOD } from 'tests/governor.test';
 import { expect } from 'tests/setup/chai';
-import Governor from 'typechain/contracts/governor';
+import AbaxGovernor from 'typechain/contracts/governor';
 import PSP22Emitable from 'typechain/contracts/psp22_emitable';
 import Vester from 'typechain/contracts/vester';
 import { GovernError } from 'typechain/types-returns/governor';
 import { PSP22Error, PSP22ErrorBuilder } from '@c-forge/polkahat-chai-matchers';
 import { E12bn, E6bn, U128_MAX_VALUE } from '@c-forge/polkahat-network-helpers';
 
-async function stakeAndCheck(govToken: PSP22Emitable, governor: Governor, staker: KeyringPair, amount: BN, expectedError?: GovernError | PSP22Error) {
+async function stakeAndCheck(
+  govToken: PSP22Emitable,
+  governor: AbaxGovernor,
+  staker: KeyringPair,
+  amount: BN,
+  expectedError?: GovernError | PSP22Error,
+) {
   const query = governor.withSigner(staker).query.deposit(amount, staker.address);
   if (expectedError) {
     await expect(query).to.be.revertedWithError(expectedError);
@@ -31,7 +37,7 @@ async function stakeAndCheck(govToken: PSP22Emitable, governor: Governor, staker
 async function initializeUnstakeAndCheck(
   vester: Vester,
   govToken: PSP22Emitable,
-  governor: Governor,
+  governor: AbaxGovernor,
   staker: KeyringPair,
   amount: BN,
   expectedError?: GovernError | PSP22Error,
@@ -64,7 +70,7 @@ async function initializeUnstakeAndCheck(
 
 export function testStaking(
   getCtx: () => {
-    governor: Governor;
+    governor: AbaxGovernor;
     govToken: PSP22Emitable;
     vester: Vester;
     users: KeyringPair[];
