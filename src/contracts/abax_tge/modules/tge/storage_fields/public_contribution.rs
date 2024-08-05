@@ -50,6 +50,7 @@ pub struct PublicContributionStorage {
 }
 
 impl PublicContributionStorage {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         start_time: Timestamp,
         phase_two_duration: Timestamp,

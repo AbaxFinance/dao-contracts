@@ -1,4 +1,4 @@
-use ink::{env::DefaultEnvironment, prelude::vec::Vec, storage::Mapping};
+use ink::{env::DefaultEnvironment, storage::Mapping};
 use pendzl::{
     contracts::general_vest::GeneralVestRef,
     math::errors::MathError,
@@ -51,23 +51,23 @@ impl OrdersStorage {
     }
 
     pub fn order(&self, id: u32) -> Option<Order> {
-        self.orders.get(&id)
+        self.orders.get(id)
     }
 
     pub fn insert_order(
         &mut self,
         earliest_execution: Timestamp,
         latest_execution: Timestamp,
-        operations: &Vec<Operation>,
+        operations: &[Operation],
     ) -> Result<u32, AbaxTreasuryError> {
         let order_id = self.next_order_id();
 
         self.orders.insert(
-            &order_id,
+            order_id,
             &Order {
                 earliest_execution,
                 latest_execution,
-                operations: operations.clone(),
+                operations: operations.to_vec(),
             },
         );
 
@@ -77,7 +77,7 @@ impl OrdersStorage {
     }
 
     pub fn remove_order(&mut self, id: u32) -> Result<Order, AbaxTreasuryError> {
-        if let Some(order) = self.orders.take(&id) {
+        if let Some(order) = self.orders.take(id) {
             Ok(order)
         } else {
             Err(AbaxTreasuryError::NoSuchOrder)

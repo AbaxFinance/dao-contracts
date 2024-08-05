@@ -1,6 +1,6 @@
 [package]
 name = "abax_tge"
-version = "0.1.0-alpha"
+version = "1.0.0"
 authors = [""]
 edition = "2021"
 
@@ -16,7 +16,7 @@ scale-info = { version = "2.11", default-features = false, features = [
 ], optional = true }
 
 # These dependencies
-pendzl = { version = "=0.2.4-v1calls3", default-features = false, features = [
+pendzl = { version = "=1.0.1-v1calls", default-features = false, features = [
     "psp22",
     "general_vest",
     "psp22_mintable",

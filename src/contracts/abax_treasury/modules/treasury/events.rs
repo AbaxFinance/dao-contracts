@@ -1,5 +1,4 @@
 pub use ink::{prelude::vec::Vec, primitives::AccountId};
-pub use pendzl::traits::Balance;
 
 use super::structs::Operation;
 
