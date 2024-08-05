@@ -22,8 +22,6 @@ import {
   VOTING_RULES,
 } from './00_constants';
 import AbaxInflatorDeployer from 'typechain/deployers/abax_inflator';
-import { ApiPromise } from '@polkadot/api';
-import { KeyringPair } from '@polkadot/keyring/types';
 
 export interface StoredContractInfo {
   name: string;
@@ -108,6 +106,7 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
     COST_TO_MINT_MILLIARD_TOKENS,
   );
   console.log(`Deployed TGE at ${abaxTge.address}`);
+  console.log('TGE START TIME:', new Date(TGE_START_TIME), 'ISO:', new Date(TGE_START_TIME).toISOString());
 
   //inflator is deployed
   const { result: inflatorResult, contract: inflator } = await new AbaxInflatorDeployer(api, deployer).new(governor.address, abaxToken.address, [
