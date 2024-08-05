@@ -58,6 +58,7 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
   // ABAX TOKEN is deployed with deployer as a RoleAdmin.
   const { result: abaxTokenResult, contract: abaxToken } = await new AbaxTokenDeployer(api, deployer).new('ABAX', 'ABAX', ABAX_DECIMALS);
   console.log(`Deployed ABAX Token at ${abaxToken.address}`);
+
   // TGE Vester is deployed. it doesn't have any admins.
   const { result: tgeVesterResult, contract: tgeVester } = await new VesterDeployer(api, deployer).new();
   console.log(`Deployed TGE Vester at ${tgeVester.address}`);

@@ -18,7 +18,6 @@ import BN from 'bn.js';
 import chalk from 'chalk';
 import { readFileSync } from 'fs-extra';
 import path from 'path';
-import { saveContractInfoToFileAsJson } from 'scripts/deployAudit';
 import { roleToSelectorId } from 'tests/misc';
 import ATokenContract from 'typechain/contracts/a_token';
 import LendingPoolContract from 'typechain/contracts/lending_pool';
@@ -49,6 +48,7 @@ import { genValidContractOptionsWithValue } from '@c-forge/typechain-types';
 import RegisterAssetProposalDeployer from 'typechain/deployers/register_asset_proposal';
 import AddMarketRuleProposalDeployer from 'typechain/deployers/add_market_rule_proposal';
 import DeployLpProposalDeployer from 'typechain/deployers/deploy_lp_proposal';
+import { saveContractInfoToFileAsJson } from 'scripts/deployDev';
 
 const descriptionUrl = 'https://github.com/abaxfinance/abax-protocol';
 
@@ -62,9 +62,9 @@ export async function propose(
   console.log('Proposing...', description);
   let proposalId = new BN(-1);
   const descriptionHash = (await governor.query.hashDescription(description)).value.ok!;
-  const query = await governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+  const query = await governor.withSigner(proposer).query.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution });
   query.value.unwrapRecursively();
-  const tx = await governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution }, description);
+  const tx = await governor.withSigner(proposer).tx.propose({ descriptionUrl, descriptionHash, transactions, earliestExecution });
   const event = tx.events?.find((e) => e.name.includes('ProposalCreated'))?.args;
   proposalId = new BN(event.proposalId.toString());
 
@@ -359,7 +359,7 @@ const bigStake = midStake.muln(10);
   const foundersAddress = signer.address; //keyring.createFromUri(testSeeds['founders'], {}, 'sr25519').address;
   const foundationAddress = signer.address; //keyring.createFromUri(testSeeds['foundation'], {}, 'sr25519').address;
 
-  await transferNativeFromTo(api, getSigners()[0], signer, ONE_TOKEN.muln(1_000_000));
+  // await transferNativeFromTo(api, getSigners()[0], signer, ONE_TOKEN.muln(1_000_000));
   //TODO: hardcode wAZERO
   // const wAZERO = (await new WazeroDeployer(api, signer).new()).contract;
   const wAZERO = (await new Psp22EmitableDeployer(api, signer).new('wAZERO', 'wAZERO', ABAX_DECIMALS)).contract;
@@ -370,7 +370,16 @@ const bigStake = midStake.muln(10);
   const vester = (await new VesterDeployer(api, signer).new()).contract;
 
   const governor = (
-    await new GovernorDeployer(api, signer).new(abaxToken.address, vester.address, UNSTAKE_PERIOD, 'ABAX Votes', 'vABAX', VOTING_RULES)
+    await new GovernorDeployer(api, signer).new(
+      abaxToken.address,
+      vester.address,
+      foundationAddress,
+      signer.address,
+      UNSTAKE_PERIOD,
+      'ABAX Votes',
+      'vABAX',
+      VOTING_RULES,
+    )
   ).contract;
 
   const treasury = (await new AbaxTreasuryDeployer(api, signer).new(governor.address, signer.address, vester.address)).contract;
