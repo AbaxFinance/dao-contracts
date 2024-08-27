@@ -23,7 +23,7 @@
     "address": "5D7K6sh5yJSoVeo62765KCkqBqpLbL3zS6MFvaZfT9nn5YLC",
     "txHash": "0xfa621473d188bb29f7c957f4b291221ba8b3d28b915bbb85662cee368980a2a8",
     "blockHash": "0xdcb573de51d24d240cb06370c1042af9821ab9dada2e3583793f1f314cb51046",
-    "vestingFor": "abax_governor"
+    "vestingFor": "governor"
   },
   {
     "name": "abax_vester",

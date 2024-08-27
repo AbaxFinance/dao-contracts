@@ -1,0 +1,1783 @@
+{
+  "source": {
+    "hash": "0xa09f5acbe96171d2379f75b3bc987163bdad6104c2a335bdffa1ee0a65b39c02",
+    "language": "ink! 5.0.0",
+    "compiler": "rustc 1.77.2",
+    "build_info": {
+      "build_mode": "Release",
+      "cargo_contract_version": "4.1.1",
+      "rust_toolchain": "stable-x86_64-unknown-linux-gnu",
+      "wasm_opt_settings": {
+        "keep_debug_symbols": false,
+        "optimization_passes": "Z"
+      }
+    }
+  },
+  "contract": {
+    "name": "fee_reduction_provider_mock",
+    "version": "0.2.0",
+    "authors": ["Łukasz Łakomy", "Konrad Wierzbik"]
+  },
+  "image": "paritytech/contracts-verifiable:4.1.1",
+  "spec": {
+    "constructors": [
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "new",
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink_primitives", "ConstructorResult"],
+          "type": 15
+        },
+        "selector": "0x9bae9d5e"
+      }
+    ],
+    "docs": [],
+    "environment": {
+      "accountId": {
+        "displayName": ["AccountId"],
+        "type": 3
+      },
+      "balance": {
+        "displayName": ["Balance"],
+        "type": 19
+      },
+      "blockNumber": {
+        "displayName": ["BlockNumber"],
+        "type": 0
+      },
+      "chainExtension": {
+        "displayName": ["ChainExtension"],
+        "type": 28
+      },
+      "hash": {
+        "displayName": ["Hash"],
+        "type": 27
+      },
+      "maxEventTopics": 4,
+      "staticBufferSize": 16384,
+      "timestamp": {
+        "displayName": ["Timestamp"],
+        "type": 23
+      }
+    },
+    "events": [
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a deposit of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Deposit",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x0fec3602811bce8ef519cedac639ad86e69ab2aec83956f393e7a7b1d59e27bc"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a withdraw of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Withdraw",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x9501416456eb96ab1e14aef68d4f7eb0d957c7c3a2c723f943ab3308429f4857"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "market_rule_id",
+            "type": {
+              "displayName": ["RuleId"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": ["Emitted when a market rule is chosen."],
+        "label": "MarketRuleChosen",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xc2f67a85fec07505f0a22d06212c1ba689ed73ba02ac2d8983e8b25dc5ffd889"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "set",
+            "type": {
+              "displayName": ["bool"],
+              "type": 20
+            }
+          }
+        ],
+        "docs": ["Emitted when an `asset` is enabled or disabled as collateral by the `caller`."],
+        "label": "CollateralSet",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x7406c0f2277b86f664d896a0104f866543c82958809fb0ccfa10c44d2babac1b"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a borrow of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Borrow",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x68b9109b885e8a8edf4f3944e10c50bb2fc2148a57d290d552c994f93e86c384"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a repay of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Repay",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xcb7684ef3f1c086b7fce47dd8911c325780102a9aec8be9cd4e65db62aa795e4"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "receiver",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["u128"],
+              "type": 19
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "fee",
+            "type": {
+              "displayName": ["u128"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a flash loan of `amount` in `asset` is initiated by `caller` to the `receiver`.",
+          "The receiver pays back the `amount` and `fee` in the same transaction."
+        ],
+        "label": "FlashLoan",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x4a0f52b5eeff44e7c1be269a52410bb70377ac9d6747005cbdf7fd9245eac878"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "liquidator",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "liquidated_account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset_to_repay",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset_to_take",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount_repaid",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount_taken",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a liquidation is made by 'liquidator' on 'liquidated_account'.",
+          "The liquidator takes 'amount_taken' of 'asset_to_take' and repays 'amount_repaid' of 'asset_to_repay'.",
+          "",
+          "# Note",
+          "The data coresponding to asset_to_take, amount_repaid",
+          "and (asset_to_repay, liquidated_account)",
+          "and (asset_to_take, liquidator) and (asset_to_take, liquidated_account) is updated (interests are accumulated)."
+        ],
+        "label": "Liquidation",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x76ba462a55808954755f62e0d6e94466af36b39ef9edb4bea8d9e83bd72c38e6"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a interest indexes are updated in reserve coreespoding to asset.",
+          "",
+          "# Note",
+          "This event is not emitted when Deposit, Withdraw, Borrow, Repay, Liquidation events are emitted eventhougth the interest indexes are updated."
+        ],
+        "label": "InterestsAccumulated",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x9768a96ba816d5c186373d34d7571df094f74c6cecd38c6f06d35f9678a50ac0"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "decimals",
+            "type": {
+              "displayName": ["u8"],
+              "type": 5
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "name",
+            "type": {
+              "displayName": ["String"],
+              "type": 21
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "symbol",
+            "type": {
+              "displayName": ["String"],
+              "type": 21
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "a_token_code_hash",
+            "type": {
+              "displayName": [],
+              "type": 4
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "v_token_code_hash",
+            "type": {
+              "displayName": [],
+              "type": 4
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "a_token_address",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "v_token_address",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": ["Emitted when an asset is registered."],
+        "label": "AssetRegistered",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xdfdfdad540d764eb76ee8217018a03f6350f2c1a122ef93252371103d4f6b580"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "price_feed_provider",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": ["Emitted when a price feed provider is changed."],
+        "label": "PriceFeedProviderChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x43f92bb52801afce6a6190a96b5ef40283fce331461dcb6ca0811ab14da05751"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "fee_reduction_provider",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": ["Emitted when a fee reduction provider is changed."],
+        "label": "FeeReductionChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x0f1163fa6f83624da54bab4b3bc63527e9332d8694fd8f21edb4db3f562886a3"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "flash_loan_fee_e6",
+            "type": {
+              "displayName": ["u128"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": ["Emitted when a flash loan fee is changed."],
+        "label": "FlashLoanFeeChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x7ae8c2bb5c69af2484d1217a620b4f0ade84e5a0d2c6857501f71dd974a82ba4"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "active",
+            "type": {
+              "displayName": ["bool"],
+              "type": 20
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve is activated."],
+        "label": "ReserveActivated",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x8293e9a17d04a3b9d2ed8bfdeef09bafd31239028a6f5fa6d7b45262e8b1cad9"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "frozen",
+            "type": {
+              "displayName": ["bool"],
+              "type": 20
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve is frozen."],
+        "label": "ReserveFrozen",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x1ee11acc50b9c7c436cb8106f806cf35faf5067f048a3069866862f79181ee9e"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "interest_rate_model_params",
+            "type": {
+              "displayName": ["InterestRateModelParams"],
+              "type": 22
+            }
+          }
+        ],
+        "docs": ["Emitted when a interest rate model is changed."],
+        "label": "ReserveInterestRateModelChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xb62ddd071d599731e66a725322b7529cb31ceeeaab0c94d9072f9d4926e95489"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "reserve_restrictions",
+            "type": {
+              "displayName": ["ReserveRestrictions"],
+              "type": 24
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve restrictions are changed."],
+        "label": "ReserveRestrictionsChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xcb01d574ecfb3a85c06261a438bfceb4eb22b1e7e337994e63e857df2e003d0b"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "reserve_fees",
+            "type": {
+              "displayName": ["SetReserveFeesArgs"],
+              "type": 26
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve fees are changed."],
+        "label": "ReserveFeesChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x846d17a1ea55292cbbd707fac313f6d1c807c7c3653c3b56858e913a6668f065"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "market_rule_id",
+            "type": {
+              "displayName": ["RuleId"],
+              "type": 0
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "collateral_coefficient_e6",
+            "type": {
+              "displayName": ["Option"],
+              "type": 25
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "borrow_coefficient_e6",
+            "type": {
+              "displayName": ["Option"],
+              "type": 25
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "penalty_e6",
+            "type": {
+              "displayName": ["Option"],
+              "type": 25
+            }
+          }
+        ],
+        "docs": ["Emitted when an asset rules in an martket rule are changed."],
+        "label": "AssetRulesChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x10dca875b9227d850bd11cb568b83b87cc968c08054efd454dcf3363a8dfb388"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": ["Emitted when a protocol income genareted in 'asset' is taken."],
+        "label": "IncomeTaken",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xa7766c3f17f457a0b8d61ed60e6e42c15783cdd5e741c7540e788ffddadf4ed0"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "debt_rate_e18",
+            "type": {
+              "displayName": ["u64"],
+              "type": 23
+            }
+          }
+        ],
+        "docs": ["Emitted when stablecoin debt rate is changed."],
+        "label": "StablecoinDebtRateChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x4fde6d40bee7fd565c8e00072d605f588ed45a773a363365b8a433f641e54785"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` for which the admin role is changed. This is the role being modified."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 0
+            }
+          },
+          {
+            "docs": ["The `RoleType` representing the previous admin role for the `role`. Indicates the admin role before the change."],
+            "indexed": false,
+            "label": "previous",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 0
+            }
+          },
+          {
+            "docs": ["The `RoleType` representing the new admin role set for the `role`. Indicates the updated admin role."],
+            "indexed": false,
+            "label": "new",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when the admin role for a specific role is changed.",
+          "",
+          "This event is triggered whenever a `role`'s admin role is updated.",
+          "It logs the `role` being modified, the `previous` admin role, and the `new` admin role set for that `role`."
+        ],
+        "label": "RoleAdminChanged",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0xde670cace683976bfdc92b54b661961802f8322e8cead41fd76e5d7ca65dc403"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` that is granted. This field identifies the specific role being assigned."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 0
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account receiving the `role`. Represents the beneficiary of the role assignment."],
+            "indexed": true,
+            "label": "grantee",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account that granted the `role`. This is the account responsible for the role assignment."],
+            "indexed": true,
+            "label": "grantor",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a role is granted to an account.",
+          "",
+          "This event occurs when a new `role` is assigned to an `grantee`.",
+          "The `grantor` who assigned the role is also logged."
+        ],
+        "label": "RoleGranted",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0x4178b665aa7310f609a3da6698348eabe212f3b0bd0386791eeae4924095b76b"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` that is revoked. Specifies the role being removed from the account."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 0
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account from which the `role` is being removed. Denotes the account losing the role."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account that performed the role revocation. Indicates who initiated the removal of the role."],
+            "indexed": true,
+            "label": "sender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a role is revoked from an account.",
+          "",
+          "This event is triggered when an existing `role` is removed from an `account`.",
+          "The `sender` who performed the revocation is also included."
+        ],
+        "label": "RoleRevoked",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0x00d57dbcb9a54f822039e86efe3513a9af40deb0e6a9ee6cecf39824f8d27e9b"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account that initiated the pause action."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": ["Emitted when the contract is paused."],
+        "label": "Paused",
+        "module_path": "pendzl_contracts::security::pausable",
+        "signature_topic": "0xcb560a184d13b48ac1ecc804d19fa57a64ef4facd0819dcac22a969c20fec081"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account that initiated the unpause action."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "docs": ["Emitted when the contract is unpaused."],
+        "label": "Unpaused",
+        "module_path": "pendzl_contracts::security::pausable",
+        "signature_topic": "0x29f037cd7cf467977af6c1d02a3c4ab9c868bb6ce539c0d87ea507d594709d41"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account from which the tokens are transferred. `None` for minting operations."],
+            "indexed": true,
+            "label": "from",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          },
+          {
+            "docs": ["The account to which the tokens are transferred. `None` for burning operations."],
+            "indexed": true,
+            "label": "to",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          },
+          {
+            "docs": ["The amount of tokens transferred."],
+            "indexed": false,
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": ["Emitted when tokens are transferred, including zero value transfers."],
+        "label": "Transfer",
+        "module_path": "pendzl_contracts::token::psp22",
+        "signature_topic": "0xb5b61a3e6a21a16be4f044b517c28ac692492f73c5bfd3f60178ad98c767f4cb"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account of the token owner."],
+            "indexed": true,
+            "label": "owner",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": ["The account of the authorized spender."],
+            "indexed": true,
+            "label": "spender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          },
+          {
+            "docs": ["The new allowance amount."],
+            "indexed": false,
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 19
+            }
+          }
+        ],
+        "docs": ["Emitted when the allowance of a `spender` for an `owner` is set or changed."],
+        "label": "Approval",
+        "module_path": "pendzl_contracts::token::psp22",
+        "signature_topic": "0x1a35e726f5feffda199144f6097b2ba23713e549bfcbe090c0981e3bcdfbcc1d"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The new owner's account address. `None` if ownership is renounced."],
+            "indexed": true,
+            "label": "new",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          }
+        ],
+        "docs": ["Emitted when ownership of the contract is transferred."],
+        "label": "OwnershipTransferred",
+        "module_path": "pendzl_contracts::access::ownable",
+        "signature_topic": "0x5c626481ee232181dcfad24632520cc98608b23ed971378c0ad4504cab1b78c9"
+      }
+    ],
+    "lang_error": {
+      "displayName": ["ink", "LangError"],
+      "type": 16
+    },
+    "messages": [
+      {
+        "args": [
+          {
+            "label": "account_id",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          },
+          {
+            "label": "fee_reductions",
+            "type": {
+              "displayName": [],
+              "type": 6
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "set_fee_reduction",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 15
+        },
+        "selector": "0x4675d57f"
+      },
+      {
+        "args": [
+          {
+            "label": "account_id",
+            "type": {
+              "displayName": ["Option"],
+              "type": 2
+            }
+          },
+          {
+            "label": "fee_reduction",
+            "type": {
+              "displayName": ["u32"],
+              "type": 0
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "set_flash_loan_fee_reduction",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 15
+        },
+        "selector": "0x6c584e8f"
+      },
+      {
+        "args": [
+          {
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "FeeReduction::get_fee_reductions",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 17
+        },
+        "selector": "0x47711867"
+      },
+      {
+        "args": [
+          {
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "FeeReduction::get_flash_loan_fee_reduction",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 18
+        },
+        "selector": "0x14f971bd"
+      }
+    ]
+  },
+  "storage": {
+    "root": {
+      "layout": {
+        "struct": {
+          "fields": [
+            {
+              "layout": {
+                "root": {
+                  "layout": {
+                    "struct": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x51c03c76",
+                              "ty": 0
+                            }
+                          },
+                          "name": "0"
+                        },
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x51c03c76",
+                              "ty": 0
+                            }
+                          },
+                          "name": "1"
+                        }
+                      ],
+                      "name": "(A, B)"
+                    }
+                  },
+                  "root_key": "0x51c03c76",
+                  "ty": 1
+                }
+              },
+              "name": "fee_reductions"
+            },
+            {
+              "layout": {
+                "root": {
+                  "layout": {
+                    "leaf": {
+                      "key": "0xed16293d",
+                      "ty": 0
+                    }
+                  },
+                  "root_key": "0xed16293d",
+                  "ty": 11
+                }
+              },
+              "name": "flash_loan_fee_reductions"
+            }
+          ],
+          "name": "FeeReductionProvider"
+        }
+      },
+      "root_key": "0x00000000",
+      "ty": 14
+    }
+  },
+  "types": [
+    {
+      "id": 0,
+      "type": {
+        "def": {
+          "primitive": "u32"
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "K",
+            "type": 2
+          },
+          {
+            "name": "V",
+            "type": 6
+          },
+          {
+            "name": "KeyType",
+            "type": 7
+          }
+        ],
+        "path": ["ink_storage", "lazy", "mapping", "Mapping"]
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 3
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 3
+          }
+        ],
+        "path": ["Option"]
+      }
+    },
+    {
+      "id": 3,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 4,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "types", "AccountId"]
+      }
+    },
+    {
+      "id": 4,
+      "type": {
+        "def": {
+          "array": {
+            "len": 32,
+            "type": 5
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": {
+        "def": {
+          "primitive": "u8"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": {
+        "def": {
+          "tuple": [0, 0]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 8
+          },
+          {
+            "name": "R",
+            "type": 9
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 8,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "path": ["ink_storage_traits", "impls", "AutoKey"]
+      }
+    },
+    {
+      "id": 9,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 10
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 10,
+      "type": {
+        "def": {
+          "tuple": []
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "K",
+            "type": 2
+          },
+          {
+            "name": "V",
+            "type": 0
+          },
+          {
+            "name": "KeyType",
+            "type": 12
+          }
+        ],
+        "path": ["ink_storage", "lazy", "mapping", "Mapping"]
+      }
+    },
+    {
+      "id": 12,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 8
+          },
+          {
+            "name": "R",
+            "type": 13
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 13,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 10
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 14,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "fee_reductions",
+                "type": 1,
+                "typeName": "<Mapping<Option<AccountId>, (u32, u32)> as::ink::storage::traits\n::AutoStorableHint<::ink::storage::traits::ManualKey<\n1983692881u32, ()>,>>::Type"
+              },
+              {
+                "name": "flash_loan_fee_reductions",
+                "type": 11,
+                "typeName": "<Mapping<Option<AccountId>, u32> as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<1026103021u32,\n()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": ["fee_reduction_provider_mock", "fee_reduction_provider_mock", "FeeReductionProvider"]
+      }
+    },
+    {
+      "id": 15,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 10
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 16
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 10
+          },
+          {
+            "name": "E",
+            "type": 16
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 16,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 1,
+                "name": "CouldNotReadInput"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "LangError"]
+      }
+    },
+    {
+      "id": 17,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 6
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 16
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 6
+          },
+          {
+            "name": "E",
+            "type": 16
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 18,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 0
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 16
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 0
+          },
+          {
+            "name": "E",
+            "type": 16
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 19,
+      "type": {
+        "def": {
+          "primitive": "u128"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": {
+        "def": {
+          "primitive": "bool"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": {
+        "def": {
+          "primitive": "str"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "target_ur_e6",
+                "type": 0,
+                "typeName": "u32"
+              },
+              {
+                "name": "min_rate_at_target_e18",
+                "type": 23,
+                "typeName": "u64"
+              },
+              {
+                "name": "max_rate_at_target_e18",
+                "type": 23,
+                "typeName": "u64"
+              },
+              {
+                "name": "rate_at_max_ur_e18",
+                "type": 23,
+                "typeName": "u64"
+              },
+              {
+                "name": "minimal_time_between_adjustments",
+                "type": 23,
+                "typeName": "u64"
+              }
+            ]
+          }
+        },
+        "path": ["abax_library", "structs", "interest_rate_model", "InterestRateModelParams"]
+      }
+    },
+    {
+      "id": 23,
+      "type": {
+        "def": {
+          "primitive": "u64"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "maximal_total_deposit",
+                "type": 25,
+                "typeName": "Option<Balance>"
+              },
+              {
+                "name": "maximal_total_debt",
+                "type": 25,
+                "typeName": "Option<Balance>"
+              },
+              {
+                "name": "minimal_collateral",
+                "type": 19,
+                "typeName": "Balance"
+              },
+              {
+                "name": "minimal_debt",
+                "type": 19,
+                "typeName": "Balance"
+              }
+            ]
+          }
+        },
+        "path": ["abax_library", "structs", "reserve_restrictions", "ReserveRestrictions"]
+      }
+    },
+    {
+      "id": 25,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 19
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 19
+          }
+        ],
+        "path": ["Option"]
+      }
+    },
+    {
+      "id": 26,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "debt_fee_e6",
+                "type": 0,
+                "typeName": "u32"
+              },
+              {
+                "name": "deposit_fee_e6",
+                "type": 0,
+                "typeName": "u32"
+              }
+            ]
+          }
+        },
+        "path": ["abax_contracts", "lending_pool", "traits", "lending_pool_manage", "SetReserveFeesArgs"]
+      }
+    },
+    {
+      "id": 27,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 4,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "types", "Hash"]
+      }
+    },
+    {
+      "id": 28,
+      "type": {
+        "def": {
+          "variant": {}
+        },
+        "path": ["ink_env", "types", "NoChainExtension"]
+      }
+    }
+  ],
+  "version": 5
+}

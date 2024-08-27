@@ -1,0 +1,2 @@
+export const LENDING_POOL_ADDRESS = '5HrFwSe1mTneQbArbUH93MFbbkqaSBhohpfnWDCDSQM6N7Jh';
+export const PRICE_FEED_PROVIDER_ADDRESS = '5GjvKx6ur4AFHftAgMLqZyVt6jvzcd6gMVsMBJpdCM4yhbDQ';
