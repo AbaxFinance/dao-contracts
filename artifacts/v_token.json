@@ -1,0 +1,2981 @@
+{
+  "source": {
+    "hash": "0xa1b063ed23d600a7ca37f6340acec08f7352dd8834a2b3c79013c05f73cb0622",
+    "language": "ink! 5.0.0",
+    "compiler": "rustc 1.77.2",
+    "build_info": {
+      "build_mode": "Release",
+      "cargo_contract_version": "4.1.1",
+      "rust_toolchain": "stable-x86_64-unknown-linux-gnu",
+      "wasm_opt_settings": {
+        "keep_debug_symbols": false,
+        "optimization_passes": "Z"
+      }
+    }
+  },
+  "contract": {
+    "name": "v_token",
+    "version": "1.0.0",
+    "authors": ["Konrad Wierzbik <konrad.wierzbik@gmail.com>"],
+    "description": "Abax Protocol VToken contract",
+    "license": "BUSL-1.1"
+  },
+  "image": "paritytech/contracts-verifiable:4.1.1",
+  "spec": {
+    "constructors": [
+      {
+        "args": [
+          {
+            "label": "name",
+            "type": {
+              "displayName": ["String"],
+              "type": 22
+            }
+          },
+          {
+            "label": "symbol",
+            "type": {
+              "displayName": ["String"],
+              "type": 22
+            }
+          },
+          {
+            "label": "decimal",
+            "type": {
+              "displayName": ["u8"],
+              "type": 9
+            }
+          },
+          {
+            "label": "lending_pool",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "underlying_asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "new",
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink_primitives", "ConstructorResult"],
+          "type": 40
+        },
+        "selector": "0x9bae9d5e"
+      }
+    ],
+    "docs": [],
+    "environment": {
+      "accountId": {
+        "displayName": ["AccountId"],
+        "type": 7
+      },
+      "balance": {
+        "displayName": ["Balance"],
+        "type": 0
+      },
+      "blockNumber": {
+        "displayName": ["BlockNumber"],
+        "type": 53
+      },
+      "chainExtension": {
+        "displayName": ["ChainExtension"],
+        "type": 61
+      },
+      "hash": {
+        "displayName": ["Hash"],
+        "type": 60
+      },
+      "maxEventTopics": 4,
+      "staticBufferSize": 16384,
+      "timestamp": {
+        "displayName": ["Timestamp"],
+        "type": 56
+      }
+    },
+    "events": [
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a deposit of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Deposit",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x0fec3602811bce8ef519cedac639ad86e69ab2aec83956f393e7a7b1d59e27bc"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a withdraw of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Withdraw",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x9501416456eb96ab1e14aef68d4f7eb0d957c7c3a2c723f943ab3308429f4857"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "market_rule_id",
+            "type": {
+              "displayName": ["RuleId"],
+              "type": 53
+            }
+          }
+        ],
+        "docs": ["Emitted when a market rule is chosen."],
+        "label": "MarketRuleChosen",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xc2f67a85fec07505f0a22d06212c1ba689ed73ba02ac2d8983e8b25dc5ffd889"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "set",
+            "type": {
+              "displayName": ["bool"],
+              "type": 54
+            }
+          }
+        ],
+        "docs": ["Emitted when an `asset` is enabled or disabled as collateral by the `caller`."],
+        "label": "CollateralSet",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x7406c0f2277b86f664d896a0104f866543c82958809fb0ccfa10c44d2babac1b"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a borrow of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Borrow",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x68b9109b885e8a8edf4f3944e10c50bb2fc2148a57d290d552c994f93e86c384"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "on_behalf_of",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a repay of 'amount' in 'asset' is made by 'caller' on behalf of 'on_behalf_of'.",
+          "The data coresponding to asset and (asset, on_behalf_of) is updated (interests are accumulated)."
+        ],
+        "label": "Repay",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xcb7684ef3f1c086b7fce47dd8911c325780102a9aec8be9cd4e65db62aa795e4"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "receiver",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "caller",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount",
+            "type": {
+              "displayName": ["u128"],
+              "type": 0
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "fee",
+            "type": {
+              "displayName": ["u128"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a flash loan of `amount` in `asset` is initiated by `caller` to the `receiver`.",
+          "The receiver pays back the `amount` and `fee` in the same transaction."
+        ],
+        "label": "FlashLoan",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x4a0f52b5eeff44e7c1be269a52410bb70377ac9d6747005cbdf7fd9245eac878"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "liquidator",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "liquidated_account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset_to_repay",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset_to_take",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount_repaid",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "amount_taken",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a liquidation is made by 'liquidator' on 'liquidated_account'.",
+          "The liquidator takes 'amount_taken' of 'asset_to_take' and repays 'amount_repaid' of 'asset_to_repay'.",
+          "",
+          "# Note",
+          "The data coresponding to asset_to_take, amount_repaid",
+          "and (asset_to_repay, liquidated_account)",
+          "and (asset_to_take, liquidator) and (asset_to_take, liquidated_account) is updated (interests are accumulated)."
+        ],
+        "label": "Liquidation",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x76ba462a55808954755f62e0d6e94466af36b39ef9edb4bea8d9e83bd72c38e6"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a interest indexes are updated in reserve coreespoding to asset.",
+          "",
+          "# Note",
+          "This event is not emitted when Deposit, Withdraw, Borrow, Repay, Liquidation events are emitted eventhougth the interest indexes are updated."
+        ],
+        "label": "InterestsAccumulated",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x9768a96ba816d5c186373d34d7571df094f74c6cecd38c6f06d35f9678a50ac0"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "decimals",
+            "type": {
+              "displayName": ["u8"],
+              "type": 9
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "name",
+            "type": {
+              "displayName": ["String"],
+              "type": 22
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "symbol",
+            "type": {
+              "displayName": ["String"],
+              "type": 22
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "a_token_code_hash",
+            "type": {
+              "displayName": [],
+              "type": 8
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "v_token_code_hash",
+            "type": {
+              "displayName": [],
+              "type": 8
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "a_token_address",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "v_token_address",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": ["Emitted when an asset is registered."],
+        "label": "AssetRegistered",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xdfdfdad540d764eb76ee8217018a03f6350f2c1a122ef93252371103d4f6b580"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "price_feed_provider",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": ["Emitted when a price feed provider is changed."],
+        "label": "PriceFeedProviderChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x43f92bb52801afce6a6190a96b5ef40283fce331461dcb6ca0811ab14da05751"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "fee_reduction_provider",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": ["Emitted when a fee reduction provider is changed."],
+        "label": "FeeReductionChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x0f1163fa6f83624da54bab4b3bc63527e9332d8694fd8f21edb4db3f562886a3"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "flash_loan_fee_e6",
+            "type": {
+              "displayName": ["u128"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": ["Emitted when a flash loan fee is changed."],
+        "label": "FlashLoanFeeChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x7ae8c2bb5c69af2484d1217a620b4f0ade84e5a0d2c6857501f71dd974a82ba4"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "active",
+            "type": {
+              "displayName": ["bool"],
+              "type": 54
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve is activated."],
+        "label": "ReserveActivated",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x8293e9a17d04a3b9d2ed8bfdeef09bafd31239028a6f5fa6d7b45262e8b1cad9"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "frozen",
+            "type": {
+              "displayName": ["bool"],
+              "type": 54
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve is frozen."],
+        "label": "ReserveFrozen",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x1ee11acc50b9c7c436cb8106f806cf35faf5067f048a3069866862f79181ee9e"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "interest_rate_model_params",
+            "type": {
+              "displayName": ["InterestRateModelParams"],
+              "type": 55
+            }
+          }
+        ],
+        "docs": ["Emitted when a interest rate model is changed."],
+        "label": "ReserveInterestRateModelChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xb62ddd071d599731e66a725322b7529cb31ceeeaab0c94d9072f9d4926e95489"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "reserve_restrictions",
+            "type": {
+              "displayName": ["ReserveRestrictions"],
+              "type": 57
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve restrictions are changed."],
+        "label": "ReserveRestrictionsChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xcb01d574ecfb3a85c06261a438bfceb4eb22b1e7e337994e63e857df2e003d0b"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "reserve_fees",
+            "type": {
+              "displayName": ["SetReserveFeesArgs"],
+              "type": 59
+            }
+          }
+        ],
+        "docs": ["Emitted when a reserve fees are changed."],
+        "label": "ReserveFeesChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x846d17a1ea55292cbbd707fac313f6d1c807c7c3653c3b56858e913a6668f065"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "market_rule_id",
+            "type": {
+              "displayName": ["RuleId"],
+              "type": 53
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "collateral_coefficient_e6",
+            "type": {
+              "displayName": ["Option"],
+              "type": 58
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "borrow_coefficient_e6",
+            "type": {
+              "displayName": ["Option"],
+              "type": 58
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "penalty_e6",
+            "type": {
+              "displayName": ["Option"],
+              "type": 58
+            }
+          }
+        ],
+        "docs": ["Emitted when an asset rules in an martket rule are changed."],
+        "label": "AssetRulesChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x10dca875b9227d850bd11cb568b83b87cc968c08054efd454dcf3363a8dfb388"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": ["Emitted when a protocol income genareted in 'asset' is taken."],
+        "label": "IncomeTaken",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0xa7766c3f17f457a0b8d61ed60e6e42c15783cdd5e741c7540e788ffddadf4ed0"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "asset",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "debt_rate_e18",
+            "type": {
+              "displayName": ["u64"],
+              "type": 56
+            }
+          }
+        ],
+        "docs": ["Emitted when stablecoin debt rate is changed."],
+        "label": "StablecoinDebtRateChanged",
+        "module_path": "abax_contracts::lending_pool::events",
+        "signature_topic": "0x4fde6d40bee7fd565c8e00072d605f588ed45a773a363365b8a433f641e54785"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account that initiated the pause action."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": ["Emitted when the contract is paused."],
+        "label": "Paused",
+        "module_path": "pendzl_contracts::security::pausable",
+        "signature_topic": "0xcb560a184d13b48ac1ecc804d19fa57a64ef4facd0819dcac22a969c20fec081"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account that initiated the unpause action."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": ["Emitted when the contract is unpaused."],
+        "label": "Unpaused",
+        "module_path": "pendzl_contracts::security::pausable",
+        "signature_topic": "0x29f037cd7cf467977af6c1d02a3c4ab9c868bb6ce539c0d87ea507d594709d41"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` for which the admin role is changed. This is the role being modified."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 53
+            }
+          },
+          {
+            "docs": ["The `RoleType` representing the previous admin role for the `role`. Indicates the admin role before the change."],
+            "indexed": false,
+            "label": "previous",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 53
+            }
+          },
+          {
+            "docs": ["The `RoleType` representing the new admin role set for the `role`. Indicates the updated admin role."],
+            "indexed": false,
+            "label": "new",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 53
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when the admin role for a specific role is changed.",
+          "",
+          "This event is triggered whenever a `role`'s admin role is updated.",
+          "It logs the `role` being modified, the `previous` admin role, and the `new` admin role set for that `role`."
+        ],
+        "label": "RoleAdminChanged",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0xde670cace683976bfdc92b54b661961802f8322e8cead41fd76e5d7ca65dc403"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` that is granted. This field identifies the specific role being assigned."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 53
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account receiving the `role`. Represents the beneficiary of the role assignment."],
+            "indexed": true,
+            "label": "grantee",
+            "type": {
+              "displayName": ["Option"],
+              "type": 44
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account that granted the `role`. This is the account responsible for the role assignment."],
+            "indexed": true,
+            "label": "grantor",
+            "type": {
+              "displayName": ["Option"],
+              "type": 44
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a role is granted to an account.",
+          "",
+          "This event occurs when a new `role` is assigned to an `grantee`.",
+          "The `grantor` who assigned the role is also logged."
+        ],
+        "label": "RoleGranted",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0x4178b665aa7310f609a3da6698348eabe212f3b0bd0386791eeae4924095b76b"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` that is revoked. Specifies the role being removed from the account."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 53
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account from which the `role` is being removed. Denotes the account losing the role."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["Option"],
+              "type": 44
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account that performed the role revocation. Indicates who initiated the removal of the role."],
+            "indexed": true,
+            "label": "sender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a role is revoked from an account.",
+          "",
+          "This event is triggered when an existing `role` is removed from an `account`.",
+          "The `sender` who performed the revocation is also included."
+        ],
+        "label": "RoleRevoked",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0x00d57dbcb9a54f822039e86efe3513a9af40deb0e6a9ee6cecf39824f8d27e9b"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The new owner's account address. `None` if ownership is renounced."],
+            "indexed": true,
+            "label": "new",
+            "type": {
+              "displayName": ["Option"],
+              "type": 44
+            }
+          }
+        ],
+        "docs": ["Emitted when ownership of the contract is transferred."],
+        "label": "OwnershipTransferred",
+        "module_path": "pendzl_contracts::access::ownable",
+        "signature_topic": "0x5c626481ee232181dcfad24632520cc98608b23ed971378c0ad4504cab1b78c9"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account from which the tokens are transferred. `None` for minting operations."],
+            "indexed": true,
+            "label": "from",
+            "type": {
+              "displayName": ["Option"],
+              "type": 44
+            }
+          },
+          {
+            "docs": ["The account to which the tokens are transferred. `None` for burning operations."],
+            "indexed": true,
+            "label": "to",
+            "type": {
+              "displayName": ["Option"],
+              "type": 44
+            }
+          },
+          {
+            "docs": ["The amount of tokens transferred."],
+            "indexed": false,
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": ["Emitted when tokens are transferred, including zero value transfers."],
+        "label": "Transfer",
+        "module_path": "pendzl_contracts::token::psp22",
+        "signature_topic": "0xb5b61a3e6a21a16be4f044b517c28ac692492f73c5bfd3f60178ad98c767f4cb"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account of the token owner."],
+            "indexed": true,
+            "label": "owner",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": ["The account of the authorized spender."],
+            "indexed": true,
+            "label": "spender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "docs": ["The new allowance amount."],
+            "indexed": false,
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": ["Emitted when the allowance of a `spender` for an `owner` is set or changed."],
+        "label": "Approval",
+        "module_path": "pendzl_contracts::token::psp22",
+        "signature_topic": "0x1a35e726f5feffda199144f6097b2ba23713e549bfcbe090c0981e3bcdfbcc1d"
+      }
+    ],
+    "lang_error": {
+      "displayName": ["ink", "LangError"],
+      "type": 41
+    },
+    "messages": [
+      {
+        "args": [
+          {
+            "label": "transfer_event_data",
+            "type": {
+              "displayName": ["Vec"],
+              "type": 42
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "AbacusToken::emit_transfer_events",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 45
+        },
+        "selector": "0x7bfede3f"
+      },
+      {
+        "args": [
+          {
+            "label": "transfer_event_data",
+            "type": {
+              "displayName": ["TransferEventData"],
+              "type": 43
+            }
+          },
+          {
+            "label": "from",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "to",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "decrease_allowance_by",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "AbacusToken::emit_transfer_event_and_decrease_allowance",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 45
+        },
+        "selector": "0x4106ef53"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "AbacusToken::get_lending_pool",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 48
+        },
+        "selector": "0xcec6d17e"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "PSP22::total_supply",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 49
+        },
+        "selector": "0x162df8c2"
+      },
+      {
+        "args": [
+          {
+            "label": "owner",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "PSP22::balance_of",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 49
+        },
+        "selector": "0x6568382f"
+      },
+      {
+        "args": [
+          {
+            "label": "owner",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "spender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "PSP22::allowance",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 49
+        },
+        "selector": "0x4d47d921"
+      },
+      {
+        "args": [
+          {
+            "label": "to",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          },
+          {
+            "label": "data",
+            "type": {
+              "displayName": ["Vec"],
+              "type": 50
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Transfers `value` amount of tokens from the caller's account to account `to`",
+          " with additional `data` in unspecified format.",
+          "",
+          " On success a `Transfer` event is emitted.",
+          "",
+          " # Errors",
+          "",
+          " Returns `InsufficientBalance` error if there are not enough tokens on",
+          " the caller's account Balance.",
+          "",
+          " !!!IMPORTANT!!!",
+          " Returns `InsufficientAllowance` error if there are not enough tokens allowed",
+          "  for the caller to !!! TRANSFER TO `to` !!!"
+        ],
+        "label": "PSP22::transfer",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 45
+        },
+        "selector": "0xdb20f9f5"
+      },
+      {
+        "args": [
+          {
+            "label": "from",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "to",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          },
+          {
+            "label": "data",
+            "type": {
+              "displayName": ["Vec"],
+              "type": 50
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Transfers `value` tokens on the behalf of `from` to the account `to`",
+          " with additional `data` in unspecified format.",
+          "",
+          " This can be used to allow a contract to transfer tokens on ones behalf and/or",
+          " to charge fees in sub-currencies, for example.",
+          "",
+          " On success a `Transfer` and `Approval` events are emitted.",
+          "",
+          " # Errors",
+          "",
+          " !!!IMPORTANT!!!",
+          " Returns `InsufficientAllowance` error if there are not enough tokens allowed",
+          " for the caller to !!! TRANSFER TO  `to` !!!.",
+          "",
+          " Returns `InsufficientBalance` error if there are not enough tokens on",
+          " the the account Balance of `from`."
+        ],
+        "label": "PSP22::transfer_from",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 45
+        },
+        "selector": "0x54b3c76e"
+      },
+      {
+        "args": [
+          {
+            "label": "spender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "PSP22::approve",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 45
+        },
+        "selector": "0xb20f1bbd"
+      },
+      {
+        "args": [
+          {
+            "label": "spender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "delta_value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "PSP22::increase_allowance",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 45
+        },
+        "selector": "0x96d6b57a"
+      },
+      {
+        "args": [
+          {
+            "label": "spender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 7
+            }
+          },
+          {
+            "label": "delta_value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 0
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "PSP22::decrease_allowance",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 45
+        },
+        "selector": "0xfecb57d5"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "PSP22Metadata::token_name",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 51
+        },
+        "selector": "0x3d261bd4"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "PSP22Metadata::token_symbol",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 51
+        },
+        "selector": "0x34205be5"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "PSP22Metadata::token_decimals",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 52
+        },
+        "selector": "0x7271b782"
+      }
+    ]
+  },
+  "storage": {
+    "root": {
+      "layout": {
+        "struct": {
+          "fields": [
+            {
+              "layout": {
+                "struct": {
+                  "fields": [
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "leaf": {
+                              "key": "0xc629684f",
+                              "ty": 0
+                            }
+                          },
+                          "root_key": "0xc629684f",
+                          "ty": 1
+                        }
+                      },
+                      "name": "total_supply"
+                    },
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "leaf": {
+                              "key": "0xffbbddfc",
+                              "ty": 0
+                            }
+                          },
+                          "root_key": "0xffbbddfc",
+                          "ty": 6
+                        }
+                      },
+                      "name": "balances"
+                    },
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x7c996051",
+                              "ty": 0
+                            }
+                          },
+                          "root_key": "0x7c996051",
+                          "ty": 13
+                        }
+                      },
+                      "name": "allowances"
+                    }
+                  ],
+                  "name": "PSP22Data"
+                }
+              },
+              "name": "psp22"
+            },
+            {
+              "layout": {
+                "struct": {
+                  "fields": [
+                    {
+                      "layout": {
+                        "leaf": {
+                          "key": "0x00000000",
+                          "ty": 7
+                        }
+                      },
+                      "name": "lending_pool"
+                    },
+                    {
+                      "layout": {
+                        "leaf": {
+                          "key": "0x00000000",
+                          "ty": 7
+                        }
+                      },
+                      "name": "underlying_asset"
+                    },
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "leaf": {
+                              "key": "0xd0c36d85",
+                              "ty": 0
+                            }
+                          },
+                          "root_key": "0xd0c36d85",
+                          "ty": 18
+                        }
+                      },
+                      "name": "allowances"
+                    }
+                  ],
+                  "name": "AbacusTokenStorage"
+                }
+              },
+              "name": "abacus_token"
+            },
+            {
+              "layout": {
+                "struct": {
+                  "fields": [
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "enum": {
+                              "dispatchKey": "0xd1f34aae",
+                              "name": "Option",
+                              "variants": {
+                                "0": {
+                                  "fields": [],
+                                  "name": "None"
+                                },
+                                "1": {
+                                  "fields": [
+                                    {
+                                      "layout": {
+                                        "leaf": {
+                                          "key": "0xd1f34aae",
+                                          "ty": 22
+                                        }
+                                      },
+                                      "name": "0"
+                                    }
+                                  ],
+                                  "name": "Some"
+                                }
+                              }
+                            }
+                          },
+                          "root_key": "0xd1f34aae",
+                          "ty": 23
+                        }
+                      },
+                      "name": "name"
+                    },
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "enum": {
+                              "dispatchKey": "0x91c80e52",
+                              "name": "Option",
+                              "variants": {
+                                "0": {
+                                  "fields": [],
+                                  "name": "None"
+                                },
+                                "1": {
+                                  "fields": [
+                                    {
+                                      "layout": {
+                                        "leaf": {
+                                          "key": "0x91c80e52",
+                                          "ty": 22
+                                        }
+                                      },
+                                      "name": "0"
+                                    }
+                                  ],
+                                  "name": "Some"
+                                }
+                              }
+                            }
+                          },
+                          "root_key": "0x91c80e52",
+                          "ty": 28
+                        }
+                      },
+                      "name": "symbol"
+                    },
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "leaf": {
+                              "key": "0xd57ae5cd",
+                              "ty": 9
+                            }
+                          },
+                          "root_key": "0xd57ae5cd",
+                          "ty": 32
+                        }
+                      },
+                      "name": "decimals"
+                    }
+                  ],
+                  "name": "PSP22MetadataData"
+                }
+              },
+              "name": "metadata"
+            }
+          ],
+          "name": "VToken"
+        }
+      },
+      "root_key": "0x00000000",
+      "ty": 36
+    }
+  },
+  "types": [
+    {
+      "id": 0,
+      "type": {
+        "def": {
+          "primitive": "u128"
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "V",
+            "type": 0
+          },
+          {
+            "name": "KeyType",
+            "type": 2
+          }
+        ],
+        "path": ["ink_storage", "lazy", "Lazy"]
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 3
+          },
+          {
+            "name": "R",
+            "type": 5
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 3,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 4,
+      "type": {
+        "def": {
+          "tuple": []
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 6,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "K",
+            "type": 7
+          },
+          {
+            "name": "V",
+            "type": 0
+          },
+          {
+            "name": "KeyType",
+            "type": 10
+          }
+        ],
+        "path": ["ink_storage", "lazy", "mapping", "Mapping"]
+      }
+    },
+    {
+      "id": 7,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 8,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "types", "AccountId"]
+      }
+    },
+    {
+      "id": 8,
+      "type": {
+        "def": {
+          "array": {
+            "len": 32,
+            "type": 9
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": {
+        "def": {
+          "primitive": "u8"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 11
+          },
+          {
+            "name": "R",
+            "type": 12
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 11,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 12,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 13,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "K",
+            "type": 14
+          },
+          {
+            "name": "V",
+            "type": 0
+          },
+          {
+            "name": "KeyType",
+            "type": 15
+          }
+        ],
+        "path": ["ink_storage", "lazy", "mapping", "Mapping"]
+      }
+    },
+    {
+      "id": 14,
+      "type": {
+        "def": {
+          "tuple": [7, 7]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 16
+          },
+          {
+            "name": "R",
+            "type": 17
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 16,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 17,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 18,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "K",
+            "type": 14
+          },
+          {
+            "name": "V",
+            "type": 0
+          },
+          {
+            "name": "KeyType",
+            "type": 19
+          }
+        ],
+        "path": ["ink_storage", "lazy", "mapping", "Mapping"]
+      }
+    },
+    {
+      "id": 19,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 20
+          },
+          {
+            "name": "R",
+            "type": 21
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 20,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 21,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 22,
+      "type": {
+        "def": {
+          "primitive": "str"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "V",
+            "type": 24
+          },
+          {
+            "name": "KeyType",
+            "type": 25
+          }
+        ],
+        "path": ["ink_storage", "lazy", "Lazy"]
+      }
+    },
+    {
+      "id": 24,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 22
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 22
+          }
+        ],
+        "path": ["Option"]
+      }
+    },
+    {
+      "id": 25,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 26
+          },
+          {
+            "name": "R",
+            "type": 27
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 26,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 27,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 28,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "V",
+            "type": 24
+          },
+          {
+            "name": "KeyType",
+            "type": 29
+          }
+        ],
+        "path": ["ink_storage", "lazy", "Lazy"]
+      }
+    },
+    {
+      "id": 29,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 30
+          },
+          {
+            "name": "R",
+            "type": 31
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 30,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 31,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 32,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "V",
+            "type": 9
+          },
+          {
+            "name": "KeyType",
+            "type": 33
+          }
+        ],
+        "path": ["ink_storage", "lazy", "Lazy"]
+      }
+    },
+    {
+      "id": 33,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 34
+          },
+          {
+            "name": "R",
+            "type": 35
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 34,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 35,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 4
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 36,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "psp22",
+                "type": 37,
+                "typeName": "<psp22::PSP22Data as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<417606083u32, ()>,>>::Type"
+              },
+              {
+                "name": "abacus_token",
+                "type": 38,
+                "typeName": "<AbacusTokenStorage as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1991947297u32, ()>,>>::Type"
+              },
+              {
+                "name": "metadata",
+                "type": 39,
+                "typeName": "<psp22::metadata::PSP22MetadataData as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<2882357162u32,\n()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": ["v_token", "v_token", "VToken"]
+      }
+    },
+    {
+      "id": 37,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "total_supply",
+                "type": 1,
+                "typeName": "<::ink::storage::Lazy<Balance,::ink::storage::traits::\nManualKey<STORAGE_KEY_PSP22DATA_TOTAL_SUPPLY>> as::ink::storage::\ntraits::AutoStorableHint<::ink::storage::traits::ManualKey<\n2948691470u32, ()>,>>::Type"
+              },
+              {
+                "name": "balances",
+                "type": 6,
+                "typeName": "<Mapping<AccountId, Balance,::ink::storage::traits::ManualKey<\nSTORAGE_KEY_PSP22DATA_BALANCES>> as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<1170687700u32,\n()>,>>::Type"
+              },
+              {
+                "name": "allowances",
+                "type": 13,
+                "typeName": "<Mapping<(AccountId, AccountId), Balance,::ink::storage::traits::\nManualKey<STORAGE_KEY_PSP22DATA_ALLOWANCES>> as::ink::storage::\ntraits::AutoStorableHint<::ink::storage::traits::ManualKey<\n15709089u32, ()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": ["pendzl_contracts", "token", "psp22", "implementation", "PSP22Data"]
+      }
+    },
+    {
+      "id": 38,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "lending_pool",
+                "type": 7,
+                "typeName": "<pendzl::traits::AccountId as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<2782099813u32,\n()>,>>::Type"
+              },
+              {
+                "name": "underlying_asset",
+                "type": 7,
+                "typeName": "<pendzl::traits::AccountId as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<2984070072u32,\n()>,>>::Type"
+              },
+              {
+                "name": "allowances",
+                "type": 18,
+                "typeName": "<Mapping<(AccountId, AccountId), Balance,::ink::storage::traits::\nManualKey<STORAGE_KEY_ABACUSTOKENSTORAGE_ALLOWANCES>> as::ink::storage\n::traits::AutoStorableHint<::ink::storage::traits::ManualKey<\n1070055618u32, ()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": ["abax_contracts", "abacus_token", "implementation", "storage", "AbacusTokenStorage"]
+      }
+    },
+    {
+      "id": 39,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "name",
+                "type": 23,
+                "typeName": "<::ink::storage::Lazy<Option<String>,::ink::storage::traits\n::ManualKey<STORAGE_KEY_PSP22METADATADATA_NAME>> as::ink::storage::\ntraits::AutoStorableHint<::ink::storage::traits::ManualKey<\n3194321569u32, ()>,>>::Type"
+              },
+              {
+                "name": "symbol",
+                "type": 28,
+                "typeName": "<::ink::storage::Lazy<Option<String>,::ink::storage::traits\n::ManualKey<STORAGE_KEY_PSP22METADATADATA_SYMBOL>> as::ink::storage\n::traits::AutoStorableHint<::ink::storage::traits::ManualKey<\n4160644838u32, ()>,>>::Type"
+              },
+              {
+                "name": "decimals",
+                "type": 32,
+                "typeName": "<::ink::storage::Lazy<u8,::ink::storage::traits::ManualKey<\nSTORAGE_KEY_PSP22METADATADATA_DECIMALS>> as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<506484671u32, ()\n>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": ["pendzl_contracts", "token", "psp22", "extensions", "metadata", "implementation", "PSP22MetadataData"]
+      }
+    },
+    {
+      "id": 40,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 41
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          },
+          {
+            "name": "E",
+            "type": 41
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 41,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 1,
+                "name": "CouldNotReadInput"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "LangError"]
+      }
+    },
+    {
+      "id": 42,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 43
+          }
+        }
+      }
+    },
+    {
+      "id": 43,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "from",
+                "type": 44,
+                "typeName": "Option<AccountId>"
+              },
+              {
+                "name": "to",
+                "type": 44,
+                "typeName": "Option<AccountId>"
+              },
+              {
+                "name": "amount",
+                "type": 0,
+                "typeName": "Balance"
+              }
+            ]
+          }
+        },
+        "path": ["abax_contracts", "abacus_token", "structs", "TransferEventData"]
+      }
+    },
+    {
+      "id": 44,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 7
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 7
+          }
+        ],
+        "path": ["Option"]
+      }
+    },
+    {
+      "id": 45,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 46
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 41
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 46
+          },
+          {
+            "name": "E",
+            "type": 41
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 46,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 47
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          },
+          {
+            "name": "E",
+            "type": 47
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 47,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 22,
+                    "typeName": "String"
+                  }
+                ],
+                "index": 0,
+                "name": "Custom"
+              },
+              {
+                "index": 1,
+                "name": "InsufficientBalance"
+              },
+              {
+                "index": 2,
+                "name": "InsufficientAllowance"
+              },
+              {
+                "index": 3,
+                "name": "ZeroRecipientAddress"
+              },
+              {
+                "index": 4,
+                "name": "ZeroSenderAddress"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 22,
+                    "typeName": "String"
+                  }
+                ],
+                "index": 5,
+                "name": "SafeTransferCheckFailed"
+              },
+              {
+                "index": 6,
+                "name": "PermitInvalidSignature"
+              },
+              {
+                "index": 7,
+                "name": "PermitExpired"
+              }
+            ]
+          }
+        },
+        "path": ["pendzl_contracts", "token", "psp22", "PSP22Error"]
+      }
+    },
+    {
+      "id": 48,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 7
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 41
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 7
+          },
+          {
+            "name": "E",
+            "type": 41
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 49,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 0
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 41
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 0
+          },
+          {
+            "name": "E",
+            "type": 41
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 50,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 9
+          }
+        }
+      }
+    },
+    {
+      "id": 51,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 24
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 41
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 24
+          },
+          {
+            "name": "E",
+            "type": 41
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 52,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 9
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 41
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 9
+          },
+          {
+            "name": "E",
+            "type": 41
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 53,
+      "type": {
+        "def": {
+          "primitive": "u32"
+        }
+      }
+    },
+    {
+      "id": 54,
+      "type": {
+        "def": {
+          "primitive": "bool"
+        }
+      }
+    },
+    {
+      "id": 55,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "target_ur_e6",
+                "type": 53,
+                "typeName": "u32"
+              },
+              {
+                "name": "min_rate_at_target_e18",
+                "type": 56,
+                "typeName": "u64"
+              },
+              {
+                "name": "max_rate_at_target_e18",
+                "type": 56,
+                "typeName": "u64"
+              },
+              {
+                "name": "rate_at_max_ur_e18",
+                "type": 56,
+                "typeName": "u64"
+              },
+              {
+                "name": "minimal_time_between_adjustments",
+                "type": 56,
+                "typeName": "u64"
+              }
+            ]
+          }
+        },
+        "path": ["abax_library", "structs", "interest_rate_model", "InterestRateModelParams"]
+      }
+    },
+    {
+      "id": 56,
+      "type": {
+        "def": {
+          "primitive": "u64"
+        }
+      }
+    },
+    {
+      "id": 57,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "maximal_total_deposit",
+                "type": 58,
+                "typeName": "Option<Balance>"
+              },
+              {
+                "name": "maximal_total_debt",
+                "type": 58,
+                "typeName": "Option<Balance>"
+              },
+              {
+                "name": "minimal_collateral",
+                "type": 0,
+                "typeName": "Balance"
+              },
+              {
+                "name": "minimal_debt",
+                "type": 0,
+                "typeName": "Balance"
+              }
+            ]
+          }
+        },
+        "path": ["abax_library", "structs", "reserve_restrictions", "ReserveRestrictions"]
+      }
+    },
+    {
+      "id": 58,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 0
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 0
+          }
+        ],
+        "path": ["Option"]
+      }
+    },
+    {
+      "id": 59,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "debt_fee_e6",
+                "type": 53,
+                "typeName": "u32"
+              },
+              {
+                "name": "deposit_fee_e6",
+                "type": 53,
+                "typeName": "u32"
+              }
+            ]
+          }
+        },
+        "path": ["abax_contracts", "lending_pool", "traits", "lending_pool_manage", "SetReserveFeesArgs"]
+      }
+    },
+    {
+      "id": 60,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 8,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "types", "Hash"]
+      }
+    },
+    {
+      "id": 61,
+      "type": {
+        "def": {
+          "variant": {}
+        },
+        "path": ["ink_env", "types", "NoChainExtension"]
+      }
+    }
+  ],
+  "version": 5
+}

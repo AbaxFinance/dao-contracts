@@ -1,0 +1,53 @@
+[package]
+name = "configure_initial_market_proposal"
+version = "0.1.0"
+authors = [""]
+edition = "2021"
+
+[dependencies]
+ink = { version = "5.0.0", default-features = false }
+
+scale = { package = "parity-scale-codec", version = "3.6.9", default-features = false, features = [
+    "derive",
+] }
+scale-info = { version = "2.11", default-features = false, features = [
+    "derive",
+], optional = true }
+
+pendzl = { version = "1.0.1-v1calls", default-features = false, features = [
+    "psp22",
+    "psp22_metadata",
+    "access_control",
+] }
+
+hex-literal = { version = "0.3.4", default-features = false }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+
+
+abax_contracts = { version = "1.0.0", default-features = false }
+abax_library = { version = "1.0.0", default-features = false }
+
+[lib]
+name = "configure_initial_market_proposal"
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info",
+    "scale-info/std",
+
+    "abax_contracts/std",
+    "pendzl/std",
+]
+ink-as-dependency = []
+
+[profile.dev]
+codegen-units = 16
+panic = "abort"
+lto = false
+[profile.release]
+panic = "abort"
+lto = false

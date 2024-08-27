@@ -22,6 +22,7 @@ import {
   VOTING_RULES,
 } from './00_constants';
 import AbaxInflatorDeployer from 'typechain/deployers/abax_inflator';
+import { SEED } from 'scripts/mainnetDeployment/cfg_seed';
 
 export interface StoredContractInfo {
   name: string;
@@ -40,8 +41,6 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
   if (require.main !== module) return;
   const wsEndpoint = process.env.WS_ENDPOINT;
   if (!wsEndpoint) throw 'could not determine wsEndpoint';
-  const seed = process.env.SEED;
-  if (!seed) throw 'could not determine seed';
 
   const api = await getApiProviderWrapper(wsEndpoint).getAndWaitForReady();
 
@@ -49,7 +48,7 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
   console.log(new Date(parseInt(timestamp.toString())));
 
   const keyring = new Keyring();
-  const deployer = keyring.createFromUri(seed, {}, 'sr25519'); // getSigners()[0];
+  const deployer = keyring.createFromUri(SEED, {}, 'sr25519'); // getSigners()[0];
 
   console.log('Deployer:', deployer.address);
 
@@ -106,7 +105,7 @@ export const saveContractInfoToFileAsJson = async (contractInfos: StoredContract
     COST_TO_MINT_MILLIARD_TOKENS,
   );
   console.log(`Deployed TGE at ${abaxTge.address}`);
-  console.log('TGE START TIME:', new Date(TGE_START_TIME), 'ISO:', new Date(TGE_START_TIME).toISOString());
+  console.log('TGE START TIME:', new Date(TGE_START_TIME), 'ISO:', new Date(TGE_START_TIME).toISOString(), 'as number', TGE_START_TIME);
 
   //inflator is deployed
   const { result: inflatorResult, contract: inflator } = await new AbaxInflatorDeployer(api, deployer).new(governor.address, abaxToken.address, [

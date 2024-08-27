@@ -4,3 +4,7 @@ import { readFileSync } from 'fs-extra';
 export const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 'utf-8')) as StoredContractInfo[]).find(
   (contract) => contract.name === 'abax_tge',
 )!.address;
+
+export const GOVERNOR_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 'utf-8')) as StoredContractInfo[]).find(
+  (contract) => contract.name === 'abax_governor',
+)!.address;

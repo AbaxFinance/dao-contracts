@@ -22,7 +22,10 @@ script -efq $SCRIPT_DIR/mocha.testrun.log -c \
 end_time=$(date +%s.%3N)
 elapsed=$(echo "scale=3; $end_time - $start_time" | bc)
 echo "Test execution took $elapsed seconds"
-npx tsx $SCRIPT_DIR/scripts/fixupNodeLog.ts $SCRIPT_DIR/substrate-contracts-node.testrun.log
 kill $NODE_PID
 
 rm -rf test-chain-state-tmp
+
+
+## remove all docker containers starting with name ink-verified
+docker ps -a | grep ink-verified | awk '{print $1}' | xargs docker rm -f

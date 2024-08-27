@@ -5,6 +5,7 @@ set -e
 export WS_ENDPOINT="wss://ws.azero.dev"
 
 run_cmd() {
+    set -e
     echo "Running: $1"
     # filter output to not include CONTRACT: Unable to decode contract event: Unable to determine event
     eval $1 2>&1 | grep -v "CONTRACT: Unable to decode contract event: Unable to determine event"

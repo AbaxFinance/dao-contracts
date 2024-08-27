@@ -9,6 +9,7 @@ import { readFileSync } from 'fs-extra';
 import { DEPLOYED_CONTRACTS_INFO_PATH, StoredContractInfo } from 'scripts/mainnetDeployment/10_deployContracts';
 import { roleToSelectorId } from 'tests/misc';
 import { BONUS_LIST } from './01_bonusList';
+import { SEED } from 'scripts/mainnetDeployment/cfg_seed';
 
 const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 'utf-8')) as StoredContractInfo[]).find(
   (contract) => contract.name === 'abax_tge',
@@ -18,8 +19,7 @@ const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 
   if (require.main !== module) return;
   const wsEndpoint = process.env.WS_ENDPOINT;
   if (!wsEndpoint) throw 'could not determine wsEndpoint';
-  const seed = process.env.SEED;
-  if (!seed) throw 'could not determine seed';
+  const seed = SEED;
 
   const api = await getApiProviderWrapper(wsEndpoint).getAndWaitForReady();
 
@@ -38,9 +38,14 @@ const ABAX_TGE_ADDRESS = (JSON.parse(readFileSync(DEPLOYED_CONTRACTS_INFO_PATH, 
 
   let completedElements = 0;
   let lastLoggedProgress = -1;
-  for (const element of BONUS_LIST) {
+  // for (const element of BONUS_LIST) {
+  for (let i = 0; i < BONUS_LIST.length; i++) {
+    const element = BONUS_LIST[i];
     const { address, xp } = element;
-    for (const account of address) {
+    // for (const account of address) {
+    for (let j = 0; j < address.length; j++) {
+      const account = address[j];
+      console.log('processing i', i, 'j', j, 'account', account);
       await abaxTge.tx.setExpBonusMultiplierE3(account, xp);
 
       completedElements++;

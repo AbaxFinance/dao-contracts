@@ -1,0 +1,1185 @@
+{
+  "source": {
+    "hash": "0x727d9007be848766ce284403b3bbfa6705d25fa4791db86f8d75e4757c19f3f2",
+    "language": "ink! 5.0.0",
+    "compiler": "rustc 1.77.2",
+    "build_info": {
+      "build_mode": "Release",
+      "cargo_contract_version": "4.1.1",
+      "rust_toolchain": "stable-x86_64-unknown-linux-gnu",
+      "wasm_opt_settings": {
+        "keep_debug_symbols": false,
+        "optimization_passes": "Z"
+      }
+    }
+  },
+  "contract": {
+    "name": "test_reserves_minter",
+    "version": "0.2.0",
+    "authors": ["Łukasz Łakomy", "Konrad Wierzbik"]
+  },
+  "image": "paritytech/contracts-verifiable:4.1.1",
+  "spec": {
+    "constructors": [
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "new",
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink_primitives", "ConstructorResult"],
+          "type": 17
+        },
+        "selector": "0x9bae9d5e"
+      }
+    ],
+    "docs": [],
+    "environment": {
+      "accountId": {
+        "displayName": ["AccountId"],
+        "type": 0
+      },
+      "balance": {
+        "displayName": ["Balance"],
+        "type": 21
+      },
+      "blockNumber": {
+        "displayName": ["BlockNumber"],
+        "type": 31
+      },
+      "chainExtension": {
+        "displayName": ["ChainExtension"],
+        "type": 34
+      },
+      "hash": {
+        "displayName": ["Hash"],
+        "type": 32
+      },
+      "maxEventTopics": 4,
+      "staticBufferSize": 16384,
+      "timestamp": {
+        "displayName": ["Timestamp"],
+        "type": 33
+      }
+    },
+    "events": [
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` for which the admin role is changed. This is the role being modified."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 31
+            }
+          },
+          {
+            "docs": ["The `RoleType` representing the previous admin role for the `role`. Indicates the admin role before the change."],
+            "indexed": false,
+            "label": "previous",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 31
+            }
+          },
+          {
+            "docs": ["The `RoleType` representing the new admin role set for the `role`. Indicates the updated admin role."],
+            "indexed": false,
+            "label": "new",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 31
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when the admin role for a specific role is changed.",
+          "",
+          "This event is triggered whenever a `role`'s admin role is updated.",
+          "It logs the `role` being modified, the `previous` admin role, and the `new` admin role set for that `role`."
+        ],
+        "label": "RoleAdminChanged",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0xde670cace683976bfdc92b54b661961802f8322e8cead41fd76e5d7ca65dc403"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` that is granted. This field identifies the specific role being assigned."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 31
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account receiving the `role`. Represents the beneficiary of the role assignment."],
+            "indexed": true,
+            "label": "grantee",
+            "type": {
+              "displayName": ["Option"],
+              "type": 4
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account that granted the `role`. This is the account responsible for the role assignment."],
+            "indexed": true,
+            "label": "grantor",
+            "type": {
+              "displayName": ["Option"],
+              "type": 4
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a role is granted to an account.",
+          "",
+          "This event occurs when a new `role` is assigned to an `grantee`.",
+          "The `grantor` who assigned the role is also logged."
+        ],
+        "label": "RoleGranted",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0x4178b665aa7310f609a3da6698348eabe212f3b0bd0386791eeae4924095b76b"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The `RoleType` that is revoked. Specifies the role being removed from the account."],
+            "indexed": true,
+            "label": "role",
+            "type": {
+              "displayName": ["RoleType"],
+              "type": 31
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account from which the `role` is being removed. Denotes the account losing the role."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["Option"],
+              "type": 4
+            }
+          },
+          {
+            "docs": ["The `AccountId` of the account that performed the role revocation. Indicates who initiated the removal of the role."],
+            "indexed": true,
+            "label": "sender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Emitted when a role is revoked from an account.",
+          "",
+          "This event is triggered when an existing `role` is removed from an `account`.",
+          "The `sender` who performed the revocation is also included."
+        ],
+        "label": "RoleRevoked",
+        "module_path": "pendzl_contracts::access::access_control",
+        "signature_topic": "0x00d57dbcb9a54f822039e86efe3513a9af40deb0e6a9ee6cecf39824f8d27e9b"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account that initiated the pause action."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": ["Emitted when the contract is paused."],
+        "label": "Paused",
+        "module_path": "pendzl_contracts::security::pausable",
+        "signature_topic": "0xcb560a184d13b48ac1ecc804d19fa57a64ef4facd0819dcac22a969c20fec081"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account that initiated the unpause action."],
+            "indexed": true,
+            "label": "account",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 0
+            }
+          }
+        ],
+        "docs": ["Emitted when the contract is unpaused."],
+        "label": "Unpaused",
+        "module_path": "pendzl_contracts::security::pausable",
+        "signature_topic": "0x29f037cd7cf467977af6c1d02a3c4ab9c868bb6ce539c0d87ea507d594709d41"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account from which the tokens are transferred. `None` for minting operations."],
+            "indexed": true,
+            "label": "from",
+            "type": {
+              "displayName": ["Option"],
+              "type": 4
+            }
+          },
+          {
+            "docs": ["The account to which the tokens are transferred. `None` for burning operations."],
+            "indexed": true,
+            "label": "to",
+            "type": {
+              "displayName": ["Option"],
+              "type": 4
+            }
+          },
+          {
+            "docs": ["The amount of tokens transferred."],
+            "indexed": false,
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 21
+            }
+          }
+        ],
+        "docs": ["Emitted when tokens are transferred, including zero value transfers."],
+        "label": "Transfer",
+        "module_path": "pendzl_contracts::token::psp22",
+        "signature_topic": "0xb5b61a3e6a21a16be4f044b517c28ac692492f73c5bfd3f60178ad98c767f4cb"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The account of the token owner."],
+            "indexed": true,
+            "label": "owner",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 0
+            }
+          },
+          {
+            "docs": ["The account of the authorized spender."],
+            "indexed": true,
+            "label": "spender",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 0
+            }
+          },
+          {
+            "docs": ["The new allowance amount."],
+            "indexed": false,
+            "label": "value",
+            "type": {
+              "displayName": ["Balance"],
+              "type": 21
+            }
+          }
+        ],
+        "docs": ["Emitted when the allowance of a `spender` for an `owner` is set or changed."],
+        "label": "Approval",
+        "module_path": "pendzl_contracts::token::psp22",
+        "signature_topic": "0x1a35e726f5feffda199144f6097b2ba23713e549bfcbe090c0981e3bcdfbcc1d"
+      },
+      {
+        "args": [
+          {
+            "docs": ["The new owner's account address. `None` if ownership is renounced."],
+            "indexed": true,
+            "label": "new",
+            "type": {
+              "displayName": ["Option"],
+              "type": 4
+            }
+          }
+        ],
+        "docs": ["Emitted when ownership of the contract is transferred."],
+        "label": "OwnershipTransferred",
+        "module_path": "pendzl_contracts::access::ownable",
+        "signature_topic": "0x5c626481ee232181dcfad24632520cc98608b23ed971378c0ad4504cab1b78c9"
+      }
+    ],
+    "lang_error": {
+      "displayName": ["ink", "LangError"],
+      "type": 18
+    },
+    "messages": [
+      {
+        "args": [
+          {
+            "label": "addreses_with_amounts",
+            "type": {
+              "displayName": ["Vec"],
+              "type": 19
+            }
+          },
+          {
+            "label": "to",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 0
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "mint",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 22
+        },
+        "selector": "0xcfdd9aa2"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "Ownable::owner",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 28
+        },
+        "selector": "0x4fa43c8c"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [],
+        "label": "Ownable::renounce_ownership",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 29
+        },
+        "selector": "0x5e228753"
+      },
+      {
+        "args": [
+          {
+            "label": "new_owner",
+            "type": {
+              "displayName": ["AccountId"],
+              "type": 0
+            }
+          }
+        ],
+        "default": false,
+        "docs": [],
+        "label": "Ownable::transfer_ownership",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": ["ink", "MessageResult"],
+          "type": 29
+        },
+        "selector": "0x11f43efd"
+      }
+    ]
+  },
+  "storage": {
+    "root": {
+      "layout": {
+        "struct": {
+          "fields": [
+            {
+              "layout": {
+                "struct": {
+                  "fields": [
+                    {
+                      "layout": {
+                        "root": {
+                          "layout": {
+                            "enum": {
+                              "dispatchKey": "0xd3667295",
+                              "name": "Option",
+                              "variants": {
+                                "0": {
+                                  "fields": [],
+                                  "name": "None"
+                                },
+                                "1": {
+                                  "fields": [
+                                    {
+                                      "layout": {
+                                        "leaf": {
+                                          "key": "0xd3667295",
+                                          "ty": 0
+                                        }
+                                      },
+                                      "name": "0"
+                                    }
+                                  ],
+                                  "name": "Some"
+                                }
+                              }
+                            }
+                          },
+                          "root_key": "0xd3667295",
+                          "ty": 3
+                        }
+                      },
+                      "name": "owner"
+                    }
+                  ],
+                  "name": "OwnableData"
+                }
+              },
+              "name": "ownable"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 9
+                }
+              },
+              "name": "reserves_to_mint"
+            },
+            {
+              "layout": {
+                "root": {
+                  "layout": {
+                    "leaf": {
+                      "key": "0xd43f934e",
+                      "ty": 10
+                    }
+                  },
+                  "root_key": "0xd43f934e",
+                  "ty": 11
+                }
+              },
+              "name": "already_minted"
+            }
+          ],
+          "name": "TestReservesMinter"
+        }
+      },
+      "root_key": "0x00000000",
+      "ty": 15
+    }
+  },
+  "types": [
+    {
+      "id": 0,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 1,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "types", "AccountId"]
+      }
+    },
+    {
+      "id": 1,
+      "type": {
+        "def": {
+          "array": {
+            "len": 32,
+            "type": 2
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "def": {
+          "primitive": "u8"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "V",
+            "type": 4
+          },
+          {
+            "name": "KeyType",
+            "type": 5
+          }
+        ],
+        "path": ["ink_storage", "lazy", "Lazy"]
+      }
+    },
+    {
+      "id": 4,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 0
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 0
+          }
+        ],
+        "path": ["Option"]
+      }
+    },
+    {
+      "id": 5,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 6
+          },
+          {
+            "name": "R",
+            "type": 8
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 6,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 7
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 7,
+      "type": {
+        "def": {
+          "tuple": []
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 7
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 9,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 0
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": {
+        "def": {
+          "primitive": "bool"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "K",
+            "type": 0
+          },
+          {
+            "name": "V",
+            "type": 10
+          },
+          {
+            "name": "KeyType",
+            "type": 12
+          }
+        ],
+        "path": ["ink_storage", "lazy", "mapping", "Mapping"]
+      }
+    },
+    {
+      "id": 12,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "L",
+            "type": 13
+          },
+          {
+            "name": "R",
+            "type": 14
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ResolverKey"]
+      }
+    },
+    {
+      "id": 13,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "path": ["ink_storage_traits", "impls", "AutoKey"]
+      }
+    },
+    {
+      "id": 14,
+      "type": {
+        "def": {
+          "composite": {}
+        },
+        "params": [
+          {
+            "name": "ParentKey",
+            "type": 7
+          }
+        ],
+        "path": ["ink_storage_traits", "impls", "ManualKey"]
+      }
+    },
+    {
+      "id": 15,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "ownable",
+                "type": 16,
+                "typeName": "<ownable::OwnableData as::ink::storage::traits::AutoStorableHint<\n::ink::storage::traits::ManualKey<244643899u32, ()>,>>::Type"
+              },
+              {
+                "name": "reserves_to_mint",
+                "type": 9,
+                "typeName": "<Vec<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<2312818774u32, ()>,>>::Type"
+              },
+              {
+                "name": "already_minted",
+                "type": 11,
+                "typeName": "<Mapping<AccountId, bool> as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<1318272980u32,\n()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": ["test_reserves_minter", "test_psp22", "TestReservesMinter"]
+      }
+    },
+    {
+      "id": 16,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "owner",
+                "type": 3,
+                "typeName": "<::ink::storage::Lazy<Option<AccountId>,::ink::storage::\ntraits::ManualKey<STORAGE_KEY_OWNABLEDATA_OWNER>> as::ink::storage\n::traits::AutoStorableHint<::ink::storage::traits::ManualKey<\n1502786585u32, ()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": ["pendzl_contracts", "access", "ownable", "implementation", "OwnableData"]
+      }
+    },
+    {
+      "id": 17,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 7
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 18
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 7
+          },
+          {
+            "name": "E",
+            "type": 18
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 18,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 1,
+                "name": "CouldNotReadInput"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "LangError"]
+      }
+    },
+    {
+      "id": 19,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 20
+          }
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": {
+        "def": {
+          "tuple": [0, 21]
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": {
+        "def": {
+          "primitive": "u128"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 23
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 18
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 23
+          },
+          {
+            "name": "E",
+            "type": 18
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 23,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 7
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 24
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 7
+          },
+          {
+            "name": "E",
+            "type": 24
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 24,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 25,
+                    "typeName": "OwnableError"
+                  }
+                ],
+                "index": 0,
+                "name": "OwnableError"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 26,
+                    "typeName": "PSP22Error"
+                  }
+                ],
+                "index": 1,
+                "name": "PSP22Error"
+              },
+              {
+                "index": 2,
+                "name": "AlreadyMinted"
+              }
+            ]
+          }
+        },
+        "path": ["test_reserves_minter", "test_psp22", "TestReservesMinterError"]
+      }
+    },
+    {
+      "id": 25,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "CallerIsNotOwner"
+              }
+            ]
+          }
+        },
+        "path": ["pendzl_contracts", "access", "ownable", "OwnableError"]
+      }
+    },
+    {
+      "id": 26,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 27,
+                    "typeName": "String"
+                  }
+                ],
+                "index": 0,
+                "name": "Custom"
+              },
+              {
+                "index": 1,
+                "name": "InsufficientBalance"
+              },
+              {
+                "index": 2,
+                "name": "InsufficientAllowance"
+              },
+              {
+                "index": 3,
+                "name": "ZeroRecipientAddress"
+              },
+              {
+                "index": 4,
+                "name": "ZeroSenderAddress"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27,
+                    "typeName": "String"
+                  }
+                ],
+                "index": 5,
+                "name": "SafeTransferCheckFailed"
+              },
+              {
+                "index": 6,
+                "name": "PermitInvalidSignature"
+              },
+              {
+                "index": 7,
+                "name": "PermitExpired"
+              }
+            ]
+          }
+        },
+        "path": ["pendzl_contracts", "token", "psp22", "PSP22Error"]
+      }
+    },
+    {
+      "id": 27,
+      "type": {
+        "def": {
+          "primitive": "str"
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 18
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          },
+          {
+            "name": "E",
+            "type": 18
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 29,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 30
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 18
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 30
+          },
+          {
+            "name": "E",
+            "type": 18
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 30,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 7
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 25
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 7
+          },
+          {
+            "name": "E",
+            "type": 25
+          }
+        ],
+        "path": ["Result"]
+      }
+    },
+    {
+      "id": 31,
+      "type": {
+        "def": {
+          "primitive": "u32"
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 1,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": ["ink_primitives", "types", "Hash"]
+      }
+    },
+    {
+      "id": 33,
+      "type": {
+        "def": {
+          "primitive": "u64"
+        }
+      }
+    },
+    {
+      "id": 34,
+      "type": {
+        "def": {
+          "variant": {}
+        },
+        "path": ["ink_env", "types", "NoChainExtension"]
+      }
+    }
+  ],
+  "version": 5
+}
