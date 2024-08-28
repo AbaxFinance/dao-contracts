@@ -10,9 +10,7 @@
     "./src/contracts/test_purpose/abax_token_v2/Cargo.toml",
     "./src/contracts/test_purpose/flipper/Cargo.toml",
     "./src/contracts/test_purpose/psp22_emitable/Cargo.toml",
-    "./src/contracts/test_purpose/wazero/Cargo.toml",
-    "./src/contracts/proposals/configure_initial_market_proposal/Cargo.toml",
-    "./src/contracts/proposals/initial_pool_config_proposal/Cargo.toml"
+    "./src/contracts/test_purpose/wazero/Cargo.toml"
   ],
   "rust-analyzer.showUnlinkedFileNotification": true,
   "rust-analyzer.cargo.features": "all"
