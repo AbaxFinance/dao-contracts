@@ -16,21 +16,21 @@
     "address": "5HneVWMHtH9ejQWxxSEAZmcwzM9EyXFATdegUa4fpAHBHeYD",
     "txHash": "0xf468dcf6aabbed9fd0d5f6cf6e00a8c20a3cdb08d460e18cc93bb514d9fd6fd1",
     "blockHash": "0x51248373b337de05fcfc79b4e711f95d0847143d33e464e06d509cf93c53def1",
-    "vestingFor": "treasury"
+    "vestingFor": "abax_treasury"
   },
   {
     "name": "abax_vester",
     "address": "5D7K6sh5yJSoVeo62765KCkqBqpLbL3zS6MFvaZfT9nn5YLC",
     "txHash": "0xfa621473d188bb29f7c957f4b291221ba8b3d28b915bbb85662cee368980a2a8",
     "blockHash": "0xdcb573de51d24d240cb06370c1042af9821ab9dada2e3583793f1f314cb51046",
-    "vestingFor": "governor"
+    "vestingFor": "abax_governor"
   },
   {
     "name": "abax_vester",
     "address": "5CMYw3jcFJuWdSvaPjheHWnnRx6Q5yCci5UYZkxHsSKMhLCK",
     "txHash": "0xfaed1c328c359a8b84333cf07c016458c6595017d1a8fefe966902dbfef774c3",
     "blockHash": "0xdf3114b009619a29877ea9248eb33e87a7cd3a8f85c7396f82359501b69c2755",
-    "vestingFor": "tge"
+    "vestingFor": "abax_tge"
   },
   {
     "name": "abax_governor",

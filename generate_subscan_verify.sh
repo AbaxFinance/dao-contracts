@@ -10,8 +10,6 @@ cargo_toml_locations=(
     "$root_dir/src/contracts/abax_token/Cargo.toml",
     "$root_dir/src/contracts/abax_treasury/Cargo.toml"
     "$root_dir/src/contracts/abax_vester/Cargo.toml"
-    "$root_dir/src/contracts/test_purpose/initial_pool_config_proposal/Cargo.toml"
-    "$root_dir/src/contracts/test_purpose/configure_initial_market_proposal/Cargo.toml"
 )
 
 for cargo_toml in "${cargo_toml_locations[@]}"

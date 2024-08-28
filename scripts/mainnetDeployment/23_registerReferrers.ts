@@ -8,13 +8,13 @@ import { expect } from 'chai';
 import { ABAX_TGE_ADDRESS } from 'scripts/mainnetDeployment/utils';
 import { roleToSelectorId } from 'tests/misc';
 import { REFERRER_LIST } from './03_referrerList';
-import { SEED } from 'scripts/mainnetDeployment/cfg_seed';
 
 (async () => {
   if (require.main !== module) return;
   const wsEndpoint = process.env.WS_ENDPOINT;
   if (!wsEndpoint) throw 'could not determine wsEndpoint';
-  const seed = SEED;
+  const seed = process.env.SEED;
+  if (!seed) throw 'could not determine seed';
 
   const api = await getApiProviderWrapper(wsEndpoint).getAndWaitForReady();
 
@@ -30,10 +30,7 @@ import { SEED } from 'scripts/mainnetDeployment/cfg_seed';
   expect(hasRole.value.ok).to.be.equal(true);
 
   for (const referrer of REFERRER_LIST) {
-    const isReferrer = (await abaxTge.query.isReferrer(referrer)).value!.ok!;
-    if (!isReferrer) {
-      await abaxTge.tx.registerReferrer(referrer);
-    }
+    await abaxTge.tx.registerReferrer(referrer);
   }
 
   for (const referrer of REFERRER_LIST) {

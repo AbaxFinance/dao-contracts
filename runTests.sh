@@ -25,7 +25,3 @@ echo "Test execution took $elapsed seconds"
 kill $NODE_PID
 
 rm -rf test-chain-state-tmp
-
-
-## remove all docker containers starting with name ink-verified
-docker ps -a | grep ink-verified | awk '{print $1}' | xargs docker rm -f
